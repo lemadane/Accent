@@ -881,9 +881,11 @@ sourceSets {
 }
 ```
 
-### 3. Configure the Jatot compile task
+### 3. Configure the Jatot Compile Task (Gradle or Maven)
 
-Add the Jatot transpiler task to your `build.gradle` so `.jatot` files are automatically compiled to Java during the build:
+#### For Gradle (`build.gradle`):
+
+Add the Jatot transpiler task so `.jatot` files in `src/main/jatot/` are automatically compiled to Java during `./gradlew build`:
 
 ```groovy
 tasks.register('compileJatot', JavaExec) {
@@ -904,6 +906,57 @@ tasks.register('compileJatot', JavaExec) {
 }
 
 compileJava.dependsOn compileJatot
+```
+
+#### For Maven (`pom.xml`):
+
+Add JitPack to your `<repositories>` and configure the `exec-maven-plugin` to run `JatotCli` during the `generate-sources` build phase:
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+
+<dependencies>
+    <dependency>
+        <groupId>com.github.lemadane</groupId>
+        <artifactId>jatot-lang</artifactId>
+        <version>v0.1.0-alpha.1</version>
+    </dependency>
+</dependencies>
+
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.1.0</version>
+            <executions>
+                <execution>
+                    <id>compile-jatot</id>
+                    <phase>generate-sources</phase>
+                    <goals>
+                        <goal>java</goal>
+                    </goals>
+                    <configuration>
+                        <mainClass>io.lemadane.jatot.cli.JatotCli</mainClass>
+                        <arguments>
+                            <argument>compile</argument>
+                            <argument>src/main/jatot</argument>
+                            <argument>-d</argument>
+                            <argument>${project.build.directory}/classes</argument>
+                            <argument>--save-java</argument>
+                            <argument>${project.build.directory}/generated-sources/jatot</argument>
+                        </arguments>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
 ```
 
 ### 4. Create and Use HTML Components in Spring Boot
