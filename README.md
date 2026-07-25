@@ -811,9 +811,29 @@ The build uses a Java 21 toolchain and compiles with `--release 21`.
 
 ## Using Jatot in Your Project
 
-Jatot is published to **GitHub Packages**. To use it as a dependency in a Gradle project (e.g. a Spring Boot project):
+Jatot can be added as a dependency to any Gradle or Spring Boot project.
 
-### 1. Add credentials
+### Option 1: Via JitPack (Recommended — No GitHub Token Required)
+
+JitPack allows using Jatot directly without setting up personal access token credentials:
+
+```groovy
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    // Core Jatot Compiler
+    implementation 'com.github.lemadane:jatot-lang:v0.1.0-alpha.1'
+}
+```
+
+---
+
+### Option 2: Via GitHub Packages
+
+#### 1. Add credentials
 
 You need a GitHub Personal Access Token with at least `read:packages` scope.
 Export it as environment variables (or store it in `~/.gradle/gradle.properties`):
@@ -829,7 +849,7 @@ githubActor=your_github_username
 githubToken=your_personal_access_token
 ```
 
-### 2. Configure `build.gradle`
+#### 2. Configure `build.gradle`
 
 ```groovy
 repositories {
