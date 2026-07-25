@@ -17,6 +17,7 @@ project(':tools:jatot-language-tools').projectDir = new File(settingsDir, 'tools
 include 'tools:jatot-language-server'
 project(':tools:jatot-language-server').projectDir = new File(settingsDir, 'tools/jatot-language-server')
 
-include 'tools:jatot-intellij'
-project(':tools:jatot-intellij').projectDir = new File(settingsDir, 'tools/jatot-intellij')
+// Temporarily disabled — Kotlin plugin incompatible with JDK 25
+// include 'tools:jatot-intellij'
+// project(':tools:jatot-intellij').projectDir = new File(settingsDir, 'tools/jatot-intellij')
 
