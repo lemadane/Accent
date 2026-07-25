@@ -63,7 +63,7 @@ tasks.register('compileJatot', JavaExec) {
     group = 'build'
     description = 'Compiles main Jatot source files to Java.'
     classpath = configurations.compilerClasspath
-    mainClass = 'io.jatot.cli.JatotCli'
+    mainClass = 'io.lemadane.jatot.cli.JatotCli'
     workingDir = myProjectDir
     
     doFirst {
@@ -88,7 +88,7 @@ tasks.register('compileTestJatot', JavaExec) {
     group = 'build'
     description = 'Compiles test Jatot source files to Java.'
     classpath = configurations.compilerClasspath
-    mainClass = 'io.jatot.cli.JatotCli'
+    mainClass = 'io.lemadane.jatot.cli.JatotCli'
     workingDir = myProjectDir
     
     doFirst {
@@ -112,5 +112,5 @@ tasks.register('runRoutingDemo', JavaExec) {
     group = 'application'
     description = 'Runs the routing and layout demo Spring Boot web application.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'io.jatot.html.demo.DemoApplication'
+    mainClass = 'io.lemadane.jatot.html.demo.DemoApplication'
 }

@@ -1,9 +1,9 @@
-package io.jatot.html.demo.routes.users._name;
+package io.lemadane.jatot.html.demo.routes.users._name;
 
-import io.jatot.html.Component;
-import io.jatot.html.Html;
-import io.jatot.html.demo.User;
-import io.jatot.html.demo.UserCard;
+import io.lemadane.jatot.html.Component;
+import io.lemadane.jatot.html.Html;
+import io.lemadane.jatot.html.demo.User;
+import io.lemadane.jatot.html.demo.UserCard;
 
 public record Page(User user) implements Component {
 

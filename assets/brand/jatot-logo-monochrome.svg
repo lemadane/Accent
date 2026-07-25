@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <circle cx="256" cy="256" r="185" fill="none" stroke="#FFFFFF" stroke-width="18" />
+  <g fill="#FFFFFF">
+    <path d="M 170 178 L 350 178 L 330 208 L 150 208 Z" />
+    <path d="M 195 208 L 240 208 L 220 272 C 214 290 196 316 166 316 L 138 316 L 174 286 L 182 286 C 194 286 203 276 206 262 Z" />
+    <path d="M 270 208 L 315 208 L 295 272 C 289 290 271 316 241 316 L 213 316 L 249 286 L 257 286 C 269 286 278 276 281 262 Z" />
+  </g>
+</svg>

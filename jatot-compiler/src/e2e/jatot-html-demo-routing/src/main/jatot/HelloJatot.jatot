@@ -1,4 +1,4 @@
-package io.jatot.html.demo;
+package io.lemadane.jatot.html.demo;
 
 import java.util.List;
 import java.util.ArrayList;

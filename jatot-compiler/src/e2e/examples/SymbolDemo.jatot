@@ -1,7 +1,7 @@
 package demo;
 
-import io.jatot.lang.Symbol;
-import io.jatot.lang.SymbolMap;
+import io.lemadane.jatot.lang.Symbol;
+import io.lemadane.jatot.lang.SymbolMap;
 
 public class SymbolDemo {
 

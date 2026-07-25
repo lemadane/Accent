@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>io.jatot.intellij</id>
+    <id>io.lemadane.jatot.intellij</id>
     <name>Jatot Language Support</name>
     <vendor email="support@jatot.io" url="https://jatot.io">Jatot Project</vendor>
 
@@ -12,17 +12,17 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Jatot"
-                  implementationClass="io.jatot.intellij.JatotFileType"
+                  implementationClass="io.lemadane.jatot.intellij.JatotFileType"
                   fieldName="INSTANCE"
                   extensions="jatot"/>
 
         <lang.commenter language="Jatot"
-                        implementationClass="io.jatot.intellij.JatotCommenter"/>
+                        implementationClass="io.lemadane.jatot.intellij.JatotCommenter"/>
 
         <lang.braceMatcher language="Jatot"
-                           implementationClass="io.jatot.intellij.JatotBraceMatcher"/>
+                           implementationClass="io.lemadane.jatot.intellij.JatotBraceMatcher"/>
 
         <completion.contributor language="Jatot"
-                                implementationClass="io.jatot.intellij.JatotCompletionContributor"/>
+                                implementationClass="io.lemadane.jatot.intellij.JatotCompletionContributor"/>
     </extensions>
 </idea-plugin>

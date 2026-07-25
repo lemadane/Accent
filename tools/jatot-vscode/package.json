@@ -3,7 +3,8 @@
   "displayName": "Jatot Language Support",
   "description": "IDE support for the Jatot programming language",
   "version": "0.1.0",
-  "publisher": "io.jatot",
+  "publisher": "io.lemadane.jatot",
+  "icon": "icons/jatot.png",
   "engines": {
     "vscode": "^1.75.0"
   },

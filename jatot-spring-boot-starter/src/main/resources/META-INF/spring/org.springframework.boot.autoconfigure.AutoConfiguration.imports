@@ -1,2 +1,2 @@
-io.jatot.logging.spring.boot.JatotLoggingAutoConfiguration
-io.jatot.html.spring.JatotHtmlAutoConfiguration
+io.lemadane.jatot.logging.spring.boot.JatotLoggingAutoConfiguration
+io.lemadane.jatot.html.spring.JatotHtmlAutoConfiguration

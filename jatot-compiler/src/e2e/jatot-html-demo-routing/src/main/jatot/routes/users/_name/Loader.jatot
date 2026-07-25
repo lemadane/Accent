@@ -1,6 +1,6 @@
-package io.jatot.html.demo.routes.users._name;
+package io.lemadane.jatot.html.demo.routes.users._name;
 
-import io.jatot.html.demo.User;
+import io.lemadane.jatot.html.demo.User;
 import java.util.List;
 
 public class Loader {

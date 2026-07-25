@@ -1,4 +1,4 @@
-package io.jatot.html.demo;
+package io.lemadane.jatot.html.demo;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;

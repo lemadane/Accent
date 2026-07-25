@@ -1,6 +1,6 @@
 package demo;
 
-import io.jatot.logging.Logging;
+import io.lemadane.jatot.logging.Logging;
 
 @Logging
 public class LoggingDemo {

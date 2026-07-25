@@ -1,7 +1,7 @@
-package io.jatot.html.demo;
+package io.lemadane.jatot.html.demo;
 
-import io.jatot.html.Component;
-import io.jatot.html.Html;
+import io.lemadane.jatot.html.Component;
+import io.lemadane.jatot.html.Html;
 
 public record UserCard(User user) implements Component {
 

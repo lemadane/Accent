@@ -1,8 +1,8 @@
-package io.jatot.html.demo.routes;
+package io.lemadane.jatot.html.demo.routes;
 
-import io.jatot.html.Component;
-import io.jatot.html.Html;
-import io.jatot.html.HtmlChildren;
+import io.lemadane.jatot.html.Component;
+import io.lemadane.jatot.html.Html;
+import io.lemadane.jatot.html.HtmlChildren;
 
 public record Layout(HtmlChildren children) implements Component {
 

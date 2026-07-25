@@ -513,7 +513,7 @@ Jatot includes native support for server-side HTML templating via JSX-like marku
 
 #### Syntax & Rules
 * **HTML Elements**: Lowercase tags (e.g. `<div class="card">`) represent standard HTML elements. Real HTML attribute names (`class`, `for`) are used instead of React-specific names (`className`, `htmlFor`).
-* **Jatot Components**: Capitalized tags (e.g. `<UserCard user={user} />`) represent custom component classes or records that implement the `io.jatot.html.Component` interface.
+* **Jatot Components**: Capitalized tags (e.g. `<UserCard user={user} />`) represent custom component classes or records that implement the `io.lemadane.jatot.html.Component` interface.
 * **Property Injection**: Component properties are matched to constructor parameters at compile-time. Property types, names, and presence of required attributes are checked at compile-time.
 * **Control Flow**: You can write conditionals (`{if (cond) { ... } else { ... }}`) and loops (`{for (var item : list) { ... }}`) directly inside the markup block to control structure dynamically.
 * **Fragments**: Use empty tags (`<> ... </>`) to group multiple elements without adding wrapping nodes to the DOM.
@@ -522,10 +522,10 @@ Jatot includes native support for server-side HTML templating via JSX-like marku
 
 #### Example Component:
 ```java
-package io.jatot.html.demo;
+package io.lemadane.jatot.html.demo;
 
-import io.jatot.html.Component;
-import io.jatot.html.Html;
+import io.lemadane.jatot.html.Component;
+import io.lemadane.jatot.html.Html;
 
 public record UserCard(User user) implements Component {
     @Override
@@ -678,7 +678,7 @@ private static final jatot.logging.Logger log = jatot.logging.LogManager.getLogg
 A Spring Boot starter module is available to seamlessly integrate Jatot logging with your Spring environment:
 
 ```groovy
-implementation 'io.jatot:jatot-logging-spring-boot-starter:1.0.0'
+implementation 'io.lemadane.jatot:jatot-logging-spring-boot-starter:1.0.0'
 ```
 
 It maps Spring Boot profiles and active environments so that `jatot.logging` levels automatically align with your `application.yml` properties. In environments without Spring Boot, it seamlessly falls back to reading `jatot-logging.properties`.
@@ -845,11 +845,11 @@ repositories {
 
 dependencies {
     // Core Jatot Compiler
-    implementation 'io.jatot:jatot-compiler:0.1.0-alpha.1'
+    implementation 'io.lemadane.jatot:jatot-compiler:0.1.0-alpha.1'
     // HTML Components Runtime
-    implementation 'io.jatot:jatot-html-runtime:0.1.0-alpha.1'
+    implementation 'io.lemadane.jatot:jatot-html-runtime:0.1.0-alpha.1'
     // Spring Boot Auto-configuration & Return Value Handler
-    implementation 'io.jatot:jatot-html-spring:0.1.0-alpha.1'
+    implementation 'io.lemadane.jatot:jatot-html-spring:0.1.0-alpha.1'
 }
 
 sourceSets {
@@ -870,7 +870,7 @@ tasks.register('compileJatot', JavaExec) {
     group = 'build'
     description = 'Compiles main Jatot source files to Java.'
     classpath = configurations.compileClasspath
-    mainClass = 'io.jatot.cli.JatotCli'
+    mainClass = 'io.lemadane.jatot.cli.JatotCli'
     workingDir = projectDir
     
     doFirst {
@@ -894,8 +894,8 @@ Place your `.jatot` files in `src/main/jatot/`.
 ```jatot
 package com.example.demo;
 
-import io.jatot.html.Component;
-import io.jatot.html.Html;
+import io.lemadane.jatot.html.Component;
+import io.lemadane.jatot.html.Html;
 
 public record UserCard(String name, String email) implements Component {
     @Override
@@ -916,7 +916,7 @@ package com.example.demo;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
-import io.jatot.html.Component;
+import io.lemadane.jatot.html.Component;
 
 @Controller
 public class UserController {
@@ -935,7 +935,7 @@ The `jatot-html-spring` library will automatically intercept the returned `Compo
 Jatot supports file-based routing dynamically at startup. By mapping your package structure to URL endpoints, you can avoid writing manual `@GetMapping` mappings.
 
 * Place your page components inside the `.routes` subpackage (e.g. `com.example.demo.routes`).
-* Declare a component class/record named `Page` that implements `io.jatot.html.Component`.
+* Declare a component class/record named `Page` that implements `io.lemadane.jatot.html.Component`.
 * Directory path parameters use an underscore prefix (e.g. `_name`).
 
 #### File Structure Example:
@@ -953,8 +953,8 @@ Dynamic path variables (like `{name}`) and query parameters are automatically ma
 ```jatot
 package com.example.demo.routes.users._name;
 
-import io.jatot.html.Component;
-import io.jatot.html.Html;
+import io.lemadane.jatot.html.Component;
+import io.lemadane.jatot.html.Html;
 import com.example.demo.User;
 
 public record Page(User user) implements Component {
@@ -971,14 +971,14 @@ You can define layout components named `Layout.jatot` (producing a class named `
 * Root Layout: `routes.Layout`
 * Section Layout: `routes.users.Layout`
 
-Layouts accept an `io.jatot.html.HtmlChildren` parameter to render dynamic nested child pages or nested sub-layouts:
+Layouts accept an `io.lemadane.jatot.html.HtmlChildren` parameter to render dynamic nested child pages or nested sub-layouts:
 
 ```jatot
 package com.example.demo.routes;
 
-import io.jatot.html.Component;
-import io.jatot.html.Html;
-import io.jatot.html.HtmlChildren;
+import io.lemadane.jatot.html.Component;
+import io.lemadane.jatot.html.Html;
+import io.lemadane.jatot.html.HtmlChildren;
 
 public record Layout(HtmlChildren children) implements Component {
     @Override
@@ -1025,9 +1025,9 @@ Annotate any `Page` component with `@Prerender` to enable Compile-Time Static Si
 ```jatot
 package com.example.demo.routes;
 
-import io.jatot.html.Component;
-import io.jatot.html.Html;
-import io.jatot.html.spring.Prerender;
+import io.lemadane.jatot.html.Component;
+import io.lemadane.jatot.html.Html;
+import io.lemadane.jatot.html.spring.Prerender;
 
 @Prerender
 public record Page() implements Component {
@@ -1247,7 +1247,7 @@ You can test this implementation via the included demo:
 ```bash
 # Compile and run the JSON Literal Demo
 ./gradlew :jatot-compiler:classes
-java -cp jatot-compiler/build/classes/java/main io.jatot.cli.JatotCli compile jatot-compiler/src/e2e/examples/JsonLiteralDemo.jatot -d jatot-compiler/build/classes/java/demo -cp jatot-json/build/classes/java/main --save-java
+java -cp jatot-compiler/build/classes/java/main io.lemadane.jatot.cli.JatotCli compile jatot-compiler/src/e2e/examples/JsonLiteralDemo.jatot -d jatot-compiler/build/classes/java/demo -cp jatot-json/build/classes/java/main --save-java
 java -cp jatot-compiler/build/classes/java/demo:jatot-json/build/classes/java/main JsonLiteralDemo
 ```
 

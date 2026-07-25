@@ -1,4 +1,4 @@
-package io.jatot.html.demo;
+package io.lemadane.jatot.html.demo;
 
 public class JavaDemo {
     private String name;
