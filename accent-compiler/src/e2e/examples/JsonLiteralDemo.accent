@@ -1,5 +1,5 @@
-import io.lemadane.accent.json.Json;
-import io.lemadane.accent.json.JsonOptions;
+import accent.json.Json;
+import accent.json.JsonOptions;
 
 public class JsonLiteralDemo {
     public static void main(String[] args) {

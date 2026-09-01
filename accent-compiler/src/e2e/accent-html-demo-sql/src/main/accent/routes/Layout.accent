@@ -1,8 +1,8 @@
-package io.lemadane.accent.html.demo.routes;
+package accent.html.demo.routes;
 
-import io.lemadane.accent.html.Component;
-import io.lemadane.accent.html.Html;
-import io.lemadane.accent.html.HtmlChildren;
+import accent.html.Component;
+import accent.html.Html;
+import accent.html.HtmlChildren;
 
 public record Layout(HtmlChildren children) implements Component {
 

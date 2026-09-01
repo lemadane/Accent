@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>io.lemadane.accent.intellij</id>
+    <id>accent.intellij</id>
     <name>Accent Language Support</name>
     <vendor email="support@accent.io" url="https://accent.io">Accent Project</vendor>
 
@@ -12,17 +12,17 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Accent"
-                  implementationClass="io.lemadane.accent.intellij.AccentFileType"
+                  implementationClass="accent.intellij.AccentFileType"
                   fieldName="INSTANCE"
                   extensions="accent"/>
 
         <lang.commenter language="Accent"
-                        implementationClass="io.lemadane.accent.intellij.AccentCommenter"/>
+                        implementationClass="accent.intellij.AccentCommenter"/>
 
         <lang.braceMatcher language="Accent"
-                           implementationClass="io.lemadane.accent.intellij.AccentBraceMatcher"/>
+                           implementationClass="accent.intellij.AccentBraceMatcher"/>
 
         <completion.contributor language="Accent"
-                                implementationClass="io.lemadane.accent.intellij.AccentCompletionContributor"/>
+                                implementationClass="accent.intellij.AccentCompletionContributor"/>
     </extensions>
 </idea-plugin>

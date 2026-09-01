@@ -1,8 +1,8 @@
 
 
-import io.lemadane.accent.json.Json;
-import io.lemadane.accent.json.JsonOptions;
-import io.lemadane.accent.json.JsonName;
+import accent.json.Json;
+import accent.json.JsonOptions;
+import accent.json.JsonName;
 import java.util.UUID;
 import java.util.List;
 import java.time.LocalDate;

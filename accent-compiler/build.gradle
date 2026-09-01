@@ -13,7 +13,7 @@ java {
 }
 
 application {
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
 }
 
 dependencies {
@@ -58,7 +58,7 @@ tasks.register('compileAccent', JavaExec) {
     group = 'build'
     description = 'Compiles main Accent source files to Java.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
     
     doFirst {
         new File('build/generated/sources/accent/main').mkdirs()
@@ -76,7 +76,7 @@ tasks.register('compileTestAccent', JavaExec) {
     group = 'build'
     description = 'Compiles test Accent source files to Java.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
     
     doFirst {
         new File('build/generated/sources/accent/test').mkdirs()
@@ -110,7 +110,7 @@ tasks.register('compileStringInterpolationTest', JavaExec) {
     group = 'build'
     description = 'Compiles the standalone String Interpolation test application to Java.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
     
     def classDir = new File(buildDirDir, 'classes/java/demo')
     doFirst {
@@ -134,7 +134,7 @@ tasks.register('compileSymbolDemo', JavaExec) {
     group = 'build'
     description = 'Compiles the standalone Symbol demo application to Java.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
     
     def classDir = new File(buildDirDir, 'classes/java/demo')
     doFirst {
@@ -159,7 +159,7 @@ tasks.register('compileLoggingDemo', JavaExec) {
     group = 'build'
     description = 'Compiles the standalone Logging demo application to Java.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
     
     def classDir = new File(buildDirDir, 'classes/java/demo')
     doFirst {
@@ -183,7 +183,7 @@ tasks.register('compileNamedArgsDemo', JavaExec) {
     group = 'build'
     description = 'Compiles the standalone Named Arguments demo application to Java.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
     
     def classDir = new File(buildDirDir, 'classes/java/demo')
     doFirst {
@@ -207,7 +207,7 @@ tasks.register('compileSlugDemo', JavaExec) {
     group = 'build'
     description = 'Compiles the standalone Slug demo application to Java.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
     
     def classDir = new File(buildDirDir, 'classes/java/demo')
     doFirst {

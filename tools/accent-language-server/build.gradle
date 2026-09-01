@@ -18,7 +18,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'io.lemadane.accent.tools.server.AccentLanguageServerLauncher'
+    mainClass = 'accent.tools.server.AccentLanguageServerLauncher'
 }
 
 tasks.withType(JavaCompile).configureEach {

@@ -1,6 +1,6 @@
 # Accent
 
-[![CI](https://github.com/lemadane/accent-lang/actions/workflows/ci.yml/badge.svg)](https://github.com/lemadane/accent-lang/actions/workflows/ci.yml)
+[![CI](https://github.com/accent-lang/accent/actions/workflows/ci.yml/badge.svg)](https://github.com/accent-lang/accent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Java 21](https://img.shields.io/badge/Java-21-blue.svg)](https://openjdk.org/projects/jdk/21/)
 
@@ -511,7 +511,7 @@ Accent includes native support for server-side HTML templating via JSX-like mark
 
 #### Syntax & Rules
 * **HTML Elements**: Lowercase tags (e.g. `<div class="card">`) represent standard HTML elements. Real HTML attribute names (`class`, `for`) are used instead of React-specific names (`className`, `htmlFor`).
-* **Accent Components**: Capitalized tags (e.g. `<UserCard user={user} />`) represent custom component classes or records that implement the `io.lemadane.accent.html.Component` interface.
+* **Accent Components**: Capitalized tags (e.g. `<UserCard user={user} />`) represent custom component classes or records that implement the `accent.html.Component` interface.
 * **Property Injection**: Component properties are matched to constructor parameters at compile-time. Property types, names, and presence of required attributes are checked at compile-time.
 * **Control Flow**: You can write conditionals (`{if (cond) { ... } else { ... }}`) and loops (`{for (var item : list) { ... }}`) directly inside the markup block to control structure dynamically.
 * **Fragments**: Use empty tags (`<> ... </>`) to group multiple elements without adding wrapping nodes to the DOM.
@@ -520,10 +520,10 @@ Accent includes native support for server-side HTML templating via JSX-like mark
 
 #### Example Component:
 ```java
-package io.lemadane.accent.html.demo;
+package accent.html.demo;
 
-import io.lemadane.accent.html.Component;
-import io.lemadane.accent.html.Html;
+import accent.html.Component;
+import accent.html.Html;
 
 public record UserCard(User user) implements Component {
     @Override
@@ -676,7 +676,7 @@ private static final accent.logging.Logger log = accent.logging.LogManager.getLo
 A Spring Boot starter module is available to seamlessly integrate Accent logging with your Spring environment:
 
 ```groovy
-implementation 'io.lemadane.accent:accent-logging-spring-boot-starter:1.0.0'
+implementation 'accent:accent-logging-spring-boot-starter:1.0.0'
 ```
 
 It maps Spring Boot profiles and active environments so that `accent.logging` levels automatically align with your `application.yml` properties. In environments without Spring Boot, it seamlessly falls back to reading `accent-logging.properties`.
@@ -823,7 +823,7 @@ repositories {
 
 dependencies {
     // Core Accent Compiler
-    implementation 'com.github.lemadane:accent-lang:v0.1.0-alpha.1'
+    implementation 'com.github.accent:accent-lang:v0.1.0-alpha.1'
 }
 ```
 
@@ -853,7 +853,7 @@ githubToken=your_personal_access_token
 repositories {
     mavenCentral()
     maven {
-        url = uri("https://maven.pkg.github.com/lemadane/accent-lang")
+        url = uri("https://maven.pkg.github.com/accent-lang/accent")
         credentials {
             username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("githubActor")
             password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("githubToken")
@@ -863,11 +863,11 @@ repositories {
 
 dependencies {
     // Core Accent Compiler
-    implementation 'io.lemadane.accent:accent-compiler:0.1.0-alpha.1'
+    implementation 'accent:accent-compiler:0.1.0-alpha.1'
     // HTML Components Runtime
-    implementation 'io.lemadane.accent:accent-html-runtime:0.1.0-alpha.1'
+    implementation 'accent:accent-html-runtime:0.1.0-alpha.1'
     // Spring Boot Auto-configuration & Return Value Handler
-    implementation 'io.lemadane.accent:accent-html-spring:0.1.0-alpha.1'
+    implementation 'accent:accent-html-spring:0.1.0-alpha.1'
 }
 
 sourceSets {
@@ -890,7 +890,7 @@ tasks.register('compileAccent', JavaExec) {
     group = 'build'
     description = 'Compiles main Accent source files to Java.'
     classpath = configurations.compileClasspath
-    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    mainClass = 'accent.cli.AccentCli'
     workingDir = projectDir
     
     doFirst {
@@ -920,7 +920,7 @@ Add JitPack to your `<repositories>` and configure the `exec-maven-plugin` to ru
 
 <dependencies>
     <dependency>
-        <groupId>com.github.lemadane</groupId>
+        <groupId>com.github.accent</groupId>
         <artifactId>accent-lang</artifactId>
         <version>v0.1.0-alpha.1</version>
     </dependency>
@@ -940,7 +940,7 @@ Add JitPack to your `<repositories>` and configure the `exec-maven-plugin` to ru
                         <goal>java</goal>
                     </goals>
                     <configuration>
-                        <mainClass>io.lemadane.accent.cli.AccentCli</mainClass>
+                        <mainClass>accent.cli.AccentCli</mainClass>
                         <arguments>
                             <argument>compile</argument>
                             <argument>src/main/accent</argument>
@@ -965,8 +965,8 @@ Place your `.accent` files in `src/main/accent/`.
 ```accent
 package com.example.demo;
 
-import io.lemadane.accent.html.Component;
-import io.lemadane.accent.html.Html;
+import accent.html.Component;
+import accent.html.Html;
 
 public record UserCard(String name, String email) implements Component {
     @Override
@@ -987,7 +987,7 @@ package com.example.demo;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
-import io.lemadane.accent.html.Component;
+import accent.html.Component;
 
 @Controller
 public class UserController {
@@ -1006,7 +1006,7 @@ The `accent-html-spring` library will automatically intercept the returned `Comp
 Accent supports file-based routing dynamically at startup. By mapping your package structure to URL endpoints, you can avoid writing manual `@GetMapping` mappings.
 
 * Place your page components inside the `.routes` subpackage (e.g. `com.example.demo.routes`).
-* Declare a component class/record named `Page` that implements `io.lemadane.accent.html.Component`.
+* Declare a component class/record named `Page` that implements `accent.html.Component`.
 * Directory path parameters use an underscore prefix (e.g. `_name`).
 
 #### File Structure Example:
@@ -1024,8 +1024,8 @@ Dynamic path variables (like `{name}`) and query parameters are automatically ma
 ```accent
 package com.example.demo.routes.users._name;
 
-import io.lemadane.accent.html.Component;
-import io.lemadane.accent.html.Html;
+import accent.html.Component;
+import accent.html.Html;
 import com.example.demo.User;
 
 public record Page(User user) implements Component {
@@ -1042,14 +1042,14 @@ You can define layout components named `Layout.accent` (producing a class named 
 * Root Layout: `routes.Layout`
 * Section Layout: `routes.users.Layout`
 
-Layouts accept an `io.lemadane.accent.html.HtmlChildren` parameter to render dynamic nested child pages or nested sub-layouts:
+Layouts accept an `accent.html.HtmlChildren` parameter to render dynamic nested child pages or nested sub-layouts:
 
 ```accent
 package com.example.demo.routes;
 
-import io.lemadane.accent.html.Component;
-import io.lemadane.accent.html.Html;
-import io.lemadane.accent.html.HtmlChildren;
+import accent.html.Component;
+import accent.html.Html;
+import accent.html.HtmlChildren;
 
 public record Layout(HtmlChildren children) implements Component {
     @Override
@@ -1096,9 +1096,9 @@ Annotate any `Page` component with `@Prerender` to enable Compile-Time Static Si
 ```accent
 package com.example.demo.routes;
 
-import io.lemadane.accent.html.Component;
-import io.lemadane.accent.html.Html;
-import io.lemadane.accent.html.spring.Prerender;
+import accent.html.Component;
+import accent.html.Html;
+import accent.html.spring.Prerender;
 
 @Prerender
 public record Page() implements Component {
@@ -1318,7 +1318,7 @@ You can test this implementation via the included demo:
 ```bash
 # Compile and run the JSON Literal Demo
 ./gradlew :accent-compiler:classes
-java -cp accent-compiler/build/classes/java/main io.lemadane.accent.cli.AccentCli compile accent-compiler/src/e2e/examples/JsonLiteralDemo.accent -d accent-compiler/build/classes/java/demo -cp accent-json/build/classes/java/main --save-java
+java -cp accent-compiler/build/classes/java/main accent.cli.AccentCli compile accent-compiler/src/e2e/examples/JsonLiteralDemo.accent -d accent-compiler/build/classes/java/demo -cp accent-json/build/classes/java/main --save-java
 java -cp accent-compiler/build/classes/java/demo:accent-json/build/classes/java/main JsonLiteralDemo
 ```
 

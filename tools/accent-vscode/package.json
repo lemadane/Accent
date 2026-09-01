@@ -3,7 +3,7 @@
   "displayName": "Accent Language Support",
   "description": "IDE support for the Accent programming language",
   "version": "0.1.0",
-  "publisher": "io.lemadane.accent",
+  "publisher": "accent",
   "icon": "icons/accent.png",
   "engines": {
     "vscode": "^1.75.0"

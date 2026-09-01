@@ -13,7 +13,7 @@ Thank you for your interest in contributing to Accent! This guide will help you 
 
 ```bash
 # Clone the repository
-git clone https://github.com/lemadane/accent-lang.git
+git clone https://github.com/accent-lang/accent.git
 cd accent-lang
 
 # Build and run tests
@@ -47,7 +47,7 @@ cd accent-lang
 
 ## Reporting Issues
 
-- Use [GitHub Issues](https://github.com/lemadane/accent-lang/issues) to report bugs or request features.
+- Use [GitHub Issues](https://github.com/accent-lang/accent/issues) to report bugs or request features.
 - Include a minimal `.accent` code sample that demonstrates the issue, if applicable.
 - Describe expected vs. actual behavior.
 

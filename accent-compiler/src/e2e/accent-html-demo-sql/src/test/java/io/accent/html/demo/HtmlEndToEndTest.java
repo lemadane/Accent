@@ -1,4 +1,4 @@
-package io.lemadane.accent.html.demo;
+package accent.html.demo;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,17 +55,17 @@ class HtmlEndToEndTest {
 
     @Test
     void testDatabaseOrmMapping() throws Exception {
-        List<io.lemadane.accent.html.demo.User> list = (List<io.lemadane.accent.html.demo.User>) io.lemadane.accent.sql.Sql.execute(
+        List<accent.html.demo.User> list = (List<accent.html.demo.User>) accent.sql.Sql.execute(
             "SELECT name, email FROM users WHERE name = ?",
             List.of("Zack"),
-            io.lemadane.accent.html.demo.User.class
+            accent.html.demo.User.class
         );
         assertEquals(1, list.size());
         assertEquals("Zack", list.get(0).name());
         assertEquals("zack@example.com", list.get(0).email());
 
         record SimpleUser(String nameVal, String emailVal) {}
-        List<SimpleUser> list2 = (List<SimpleUser>) io.lemadane.accent.sql.Sql.execute(
+        List<SimpleUser> list2 = (List<SimpleUser>) accent.sql.Sql.execute(
             "SELECT name, email FROM users WHERE name = ?",
             List.of("Mel"),
             SimpleUser.class
@@ -76,7 +76,7 @@ class HtmlEndToEndTest {
 
         record Contact(String email) {}
         record NestedUser(String name, Contact contact) {}
-        List<NestedUser> list3 = (List<NestedUser>) io.lemadane.accent.sql.Sql.execute(
+        List<NestedUser> list3 = (List<NestedUser>) accent.sql.Sql.execute(
             "SELECT name, email FROM users WHERE name = ?",
             List.of("Mel"),
             NestedUser.class

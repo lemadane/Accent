@@ -1,9 +1,9 @@
-package io.lemadane.accent.html.demo.routes.users._name;
+package accent.html.demo.routes.users._name;
 
-import io.lemadane.accent.html.Component;
-import io.lemadane.accent.html.Html;
-import io.lemadane.accent.html.demo.User;
-import io.lemadane.accent.html.demo.UserCard;
+import accent.html.Component;
+import accent.html.Html;
+import accent.html.demo.User;
+import accent.html.demo.UserCard;
 
 public record Page(User user) implements Component {
 

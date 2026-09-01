@@ -1,8 +1,8 @@
 package demo;
 
-import io.lemadane.accent.web.Slug;
-import io.lemadane.accent.web.SlugOptions;
-import io.lemadane.accent.web.SlugCharacterPolicy;
+import accent.web.Slug;
+import accent.web.SlugOptions;
+import accent.web.SlugCharacterPolicy;
 
 public class SlugDemo {
     public static void main(String[] args) {

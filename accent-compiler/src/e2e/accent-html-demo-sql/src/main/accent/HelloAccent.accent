@@ -1,4 +1,4 @@
-package io.lemadane.accent.html.demo;
+package accent.html.demo;
 
 import java.util.List;
 import java.util.ArrayList;

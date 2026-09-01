@@ -1,4 +1,4 @@
-package io.lemadane.accent.html.demo;
+package accent.html.demo;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;

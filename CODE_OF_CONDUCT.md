@@ -60,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at the
-[GitHub Issues page](https://github.com/lemadane/accent-lang/issues).
+[GitHub Issues page](https://github.com/accent-lang/accent/issues).
 
 All complaints will be reviewed and investigated promptly and fairly.
 

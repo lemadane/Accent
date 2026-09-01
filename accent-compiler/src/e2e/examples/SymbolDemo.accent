@@ -1,7 +1,7 @@
 package demo;
 
-import io.lemadane.accent.lang.Symbol;
-import io.lemadane.accent.lang.SymbolMap;
+import accent.lang.Symbol;
+import accent.lang.SymbolMap;
 
 public class SymbolDemo {
 

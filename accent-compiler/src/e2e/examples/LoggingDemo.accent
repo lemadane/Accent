@@ -1,6 +1,6 @@
 package demo;
 
-import io.lemadane.accent.logging.Logging;
+import accent.logging.Logging;
 
 @Logging
 public class LoggingDemo {

@@ -1,7 +1,7 @@
-package io.lemadane.accent.html.demo;
+package accent.html.demo;
 
-import io.lemadane.accent.html.Component;
-import io.lemadane.accent.html.Html;
+import accent.html.Component;
+import accent.html.Html;
 
 public record UserPage(User user) implements Component {
 
