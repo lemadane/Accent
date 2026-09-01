@@ -1,0 +1,2 @@
+io.lemadane.accent.logging.spring.boot.AccentLoggingAutoConfiguration
+io.lemadane.accent.html.spring.AccentHtmlAutoConfiguration

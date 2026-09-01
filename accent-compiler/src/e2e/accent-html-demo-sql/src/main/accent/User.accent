@@ -1,0 +1,3 @@
+package io.lemadane.accent.html.demo;
+
+public record User(String name, String email) {}

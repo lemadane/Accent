@@ -1,0 +1,41 @@
+import io.lemadane.accent.json.Json;
+import io.lemadane.accent.json.JsonOptions;
+
+public class JsonLiteralDemo {
+    public static void main(String[] args) {
+        String inputId = "123e4567-e89b-12d3-a456-426614174000";
+        String firstName = "Lemuel";
+        
+        System.out.println("Testing json template literals...");
+        
+        // Native JSON literal with interpolations!
+        User parsedUser = json<User>"""
+        {
+            "id": "${inputId}",
+            "firstName": "${firstName.toUpperCase()}",
+            "lastName": "Adane",
+            "address": {
+                "street": "Rizal Street",
+                "city": "Quezon City"
+            }
+        }
+        """;
+        
+        System.out.println("Successfully parsed user from json literal!");
+        System.out.println("ID: " + parsedUser.id());
+        System.out.println("First Name (Interpolated & Uppercased): " + parsedUser.firstName());
+        System.out.println("City: " + parsedUser.address().city());
+    }
+}
+
+record Address(
+    String street,
+    String city
+) {}
+
+record User(
+    String id,
+    String firstName,
+    String lastName,
+    Address address
+) {}

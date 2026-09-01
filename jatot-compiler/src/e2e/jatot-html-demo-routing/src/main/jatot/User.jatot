@@ -1,3 +1,0 @@
-package io.lemadane.jatot.html.demo;
-
-public record User(String name, String email) {}

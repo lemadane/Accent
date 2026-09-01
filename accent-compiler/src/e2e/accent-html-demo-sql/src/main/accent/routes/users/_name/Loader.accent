@@ -1,0 +1,14 @@
+package io.lemadane.accent.html.demo.routes.users._name;
+
+import io.lemadane.accent.html.demo.User;
+import java.util.List;
+
+public class Loader {
+    public User load(String name) {
+        List<User> list = sql<User>`SELECT name, email FROM users WHERE name = {name}`;
+        if (list.isEmpty()) {
+            return new User(name, "unknown@example.com");
+        }
+        return list.get(0);
+    }
+}

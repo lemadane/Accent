@@ -1,0 +1,28 @@
+<idea-plugin>
+    <id>io.lemadane.accent.intellij</id>
+    <name>Accent Language Support</name>
+    <vendor email="support@accent.io" url="https://accent.io">Accent Project</vendor>
+
+    <description><![CDATA[
+    IDE integration and custom language support for the Accent programming language on the IntelliJ Platform.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Accent"
+                  implementationClass="io.lemadane.accent.intellij.AccentFileType"
+                  fieldName="INSTANCE"
+                  extensions="accent"/>
+
+        <lang.commenter language="Accent"
+                        implementationClass="io.lemadane.accent.intellij.AccentCommenter"/>
+
+        <lang.braceMatcher language="Accent"
+                           implementationClass="io.lemadane.accent.intellij.AccentBraceMatcher"/>
+
+        <completion.contributor language="Accent"
+                                implementationClass="io.lemadane.accent.intellij.AccentCompletionContributor"/>
+    </extensions>
+</idea-plugin>

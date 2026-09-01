@@ -1,0 +1,36 @@
+package demo;
+
+import io.lemadane.accent.logging.Logging;
+
+@Logging
+public class LoggingDemo {
+    public static void main(String[] args) {
+        log.info("Starting Logging Demo application...");
+        
+        var demo = new LoggingDemo();
+        demo.processTasks();
+        
+        log.info("Logging Demo finished successfully.");
+    }
+    
+    public void processTasks() {
+        log.debug("Processing tasks...");
+        for (int i = 1; i <= 3; i++) {
+            try {
+                this.performTask(i);
+            } catch (Exception e) {
+                log.error($"Failed on task {i}", e);
+            }
+        }
+    }
+    
+    public void performTask(int id) {
+        log.info($"Executing task {id}");
+        if (id == 2) {
+            log.warn("Task 2 encountered a warning condition, but continuing...");
+        }
+        if (id == 3) {
+            throw new RuntimeException("Simulated exception during task 3");
+        }
+    }
+}

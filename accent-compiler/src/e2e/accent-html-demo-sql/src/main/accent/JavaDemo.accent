@@ -1,0 +1,13 @@
+package io.lemadane.accent.html.demo;
+
+public class JavaDemo {
+    private String name;
+
+    public JavaDemo(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return this.name;
+    }
+}

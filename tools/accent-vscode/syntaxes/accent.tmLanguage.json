@@ -1,0 +1,153 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Accent",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#interpolated-strings"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#html-tags"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#annotations"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.accent",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.accent",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.accent",
+          "match": "\\b(if|else|for|while|do|try|catch|finally|throw|return|yield|break|continue|async|await|generator|emit)\\b"
+        },
+        {
+          "name": "storage.type.accent",
+          "match": "\\b(class|interface|record|enum|extension|void|int|long|double|float|boolean|char|byte|short)\\b"
+        },
+        {
+          "name": "storage.modifier.accent",
+          "match": "\\b(public|private|protected|static|final|transient|volatile|synchronized|native|abstract|strictfp)\\b"
+        }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        {
+          "name": "meta.declaration.annotation.accent",
+          "match": "@[a-zA-Z0-9_.]+"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.accent",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.accent",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "interpolated-strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.interpolated.accent",
+          "begin": "\\$\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.accent",
+              "match": "\\\\."
+            },
+            {
+              "include": "#interpolation-expression"
+            }
+          ]
+        }
+      ]
+    },
+    "interpolation-expression": {
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.begin.accent"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.end.accent"
+        }
+      },
+      "name": "meta.interpolation.accent",
+      "patterns": [
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    "html-tags": {
+      "patterns": [
+        {
+          "name": "meta.embedded.block.html.accent",
+          "begin": "<([a-zA-Z0-9:-]+)(?=\\s|>|/>)",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.tag.accent"
+            }
+          },
+          "end": "(/?>)",
+          "patterns": [
+            {
+              "name": "entity.other.attribute-name.accent",
+              "match": "\\b([a-zA-Z0-9:-]+)\\s*="
+            },
+            {
+              "include": "#interpolation-expression"
+            },
+            {
+              "include": "#strings"
+            }
+          ]
+        },
+        {
+          "name": "meta.embedded.block.html.accent",
+          "begin": "</([a-zA-Z0-9:-]+)>",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.tag.accent"
+            }
+          },
+          "end": "(?=>)"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.accent"
+}

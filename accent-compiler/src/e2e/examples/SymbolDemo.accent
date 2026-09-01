@@ -1,0 +1,47 @@
+package demo;
+
+import io.lemadane.accent.lang.Symbol;
+import io.lemadane.accent.lang.SymbolMap;
+
+public class SymbolDemo {
+
+    public static void main(String[] args) {
+        System.out.println("=== Accent Symbol Demo ===\n");
+
+        // 1. Unique Identity
+        System.out.println("1. Demonstrating Unique Identity");
+        Symbol<String> first = Symbol.create("user");
+        Symbol<String> second = Symbol.create("user");
+        System.out.println("first = " + first);
+        System.out.println("second = " + second);
+        System.out.println("Are they the same object? " + (first == second));
+        System.out.println("Are they equal? " + first.equals(second));
+        System.out.println();
+
+        // 2. Global Registry
+        System.out.println("2. Demonstrating Global Registry");
+        Symbol<Object> global1 = Symbol.forKey("app.config");
+        Symbol<Object> global2 = Symbol.forKey("app.config");
+        System.out.println("global1 = " + global1);
+        System.out.println("global2 = " + global2);
+        System.out.println("Are they the same object? " + (global1 == global2));
+        System.out.println("Registry key for global1: " + Symbol.keyFor(global1));
+        System.out.println();
+
+        // 3. Typed SymbolMap
+        System.out.println("3. Demonstrating Typed SymbolMap");
+        Symbol<String> STATUS = Symbol.create("status");
+        Symbol<Integer> RETRIES = Symbol.create("retries");
+        
+        SymbolMap map = new SymbolMap();
+        map.put(STATUS, "ACTIVE");
+        map.put(RETRIES, 3);
+        
+        Object status = map.get(STATUS);
+        Object retries = map.get(RETRIES);
+        
+        System.out.println("Status: " + status);
+        System.out.println("Retries: " + retries);
+        System.out.println("Demo completed successfully!");
+    }
+}

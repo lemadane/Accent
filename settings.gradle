@@ -1,23 +1,23 @@
-rootProject.name = 'jatot-native-html'
+rootProject.name = 'accent-native-html'
 
 
-include 'jatot-compiler'
+include 'accent-compiler'
 
-include 'jatot-html-demo-routing'
-project(':jatot-html-demo-routing').projectDir = new File(settingsDir, 'jatot-compiler/src/e2e/jatot-html-demo-routing')
+include 'accent-html-demo-routing'
+project(':accent-html-demo-routing').projectDir = new File(settingsDir, 'accent-compiler/src/e2e/accent-html-demo-routing')
 
-include 'jatot-html-demo-sql'
-project(':jatot-html-demo-sql').projectDir = new File(settingsDir, 'jatot-compiler/src/e2e/jatot-html-demo-sql')
+include 'accent-html-demo-sql'
+project(':accent-html-demo-sql').projectDir = new File(settingsDir, 'accent-compiler/src/e2e/accent-html-demo-sql')
 
-include 'jatot-spring-boot-starter'
+include 'accent-spring-boot-starter'
 
-include 'tools:jatot-language-tools'
-project(':tools:jatot-language-tools').projectDir = new File(settingsDir, 'tools/jatot-language-tools')
+include 'tools:accent-language-tools'
+project(':tools:accent-language-tools').projectDir = new File(settingsDir, 'tools/accent-language-tools')
 
-include 'tools:jatot-language-server'
-project(':tools:jatot-language-server').projectDir = new File(settingsDir, 'tools/jatot-language-server')
+include 'tools:accent-language-server'
+project(':tools:accent-language-server').projectDir = new File(settingsDir, 'tools/accent-language-server')
 
 // Temporarily disabled — Kotlin plugin incompatible with JDK 25
-// include 'tools:jatot-intellij'
-// project(':tools:jatot-intellij').projectDir = new File(settingsDir, 'tools/jatot-intellij')
+// include 'tools:accent-intellij'
+// project(':tools:accent-intellij').projectDir = new File(settingsDir, 'tools/accent-intellij')
 

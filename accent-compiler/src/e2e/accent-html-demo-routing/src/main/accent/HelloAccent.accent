@@ -1,0 +1,17 @@
+package io.lemadane.accent.html.demo;
+
+import java.util.List;
+import java.util.ArrayList;
+
+public class HelloAccent {
+   public static void main(String[] args) {
+      final list = List.of("Accent", "Java");
+      List<String> messageList = new ArrayList<String>();
+      for (var name : list) {
+         messageList.add(name);
+      }
+      for (var message : messageList) {
+         System.out.println("Hello " + message);
+      }
+   }
+}

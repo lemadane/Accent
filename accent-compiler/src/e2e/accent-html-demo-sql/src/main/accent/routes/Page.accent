@@ -1,0 +1,19 @@
+package io.lemadane.accent.html.demo.routes;
+
+import io.lemadane.accent.html.Component;
+import io.lemadane.accent.html.Html;
+import io.lemadane.accent.html.spring.Prerender;
+
+@Prerender
+public record Page() implements Component {
+
+    @Override
+    public Html render() {
+        return (
+            <main>
+                <h1>Welcome to Accent Routing!</h1>
+                <p>Go to <a href="/users/Mel">User: Mel</a></p>
+            </main>
+        );
+    }
+}

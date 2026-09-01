@@ -1,0 +1,25 @@
+package io.lemadane.accent.html.demo.routes;
+
+import io.lemadane.accent.html.Component;
+import io.lemadane.accent.html.Html;
+import io.lemadane.accent.html.HtmlChildren;
+
+public record Layout(HtmlChildren children) implements Component {
+
+    @Override
+    public Html render() {
+        return (
+            <!DOCTYPE html>
+            <html lang="en">
+                <head>
+                    <title>Accent App</title>
+                </head>
+                <body>
+                    <div class="app-layout">
+                        {this.children}
+                    </div>
+                </body>
+            </html>
+        );
+    }
+}

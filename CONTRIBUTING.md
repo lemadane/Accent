@@ -1,6 +1,6 @@
-# Contributing to Jatot
+# Contributing to Accent
 
-Thank you for your interest in contributing to Jatot! This guide will help you get started.
+Thank you for your interest in contributing to Accent! This guide will help you get started.
 
 ## Development Setup
 
@@ -13,8 +13,8 @@ Thank you for your interest in contributing to Jatot! This guide will help you g
 
 ```bash
 # Clone the repository
-git clone https://github.com/lemadane/jatot-lang.git
-cd jatot-lang
+git clone https://github.com/lemadane/accent-lang.git
+cd accent-lang
 
 # Build and run tests
 ./gradlew clean build
@@ -23,11 +23,11 @@ cd jatot-lang
 ### Running the CLI
 
 ```bash
-# Check a Jatot source file
-./gradlew run --args="check examples/HelloJatot.jatot"
+# Check a Accent source file
+./gradlew run --args="check examples/HelloAccent.accent"
 
 # Print the token stream
-./gradlew run --args="tokens examples/HelloJatot.jatot"
+./gradlew run --args="tokens examples/HelloAccent.accent"
 ```
 
 ## Making Changes
@@ -47,8 +47,8 @@ cd jatot-lang
 
 ## Reporting Issues
 
-- Use [GitHub Issues](https://github.com/lemadane/jatot-lang/issues) to report bugs or request features.
-- Include a minimal `.jatot` code sample that demonstrates the issue, if applicable.
+- Use [GitHub Issues](https://github.com/lemadane/accent-lang/issues) to report bugs or request features.
+- Include a minimal `.accent` code sample that demonstrates the issue, if applicable.
 - Describe expected vs. actual behavior.
 
 ## Code Style
@@ -61,4 +61,4 @@ cd jatot-lang
 
 ## License
 
-By contributing to Jatot, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing to Accent, you agree that your contributions will be licensed under the [MIT License](LICENSE).

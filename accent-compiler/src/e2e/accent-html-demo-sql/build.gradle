@@ -1,0 +1,118 @@
+plugins {
+    id 'java'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compilerClasspath
+}
+
+dependencies {
+    compilerClasspath project(':accent-compiler')
+    implementation project(':accent-spring-boot-starter')
+    
+    implementation('org.springframework.boot:spring-boot-starter-web:3.3.1') {
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-tomcat'
+    }
+    implementation 'org.springframework.boot:spring-boot-starter-jetty:3.3.1'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc:3.3.1'
+    runtimeOnly 'com.h2database:h2:2.2.224'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:3.3.1'
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-parameters'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    jvmArgs '-XX:+EnableDynamicAgentLoading'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += ['build/generated/sources/accent/main']
+        }
+    }
+    test {
+        java {
+            srcDirs += ['build/generated/sources/accent/test']
+        }
+        resources {
+            srcDirs += ['src/test/accent']
+        }
+    }
+}
+
+File mainGenDir = layout.buildDirectory.dir("generated/sources/accent/main").get().asFile
+File testGenDir = layout.buildDirectory.dir("generated/sources/accent/test").get().asFile
+def myProjectDir = projectDir
+
+// Compile main Accent files before Java compilation
+tasks.register('compileAccent', JavaExec) {
+    group = 'build'
+    description = 'Compiles main Accent source files to Java.'
+    classpath = configurations.compilerClasspath
+    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    workingDir = myProjectDir
+    
+    doFirst {
+        mainGenDir.mkdirs()
+    }
+    
+    args 'compile', 'src/main/accent', '-d', 'build/classes/java/main', '-cp', configurations.compileClasspath.asPath, '--save-java', 'build/generated/sources/accent/main'
+    
+    inputs.dir('src/main/accent').optional()
+    outputs.dir('build/generated/sources/accent/main')
+    
+    dependsOn project(':accent-compiler').tasks.named('classes')
+    dependsOn project(':accent-spring-boot-starter').tasks.named('classes')
+}
+
+tasks.named('compileJava') {
+    dependsOn tasks.named('compileAccent')
+}
+
+// Compile test Accent files before Java test compilation
+tasks.register('compileTestAccent', JavaExec) {
+    group = 'build'
+    description = 'Compiles test Accent source files to Java.'
+    classpath = configurations.compilerClasspath
+    mainClass = 'io.lemadane.accent.cli.AccentCli'
+    workingDir = myProjectDir
+    
+    doFirst {
+        testGenDir.mkdirs()
+    }
+    
+    args 'compile', 'src/test/accent', '-d', 'build/classes/java/test', '-cp', configurations.testCompileClasspath.asPath, '--save-java', 'build/generated/sources/accent/test'
+    
+    inputs.dir('src/test/accent').optional()
+    outputs.dir('build/generated/sources/accent/test')
+    
+    dependsOn project(':accent-compiler').tasks.named('classes')
+    dependsOn project(':accent-spring-boot-starter').tasks.named('classes')
+}
+
+tasks.named('compileTestJava') {
+    dependsOn tasks.named('compileTestAccent')
+}
+
+tasks.register('runSqlDemo', JavaExec) {
+    group = 'application'
+    description = 'Runs the SQL database and ORM demo Spring Boot web application.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'io.lemadane.accent.html.demo.DemoApplication'
+}

@@ -1,0 +1,80 @@
+{
+  "name": "accent-vscode",
+  "displayName": "Accent Language Support",
+  "description": "IDE support for the Accent programming language",
+  "version": "0.1.0",
+  "publisher": "io.lemadane.accent",
+  "icon": "icons/accent.png",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:accent"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "accent",
+        "aliases": [
+          "Accent",
+          "accent"
+        ],
+        "extensions": [
+          ".accent"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "accent",
+        "scopeName": "source.accent",
+        "path": "./syntaxes/accent.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "accent.showGeneratedJava",
+        "title": "Accent: Show Generated Java"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Accent Configuration",
+      "properties": {
+        "accent.compiler.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Accent compiler jar."
+        },
+        "accent.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the Accent language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.34",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.4"
+  }
+}

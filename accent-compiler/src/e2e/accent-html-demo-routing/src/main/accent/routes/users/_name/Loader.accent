@@ -1,0 +1,10 @@
+package io.lemadane.accent.html.demo.routes.users._name;
+
+import io.lemadane.accent.html.demo.User;
+import java.util.List;
+
+public class Loader {
+    public User load(String name) {
+        return new User(name, name.toLowerCase() + "@example.com");
+    }
+}

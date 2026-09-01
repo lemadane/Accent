@@ -1,0 +1,24 @@
+package io.lemadane.accent.html.demo;
+
+import io.lemadane.accent.html.Component;
+import io.lemadane.accent.html.Html;
+
+public record UserPage(User user) implements Component {
+
+    @Override
+    public Html render() {
+        return (
+            <!DOCTYPE html>
+            <html lang="en">
+                <head>
+                    <title>{this.user.name()}</title>
+                </head>
+                <body>
+                    <main>
+                        <UserCard user={this.user} />
+                    </main>
+                </body>
+            </html>
+        );
+    }
+}
