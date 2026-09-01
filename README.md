@@ -98,20 +98,20 @@ The right-hand expression is evaluated only when the left-hand value is `null`.
 
 ### 4. Immutable and mutable locals
 
-Use `final` for an immutable local binding:
+Use `final var` or the `final` shorthand for immutable local bindings (not reassignable):
 
 ```java
-final customer = this.repository.findRequired(id);
+final var name = "John Doe"; // Explicit final var
+final name = "John Doe";     // Shorthand for final var
 ```
 
-Use `var` for a mutable local binding:
+Use `var` for mutable local bindings (reassignable):
 
 ```java
 var attempts = 0;
-attempts++;
+attempts++; // Reassignable
 ```
 
-Accent does not use `final var`.
 
 ### 5. Immutable parameters
 
@@ -1153,12 +1153,12 @@ Runs a simple console application demonstrating the use of parameter default val
 ./gradlew :accent-compiler:runNamedArgsDemo
 ```
 
-## Build
+## Build & Testing
 
-Build with the included Gradle wrapper:
+Build the compiler, runtime, starter, and tooling with the included Gradle wrapper:
 
 ```bash
-./gradlew clean build
+JAVA_HOME=$PWD/jdk ./gradlew clean build
 ```
 
 On Windows:
@@ -1166,6 +1166,32 @@ On Windows:
 ```cmd
 gradlew.bat clean build
 ```
+
+### Running All Tests
+
+Run the complete unit and integration test suite:
+
+```bash
+JAVA_HOME=$PWD/jdk ./gradlew check test
+```
+
+### Running E2E Demo Tests
+
+Run the Spring Boot web routing and SQL database E2E tests:
+
+```bash
+JAVA_HOME=$PWD/jdk ./gradlew :accent-html-demo-routing:test
+JAVA_HOME=$PWD/jdk ./gradlew :accent-html-demo-sql:test
+```
+
+### Running Standalone Demos
+
+Run the standalone feature demos:
+
+```bash
+JAVA_HOME=$PWD/jdk ./gradlew runStringInterpolationTest runSymbolDemo runLoggingDemo runNamedArgsDemo runSlugDemo
+```
+
 
 ## Run the current CLI
 
@@ -1204,8 +1230,8 @@ The first visible Accent feature will be local mutability declarations:
 ```java
 public class Main {
     public static void main(String[] args) {
-        final message = "Hello from Accent"; // 'final' and not 'final var' 
-                                            // for immutable variable
+        final message = "Hello from Accent"; // 'final' (or 'final var') for immutable variable
+
         var count = 1;  // 'var' for mutable variable
         count++;
         System.out.println(message);
