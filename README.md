@@ -4,9 +4,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Java 21](https://img.shields.io/badge/Java-21-blue.svg)](https://openjdk.org/projects/jdk/21/)
 
-**Accent** is an accent of Java with the features that Java could have had—without making the language feel unfamiliar.
+**Accent** is an accent of Java with the features that Java could have had—without making the language feel unfamiliar. Inspired by the creator's time working as a Java Developer at Accenture.
 
 > **Accent is Java reflected, refined, and completed.**
+
 
 
 ## A first look
