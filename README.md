@@ -14,16 +14,9 @@
 
 ```java
 @Service
-public class DashboardService {
-    private final CustomerService! customerService;
-    private final OrderService! orderService;
-
-    public DashboardService(
-            CustomerService! customerService,
-            OrderService! orderService) {
-        this.customerService = customerService;
-        this.orderService = orderService;
-    }
+public record DashboardService(
+        CustomerService! customerService,
+        OrderService! orderService) {
 
     public Dashboard! load(UUID! customerId) {
         final customerFuture =
