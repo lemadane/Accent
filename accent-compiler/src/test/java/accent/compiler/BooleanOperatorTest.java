@@ -329,16 +329,19 @@ class BooleanOperatorTest {
     }
 
     // =====================================================================
-    // TYPE ERROR TESTS
+    // TRUTHY / FALSY OPERAND TESTS
     // =====================================================================
 
     @Test
-    void testTypeErrorIntAnd() throws Exception {
+    void testTruthyIntAnd() throws Exception {
         String code =
             "package test;\n" +
-            "public class TypeErrMain {\n" +
+            "public class TruthyIntAndMain {\n" +
             "    public static void main(String[] args) {\n" +
             "        boolean r = 1 and 2;\n" +
+            "        if (!r) throw new RuntimeException(\"1 and 2 should be true\");\n" +
+            "        boolean r2 = 0 and 2;\n" +
+            "        if (r2) throw new RuntimeException(\"0 and 2 should be false\");\n" +
             "    }\n" +
             "}\n";
 
@@ -347,22 +350,23 @@ class BooleanOperatorTest {
         Path binDir = tempDir.resolve("bin");
         Path genDir = tempDir.resolve("gen");
         Files.createDirectories(srcDir);
-        Files.writeString(srcDir.resolve("TypeErrMain.accent"), code, StandardCharsets.UTF_8);
+        Files.writeString(srcDir.resolve("TruthyIntAndMain.accent"), code, StandardCharsets.UTF_8);
 
         CompilationResult result = compile(srcDir, binDir, genDir);
-        assertFalse(result.successful(), "Expected type error for int and int");
-        assertTrue(result.diagnostics().stream().anyMatch(d ->
-            d.message().contains("and") && d.message().contains("int")),
-            "Expected diagnostic mentioning 'and' and 'int'");
+        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.TruthyIntAndMain");
     }
 
     @Test
-    void testTypeErrorNotOnInt() throws Exception {
+    void testTruthyNotOnInt() throws Exception {
         String code =
             "package test;\n" +
-            "public class TypeErrNot {\n" +
+            "public class TruthyNotMain {\n" +
             "    public static void main(String[] args) {\n" +
-            "        boolean r = not 42;\n" +
+            "        boolean r1 = not 42;\n" +
+            "        if (r1) throw new RuntimeException(\"not 42 should be false\");\n" +
+            "        boolean r2 = not 0;\n" +
+            "        if (!r2) throw new RuntimeException(\"not 0 should be true\");\n" +
             "    }\n" +
             "}\n";
 
@@ -371,12 +375,11 @@ class BooleanOperatorTest {
         Path binDir = tempDir.resolve("bin");
         Path genDir = tempDir.resolve("gen");
         Files.createDirectories(srcDir);
-        Files.writeString(srcDir.resolve("TypeErrNot.accent"), code, StandardCharsets.UTF_8);
+        Files.writeString(srcDir.resolve("TruthyNotMain.accent"), code, StandardCharsets.UTF_8);
 
         CompilationResult result = compile(srcDir, binDir, genDir);
-        assertFalse(result.successful(), "Expected type error for not int");
-        assertTrue(result.diagnostics().stream().anyMatch(d ->
-            d.message().contains("not")),
-            "Expected diagnostic mentioning 'not'");
+        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.TruthyNotMain");
     }
 }
+

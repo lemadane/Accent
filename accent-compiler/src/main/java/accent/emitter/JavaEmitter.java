@@ -393,7 +393,7 @@ public final class JavaEmitter {
             sb.append(";\n");
         } else if (stmt instanceof IfStmt ifs) {
             printIndent();
-            sb.append("if (").append(emitExpression(ifs.condition())).append(") ");
+            sb.append("if (").append(emitCondition(ifs.condition())).append(") ");
             
             // Nested block printing
             emitInlineOrBlockStatement(ifs.thenBranch());
@@ -413,7 +413,7 @@ public final class JavaEmitter {
                 sb.append(initStr);
             }
             sb.append("; ");
-            fs.condition().ifPresent(c -> sb.append(emitExpression(c)));
+            fs.condition().ifPresent(c -> sb.append(emitCondition(c)));
             sb.append("; ");
             fs.update().ifPresent(u -> sb.append(emitExpression(u)));
             sb.append(") ");
@@ -427,14 +427,15 @@ public final class JavaEmitter {
             sb.append("\n");
         } else if (stmt instanceof WhileStmt ws) {
             printIndent();
-            sb.append("while (").append(emitExpression(ws.condition())).append(") ");
+            sb.append("while (").append(emitCondition(ws.condition())).append(") ");
             emitInlineOrBlockStatement(ws.body());
             sb.append("\n");
         } else if (stmt instanceof DoWhileStmt dws) {
             printIndent();
             sb.append("do ");
             emitInlineOrBlockStatement(dws.body());
-            sb.append(" while (").append(emitExpression(dws.condition())).append(");\n");
+            sb.append(" while (").append(emitCondition(dws.condition())).append(");\n");
+
         } else if (stmt instanceof TryStmt ts) {
             printIndent();
             sb.append("try {\n");
@@ -528,6 +529,34 @@ public final class JavaEmitter {
         return res;
     }
 
+    private boolean isNativeBooleanExpr(Expression expr) {
+        if (expr instanceof LiteralExpr lit && lit.value() instanceof Boolean) {
+            return true;
+        }
+        if (expr instanceof BinaryExpr bin) {
+            accent.lexer.TokenType type = bin.operator().type();
+            return type == accent.lexer.TokenType.EQUAL_EQUAL || type == accent.lexer.TokenType.BANG_EQUAL ||
+                   type == accent.lexer.TokenType.LESS || type == accent.lexer.TokenType.LESS_EQUAL ||
+                   type == accent.lexer.TokenType.GREATER || type == accent.lexer.TokenType.GREATER_EQUAL ||
+                   type == accent.lexer.TokenType.AND_AND || type == accent.lexer.TokenType.OR_OR ||
+                   type == accent.lexer.TokenType.AND || type == accent.lexer.TokenType.OR ||
+                   type == accent.lexer.TokenType.NAND || type == accent.lexer.TokenType.NOR ||
+                   type == accent.lexer.TokenType.XOR || type == accent.lexer.TokenType.XNOR;
+        }
+        if (expr instanceof UnaryExpr un) {
+            accent.lexer.TokenType type = un.operator().type();
+            return type == accent.lexer.TokenType.BANG || type == accent.lexer.TokenType.NOT;
+        }
+        return false;
+    }
+
+    private String emitCondition(Expression cond) {
+        if (isNativeBooleanExpr(cond)) {
+            return emitExpression(cond);
+        }
+        return "accent.runtime.AccentRuntime.isTruthy(" + emitExpression(cond) + ")";
+    }
+
     // --- Expression Emitter ---
 
     private String emitExpression(Expression expr) {
@@ -552,7 +581,7 @@ public final class JavaEmitter {
         } else if (expr instanceof SuperExpr) {
             return "super";
         } else if (expr instanceof TernaryExpr tern) {
-            return "(" + emitExpression(tern.condition()) + " ? " + emitExpression(tern.thenBranch()) + " : " + emitExpression(tern.elseBranch()) + ")";
+            return "(" + emitCondition(tern.condition()) + " ? " + emitExpression(tern.thenBranch()) + " : " + emitExpression(tern.elseBranch()) + ")";
         } else if (expr instanceof JsonExpr json) {
             StringBuilder sb = new StringBuilder();
             String template = json.template();
@@ -632,24 +661,35 @@ public final class JavaEmitter {
             if (bin.operator().type() == accent.lexer.TokenType.ASSIGN) {
                 return emitExpression(bin.left()) + " = " + emitExpression(bin.right());
             }
-            // Textual boolean operators — translate to Java equivalents
+            accent.lexer.TokenType type = bin.operator().type();
+            if (type == accent.lexer.TokenType.AND || type == accent.lexer.TokenType.AND_AND) {
+                return "(" + emitCondition(bin.left()) + " && " + emitCondition(bin.right()) + ")";
+            }
+            if (type == accent.lexer.TokenType.OR || type == accent.lexer.TokenType.OR_OR) {
+                return "(" + emitCondition(bin.left()) + " || " + emitCondition(bin.right()) + ")";
+            }
+            if (type == accent.lexer.TokenType.NAND) {
+                return "(!(" + emitCondition(bin.left()) + " && " + emitCondition(bin.right()) + "))";
+            }
+            if (type == accent.lexer.TokenType.NOR) {
+                return "(!(" + emitCondition(bin.left()) + " || " + emitCondition(bin.right()) + "))";
+            }
+            if (type == accent.lexer.TokenType.XOR) {
+                return "(" + emitCondition(bin.left()) + " != " + emitCondition(bin.right()) + ")";
+            }
+            if (type == accent.lexer.TokenType.XNOR) {
+                return "(" + emitCondition(bin.left()) + " == " + emitCondition(bin.right()) + ")";
+            }
             String left = emitExpression(bin.left());
             String right = emitExpression(bin.right());
-            return switch (bin.operator().type()) {
-                case AND  -> "(" + left + " && " + right + ")";
-                case OR   -> "(" + left + " || " + right + ")";
-                case NAND -> "(!(" + left + " && " + right + "))";
-                case NOR  -> "(!(" + left + " || " + right + "))";
-                case XOR  -> "(" + left + " != " + right + ")";
-                case XNOR -> "(" + left + " == " + right + ")";
-                default   -> "(" + left + " " + bin.operator().lexeme() + " " + right + ")";
-            };
+            return "(" + left + " " + bin.operator().lexeme() + " " + right + ")";
         } else if (expr instanceof UnaryExpr un) {
             String opLex = un.operator().lexeme();
-            // Textual 'not' translates to '!'
-            if (un.operator().type() == accent.lexer.TokenType.NOT) {
-                return "(!" + emitExpression(un.expression()) + ")";
+            // Textual 'not' or '!' translates to '!' with emitCondition
+            if (un.operator().type() == accent.lexer.TokenType.NOT || un.operator().type() == accent.lexer.TokenType.BANG) {
+                return "(!" + emitCondition(un.expression()) + ")";
             }
+
             if (opLex.equals("++") || opLex.equals("--")) {
                 if (un.isPostfix()) {
                     return emitExpression(un.expression()) + opLex;

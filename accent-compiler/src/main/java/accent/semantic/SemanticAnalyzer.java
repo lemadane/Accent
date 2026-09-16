@@ -444,10 +444,11 @@ public final class SemanticAnalyzer implements ImportResolver {
     }
 
     private void verifyCondition(ResolvedType type, Token token) {
-        if (type == null || !type.info().fullName().equals("boolean")) {
-            error(token, "Condition must be of boolean type.");
+        if (type == null) {
+            error(token, "Condition cannot be resolved.");
         }
     }
+
 
     public final Map<Expression, ResolvedType> resolvedTypes = new java.util.IdentityHashMap<>();
 
@@ -568,20 +569,13 @@ public final class SemanticAnalyzer implements ImportResolver {
 
             accent.lexer.TokenType opType = bin.operator().type();
 
-            // Textual boolean-only operators: require boolean operands on both sides
+            // Textual boolean operators: accept truthy/falsy operands of any type, return boolean
             if (opType == accent.lexer.TokenType.AND  ||
                 opType == accent.lexer.TokenType.OR   ||
                 opType == accent.lexer.TokenType.NAND ||
                 opType == accent.lexer.TokenType.NOR  ||
                 opType == accent.lexer.TokenType.XOR  ||
                 opType == accent.lexer.TokenType.XNOR) {
-                String opName = bin.operator().lexeme();
-                if (left != null && !isBooleanType(left)) {
-                    error(bin.operator(), "Operator '" + opName + "' requires boolean operands, but found " + left.info().simpleName() + " on the left.");
-                }
-                if (right != null && !isBooleanType(right)) {
-                    error(bin.operator(), "Operator '" + opName + "' requires boolean operands, but found " + right.info().simpleName() + " on the right.");
-                }
                 return new ResolvedType(symbolTable.getType("boolean"), true, List.of(), 0);
             }
 
@@ -596,13 +590,11 @@ public final class SemanticAnalyzer implements ImportResolver {
             return left;
         } else if (expr instanceof UnaryExpr un) {
             ResolvedType type = checkExpression(un.expression());
-            // Textual 'not' — requires a boolean operand
-            if (un.operator().type() == accent.lexer.TokenType.NOT) {
-                if (type != null && !isBooleanType(type)) {
-                    error(un.operator(), "Operator 'not' requires a boolean operand, but found " + type.info().simpleName() + ".");
-                }
+            // Unary 'not' or '!' — accepts any truthy/falsy operand, returns boolean
+            if (un.operator().type() == accent.lexer.TokenType.NOT || un.operator().type() == accent.lexer.TokenType.BANG) {
                 return new ResolvedType(symbolTable.getType("boolean"), true, List.of(), 0);
             }
+
             if (un.operator().type() == accent.lexer.TokenType.PLUS_PLUS || un.operator().type() == accent.lexer.TokenType.MINUS_MINUS) {
                 if (un.expression() instanceof IdentifierExpr id) {
                     LocalVar v = lookupVar(id.name());

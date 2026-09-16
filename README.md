@@ -203,6 +203,37 @@ a nand b or c        // parsed as: (a nand b) or c
 `and` and `or` have the same short-circuit semantics as `&&` and `||`.
 `nand` and `nor` also short-circuit where possible:
 
+#### Truthy and falsy conditions
+
+Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`!`, `not`, `&&`, `||`, `and`, `or`, `nand`, `nor`, `xor`, `xnor`).
+
+##### Falsy values
+- `null`
+- `false`
+- Number zero (`0`, `0.0`, `0L`, `0.0f`, `NaN`)
+- Empty string (`""`)
+
+##### Truthy values
+- `true`
+- Non-zero numbers (e.g. `1`, `-42`, `3.14`)
+- Non-empty strings (e.g. `"hello"`, `"0"`, `"false"`)
+- Non-null objects, collections, and arrays
+
+##### Examples
+
+```java
+final name = "John";
+if (name) {
+    // Executed because non-empty string is truthy
+}
+
+final count = 0;
+if (not count) {
+    // Executed because 0 is falsy, so (not 0) is true
+}
+```
+
+
 ```java
 false nand expensiveCheck()   // expensiveCheck() is NOT called — result is always true
 true  nor  expensiveCheck()   // expensiveCheck() is NOT called — result is always false
