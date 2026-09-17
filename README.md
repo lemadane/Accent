@@ -203,37 +203,6 @@ a nand b or c        // parsed as: (a nand b) or c
 `and` and `or` have the same short-circuit semantics as `&&` and `||`.
 `nand` and `nor` also short-circuit where possible:
 
-#### Truthy and falsy conditions
-
-Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`!`, `not`, `&&`, `||`, `and`, `or`, `nand`, `nor`, `xor`, `xnor`).
-
-##### Falsy values
-- `null`
-- `false`
-- Number zero (`0`, `0.0`, `0L`, `0.0f`, `NaN`)
-- Empty string (`""`)
-
-##### Truthy values
-- `true`
-- Non-zero numbers (e.g. `1`, `-42`, `3.14`)
-- Non-empty strings (e.g. `"hello"`, `"0"`, `"false"`)
-- Non-null objects, collections, and arrays
-
-##### Examples
-
-```java
-final name = "John";
-if (name) {
-    // Executed because non-empty string is truthy
-}
-
-final count = 0;
-if (not count) {
-    // Executed because 0 is falsy, so (not 0) is true
-}
-```
-
-
 ```java
 false nand expensiveCheck()   // expensiveCheck() is NOT called — result is always true
 true  nor  expensiveCheck()   // expensiveCheck() is NOT called — result is always false
@@ -243,16 +212,14 @@ true  nor  expensiveCheck()   // expensiveCheck() is NOT called — result is al
 
 #### Type checking
 
-All seven textual boolean operators are **boolean-only**. Using them on non-boolean values is a compile-time error:
+All seven textual boolean operators accept truthy/falsy operands of any type and produce boolean results:
 
 ```java
-// Valid
+// Valid with truthy/falsy operands
 boolean result = ready and available;
-
-// Invalid — produces a compile error:
-// Operator 'and' requires boolean operands, but found int and int.
-int result = 10 and 20;
+boolean strResult = "hello" and 42; // true
 ```
+
 
 #### Reserved keywords
 
@@ -299,7 +266,37 @@ public boolean haveSameStatus(
 final val = condition ? "Zack" : "Guest";
 ```
 
-### 8. `if` expression
+### 8. Truthy and falsy conditions
+
+Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`!`, `not`, `&&`, `||`, `and`, `or`, `nand`, `nor`, `xor`, `xnor`).
+
+#### Falsy values
+- `null`
+- `false`
+- Number zero (`0`, `0.0`, `0L`, `0.0f`, `NaN`)
+- Empty string (`""`)
+
+#### Truthy values
+- `true`
+- Non-zero numbers (e.g. `1`, `-42`, `3.14`)
+- Non-empty strings (e.g. `"hello"`, `"0"`, `"false"`)
+- Non-null objects, collections, and arrays
+
+#### Examples
+
+```java
+final name = "John";
+if (name) {
+    // Executed because non-empty string is truthy
+}
+
+final count = 0;
+if (not count) {
+    // Executed because 0 is falsy, so (not 0) is true
+}
+```
+
+### 9. `if` expression
 
 ```java
 final status = if (order.isPaid()) {
@@ -311,7 +308,7 @@ final status = if (order.isPaid()) {
 
 Every reachable branch must yield a compatible result.
 
-### 9. `try` expression
+### 10. `try` expression
 
 ```java
 final port = try {
@@ -321,7 +318,7 @@ final port = try {
 };
 ```
 
-### 10. `for` expression
+### 11. `for` expression
 
 Accent uses Java's existing `for` keyword. It does not introduce `foreach`.
 
@@ -343,7 +340,7 @@ final numbers = for (var i = 0; i < 10; i++) {
 
 Each executed `yield` contributes an element to the resulting collection.
 
-### 11. `while` and `do-while` expressions
+### 12. `while` and `do-while` expressions
 
 ```java
 final values = while (iterator.hasNext()) {
@@ -357,7 +354,7 @@ final values = do {
 } while (this.hasMore());
 ```
 
-### 12. Class extensions
+### 13. Class extensions
 
 Accent can extend an existing Java or Accent class without changing the original class or creating a subclass:
 
@@ -377,7 +374,7 @@ final normalizedName = name.normalized();
 
 Class extensions are expected to lower to ordinary static Java helper methods. Real instance members take precedence over extension members.
 
-### 13. Virtual Thread concurrency
+### 14. Virtual Thread concurrency
 
 Ordinary Java and Accent methods remain synchronous. Concurrency is requested at the call site:
 
@@ -415,7 +412,7 @@ final customer =
     this.customerService.findRequired(id);
 ```
 
-### 14. Generator functions
+### 15. Generator functions
 
 Accent supports generator functions to produce lazy, streamable sequences of values.
 * Declare the method with the `generator` modifier.
@@ -438,7 +435,7 @@ for (int val : numbers(5)) {
 ```
 
 
-### 15. Direct SQL Query Templating
+### 16. Direct SQL Query Templating
 
 Accent includes native support for SQL template query expressions (using backticks) that automatically parameterize dynamic variables to prevent SQL injection and map results directly to Java record types:
 
@@ -458,7 +455,7 @@ Accent includes native support for SQL template query expressions (using backtic
 Dynamic interpolation expressions (like `{name}`) are parsed and validated by the compiler, translating the template query directly into standard prepared statement execution at runtime.
 
 
-### 16. Compile-Time SQL Query Syntax Checking
+### 17. Compile-Time SQL Query Syntax Checking
 
 The compiler automatically parses and validates the SQL syntax of all query literals at compile-time:
 * **Mismatched delimiters**: Detects unclosed quotes or mismatched parentheses in the SQL text.
@@ -467,7 +464,7 @@ The compiler automatically parses and validates the SQL syntax of all query lite
 Any syntax mistakes will immediately halt compilation and raise detailed compiler errors before code is deployed.
 
 
-### 17. Zero-Boilerplate S  SQL to Record Mapping (ORM)
+### 18. Zero-Boilerplate S  SQL to Record Mapping (ORM)
 
 The runtime automatically maps database result set columns to Java records using constructor reflection:
 * **Name-Based Matching**: Maps columns directly to record constructor parameters with matching names (case-insensitive).
@@ -475,7 +472,7 @@ The runtime automatically maps database result set columns to Java records using
 * **Recursive Nested Mapping**: If a record constructor contains a nested record type (e.g., `User(String name, Contact contact)` where `Contact` is `record Contact(String email)`), the mapper recursively instantiates the nested record matching the query columns.
 
 
-### 18. Synchronous SQL Query Execution for Virtual Threads
+### 19. Synchronous SQL Query Execution for Virtual Threads
 
 Because Accent has native compiler-level support for **Virtual Threads (`async`/`await`)**, database query literals can be executed synchronously in lightweight thread contexts without blocking carrier system threads:
 
@@ -488,7 +485,7 @@ final users = await usersFuture;
 When a query blocks on database I/O, the JVM automatically unmounts the virtual thread, enabling high-performance concurrent database operations with standard, simple synchronous code.
 
 
-### 19. Interpolated Strings
+### 20. Interpolated Strings
 
 Accent includes native support for type-safe, evaluated string interpolation expressions using the `$"` syntax. The same delimiter seamlessly supports both single-line and multiline string expressions.
 
@@ -529,7 +526,7 @@ Accent includes native support for type-safe, evaluated string interpolation exp
 * **Type Behavior**: The entire interpolated string expression resolves to type `java.lang.String`. Void-returning expressions are rejected at compile-time.
 
 
-### 20. Native Server-Side HTML Components
+### 21. Native Server-Side HTML Components
 
 Accent includes native support for server-side HTML templating via JSX-like markup tags directly integrated into the language.
 
@@ -568,7 +565,7 @@ Accent supports standard Java ternary expressions (`{condition ? thenExpr : else
 
 
 
-### 21. Native Annotations and 3rd Party Annotation Support
+### 22. Native Annotations and 3rd Party Annotation Support
 
 Accent fully supports standard Java and framework annotations (such as Spring Boot's `@RestController`, `@Autowired`, etc.) on classes, fields, methods, constructors, and method parameters:
 
@@ -587,7 +584,7 @@ public class ProductController {
 }
 ```
 
-### 22. Named Arguments & Parameter Default Values
+### 23. Named Arguments & Parameter Default Values
 
 Method and constructor parameters can define default values, which can then be invoked optionally or using named arguments.
 
@@ -610,7 +607,7 @@ final res2 = calculate(offset: 5, base: 10); // 10 * 2 + 5 = 25
 final res3 = calculate(10, multiplier: 3); // 10 * 3 + 1 = 31
 ```
 
-### 23. JS-like Symbols
+### 24. JS-like Symbols
 
 Accent provides a JavaScript-like `Symbol` type in the standard library (`accent.lang.Symbol<T>`) to serve as unique, identity-based keys for metadata, component contexts, and registries without the risk of collisions.
 
@@ -664,7 +661,7 @@ UUID currentTenantId = context.get(TENANT_ID);
 * The `symbol` word is not a reserved keyword and remains valid as an ordinary variable name.
 
 
-### 24. @Logging Annotation
+### 25. @Logging Annotation
 
 Accent provides a native logging system integrated directly into the language via the `@Logging` annotation, without requiring Lombok, SLF4J, or any external bytecode manipulation.
 
@@ -706,7 +703,7 @@ implementation 'accent:accent-logging-spring-boot-starter:1.0.0'
 It maps Spring Boot profiles and active environments so that `accent.logging` levels automatically align with your `application.yml` properties. In environments without Spring Boot, it seamlessly falls back to reading `accent-logging.properties`.
 
 
-### 25. Slugs (`accent.web`)
+### 26. Slugs (`accent.web`)
 
 Java does not provide a built-in slug type or standard slugification utility. Developers often have to use third-party libraries or build custom logic combining `Normalizer`, regular expressions, and locales. Accent fills this gap by providing a standardized, immutable value type: `accent.web.Slug`.
 
@@ -847,7 +844,7 @@ repositories {
 
 dependencies {
     // Core Accent Compiler
-    implementation 'com.github.accent:accent-lang:v0.1.0-alpha.1'
+    implementation 'com.github.accent:accent-lang:v0.1.0-alpha.2'
 }
 ```
 
