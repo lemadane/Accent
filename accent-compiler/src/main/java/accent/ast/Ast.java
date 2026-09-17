@@ -164,10 +164,11 @@ public interface Ast {
             Optional<Statement> init,
             Optional<Expression> condition,
             Optional<Expression> update,
-            Statement body
+            Statement body,
+            Optional<Statement> elseBranch
     ) implements Statement {}
 
-    record ForEachStmt(Parameter parameter, Expression iterable, Statement body) implements Statement {}
+    record ForEachStmt(Parameter parameter, Expression iterable, Statement body, Optional<Statement> elseBranch) implements Statement {}
 
     record WhileStmt(Expression condition, Statement body) implements Statement {}
 
@@ -312,7 +313,7 @@ public interface Ast {
 
     record IfMarkupNode(Expression condition, List<MarkupNode> trueBranch, List<MarkupNode> falseBranch, Token token) implements MarkupNode {}
 
-    record ForMarkupNode(Parameter parameter, Expression iterable, List<MarkupNode> body, Token token) implements MarkupNode {}
+    record ForMarkupNode(Parameter parameter, Expression iterable, List<MarkupNode> body, List<MarkupNode> elseBranch, Token token) implements MarkupNode {}
 
     record FragmentNode(List<MarkupNode> children, Token token) implements MarkupNode {}
 }

@@ -13,6 +13,8 @@ public final class JavaEmitter {
     private TypeNode extensionTargetType = null;
     private String currentClassName = null;
     private boolean isInsideGenerator = false;
+    private final java.util.Deque<String> loopBrokenVars = new java.util.ArrayDeque<>();
+    private int loopCounter = 0;
 
     public JavaEmitter() {
     }
@@ -404,37 +406,129 @@ public final class JavaEmitter {
             }
             sb.append("\n");
         } else if (stmt instanceof ForStmt fs) {
-            printIndent();
-            sb.append("for (");
-            if (fs.init().isPresent()) {
-                // Strip the final newline and semicolon from simple init statement if needed
-                String initStr = emitStatementToString(fs.init().get()).trim();
-                if (initStr.endsWith(";")) initStr = initStr.substring(0, initStr.length() - 1);
-                sb.append(initStr);
+            if (fs.elseBranch().isPresent()) {
+                String id = "loop_" + (loopCounter++);
+                String ranVar = "__ran_" + id;
+                String brokenVar = "__broken_" + id;
+                printIndent();
+                sb.append("boolean ").append(ranVar).append(" = false;\n");
+                printIndent();
+                sb.append("boolean ").append(brokenVar).append(" = false;\n");
+                loopBrokenVars.push(brokenVar);
+
+                printIndent();
+                sb.append("for (");
+                if (fs.init().isPresent()) {
+                    String initStr = emitStatementToString(fs.init().get()).trim();
+                    if (initStr.endsWith(";")) initStr = initStr.substring(0, initStr.length() - 1);
+                    sb.append(initStr);
+                }
+                sb.append("; ");
+                fs.condition().ifPresent(c -> sb.append(emitCondition(c)));
+                sb.append("; ");
+                fs.update().ifPresent(u -> sb.append(emitExpression(u)));
+                sb.append(") {\n");
+                indentLevel++;
+                printIndent();
+                sb.append(ranVar).append(" = true;\n");
+                if (fs.body() instanceof BlockStmt bs) {
+                    for (Statement s : bs.statements()) {
+                        emitStatement(s);
+                    }
+                } else {
+                    emitStatement(fs.body());
+                }
+                indentLevel--;
+                printIndent();
+                sb.append("}\n");
+
+                loopBrokenVars.pop();
+
+                printIndent();
+                sb.append("if (!").append(ranVar).append(" || !").append(brokenVar).append(") ");
+                emitInlineOrBlockStatement(fs.elseBranch().get());
+                sb.append("\n");
+            } else {
+                loopBrokenVars.push("");
+                printIndent();
+                sb.append("for (");
+                if (fs.init().isPresent()) {
+                    String initStr = emitStatementToString(fs.init().get()).trim();
+                    if (initStr.endsWith(";")) initStr = initStr.substring(0, initStr.length() - 1);
+                    sb.append(initStr);
+                }
+                sb.append("; ");
+                fs.condition().ifPresent(c -> sb.append(emitCondition(c)));
+                sb.append("; ");
+                fs.update().ifPresent(u -> sb.append(emitExpression(u)));
+                sb.append(") ");
+                emitInlineOrBlockStatement(fs.body());
+                sb.append("\n");
+                loopBrokenVars.pop();
             }
-            sb.append("; ");
-            fs.condition().ifPresent(c -> sb.append(emitCondition(c)));
-            sb.append("; ");
-            fs.update().ifPresent(u -> sb.append(emitExpression(u)));
-            sb.append(") ");
-            emitInlineOrBlockStatement(fs.body());
-            sb.append("\n");
         } else if (stmt instanceof ForEachStmt fes) {
-            printIndent();
-            sb.append("for (").append(emitType(fes.parameter().type())).append(" ")
-                    .append(fes.parameter().name()).append(" : ").append(emitExpression(fes.iterable())).append(") ");
-            emitInlineOrBlockStatement(fes.body());
-            sb.append("\n");
+            if (fes.elseBranch().isPresent()) {
+                String id = "loop_" + (loopCounter++);
+                String ranVar = "__ran_" + id;
+                String brokenVar = "__broken_" + id;
+                printIndent();
+                sb.append("boolean ").append(ranVar).append(" = false;\n");
+                printIndent();
+                sb.append("boolean ").append(brokenVar).append(" = false;\n");
+                loopBrokenVars.push(brokenVar);
+
+                printIndent();
+                sb.append("if (accent.runtime.AccentRuntime.isTruthy(").append(emitExpression(fes.iterable())).append(")) {\n");
+                indentLevel++;
+                printIndent();
+                sb.append("for (").append(emitType(fes.parameter().type())).append(" ")
+                        .append(fes.parameter().name()).append(" : ").append(emitExpression(fes.iterable())).append(") {\n");
+                indentLevel++;
+                printIndent();
+                sb.append(ranVar).append(" = true;\n");
+                if (fes.body() instanceof BlockStmt bs) {
+                    for (Statement s : bs.statements()) {
+                        emitStatement(s);
+                    }
+                } else {
+                    emitStatement(fes.body());
+                }
+                indentLevel--;
+                printIndent();
+                sb.append("}\n");
+                indentLevel--;
+                printIndent();
+                sb.append("}\n");
+
+                loopBrokenVars.pop();
+
+                printIndent();
+                sb.append("if (!").append(ranVar).append(" || !").append(brokenVar).append(") ");
+                emitInlineOrBlockStatement(fes.elseBranch().get());
+                sb.append("\n");
+            } else {
+                loopBrokenVars.push("");
+                printIndent();
+                sb.append("for (").append(emitType(fes.parameter().type())).append(" ")
+                        .append(fes.parameter().name()).append(" : ").append(emitExpression(fes.iterable())).append(") ");
+                emitInlineOrBlockStatement(fes.body());
+                sb.append("\n");
+                loopBrokenVars.pop();
+            }
         } else if (stmt instanceof WhileStmt ws) {
+            loopBrokenVars.push("");
             printIndent();
             sb.append("while (").append(emitCondition(ws.condition())).append(") ");
             emitInlineOrBlockStatement(ws.body());
             sb.append("\n");
+            loopBrokenVars.pop();
         } else if (stmt instanceof DoWhileStmt dws) {
+            loopBrokenVars.push("");
             printIndent();
             sb.append("do ");
             emitInlineOrBlockStatement(dws.body());
             sb.append(" while (").append(emitCondition(dws.condition())).append(");\n");
+            loopBrokenVars.pop();
 
         } else if (stmt instanceof TryStmt ts) {
             printIndent();
@@ -486,6 +580,9 @@ public final class JavaEmitter {
             sb.append("__emit.accept(").append(emitExpression(es.expression())).append(");\n");
         } else if (stmt instanceof BreakStmt) {
             printIndent();
+            if (!loopBrokenVars.isEmpty() && !loopBrokenVars.peek().isEmpty()) {
+                sb.append(loopBrokenVars.peek()).append(" = true; ");
+            }
             sb.append("break;\n");
         } else if (stmt instanceof ContinueStmt) {
             printIndent();

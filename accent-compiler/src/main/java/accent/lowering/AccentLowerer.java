@@ -219,7 +219,12 @@ public final class AccentLowerer implements ImportResolver {
             Optional<Expression> upd = fs.update().map(this::lowerExpression);
             Statement body = lowerBlock(fs.body() instanceof BlockStmt ? (BlockStmt) fs.body() : new BlockStmt(List.of(fs.body())));
             popScope();
-            result = new ForStmt(init, cond, upd, body);
+            Optional<Statement> elseB = fs.elseBranch().map(eb -> {
+                if (eb instanceof BlockStmt) return lowerBlock((BlockStmt) eb);
+                if (eb instanceof IfStmt) return lowerStatement(eb).get(0);
+                return new BlockStmt(lowerStatement(eb));
+            });
+            result = new ForStmt(init, cond, upd, body, elseB);
         } else if (stmt instanceof ForEachStmt fes) {
             Expression iter = lowerExpression(fes.iterable());
             pushScope();
@@ -239,7 +244,12 @@ public final class AccentLowerer implements ImportResolver {
             scopes.getFirst().put(fes.parameter().name(), pType);
             Statement body = lowerBlock(fes.body() instanceof BlockStmt ? (BlockStmt) fes.body() : new BlockStmt(List.of(fes.body())));
             popScope();
-            result = new ForEachStmt(fes.parameter(), iter, body);
+            Optional<Statement> elseB = fes.elseBranch().map(eb -> {
+                if (eb instanceof BlockStmt) return lowerBlock((BlockStmt) eb);
+                if (eb instanceof IfStmt) return lowerStatement(eb).get(0);
+                return new BlockStmt(lowerStatement(eb));
+            });
+            result = new ForEachStmt(fes.parameter(), iter, body, elseB);
         } else if (stmt instanceof WhileStmt ws) {
             Expression cond = lowerExpression(ws.condition());
             Statement body = lowerBlock(ws.body() instanceof BlockStmt ? (BlockStmt) ws.body() : new BlockStmt(List.of(ws.body())));
@@ -585,9 +595,9 @@ public final class AccentLowerer implements ImportResolver {
         } else if (stmt instanceof IfStmt ifs) {
             return new IfStmt(ifs.condition(), lowerLoopYields(ifs.thenBranch(), listName), ifs.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof ForStmt fs) {
-            return new ForStmt(fs.init(), fs.condition(), fs.update(), lowerLoopYields(fs.body(), listName));
+            return new ForStmt(fs.init(), fs.condition(), fs.update(), lowerLoopYields(fs.body(), listName), fs.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof ForEachStmt fes) {
-            return new ForEachStmt(fes.parameter(), fes.iterable(), lowerLoopYields(fes.body(), listName));
+            return new ForEachStmt(fes.parameter(), fes.iterable(), lowerLoopYields(fes.body(), listName), fes.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof WhileStmt ws) {
             return new WhileStmt(ws.condition(), lowerLoopYields(ws.body(), listName));
         } else if (stmt instanceof DoWhileStmt dws) {
@@ -816,6 +826,7 @@ public final class AccentLowerer implements ImportResolver {
             }
             findYieldTypesHelper(fs.body(), types);
             popScope();
+            fs.elseBranch().ifPresent(eb -> findYieldTypesHelper(eb, types));
         } else if (stmt instanceof ForEachStmt fes) {
             pushScope();
             ResolvedType pType;
@@ -834,6 +845,7 @@ public final class AccentLowerer implements ImportResolver {
             scopes.getFirst().put(fes.parameter().name(), pType);
             findYieldTypesHelper(fes.body(), types);
             popScope();
+            fes.elseBranch().ifPresent(eb -> findYieldTypesHelper(eb, types));
         } else if (stmt instanceof WhileStmt ws) {
             findYieldTypesHelper(ws.body(), types);
         } else if (stmt instanceof DoWhileStmt dws) {
@@ -1012,7 +1024,8 @@ public final class AccentLowerer implements ImportResolver {
             } else if (act instanceof ForAction fa) {
                 ForMarkupNode fmn = fa.node();
                 Statement body = new BlockStmt(compileMarkupNodes(fmn.body(), writerName));
-                stmts.add(new ForEachStmt(fmn.parameter(), lowerExpression(fmn.iterable()), body));
+                Optional<Statement> elseBranch = fmn.elseBranch().isEmpty() ? Optional.empty() : Optional.of(new BlockStmt(compileMarkupNodes(fmn.elseBranch(), writerName)));
+                stmts.add(new ForEachStmt(fmn.parameter(), lowerExpression(fmn.iterable()), body, elseBranch));
             }
         }
         return stmts;

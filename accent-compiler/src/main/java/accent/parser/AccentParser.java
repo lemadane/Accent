@@ -664,36 +664,45 @@ public final class AccentParser {
 
         if (isEnhanced) {
             Parameter param = parseParameter();
-            consume(TokenType.COLON, "Expected ':' in enhanced for loop.");
+            consume(TokenType.COLON, "Expected ':' after loop variable.");
             Expression iterable = parseExpression(Precedence.NONE);
-            consume(TokenType.RIGHT_PAREN, "Expected ')' after for loop iterable.");
+            consume(TokenType.RIGHT_PAREN, "Expected ')' after for clause.");
             Statement body = parseStatement();
-            return new ForEachStmt(param, iterable, body);
+            Optional<Statement> elseBranch = Optional.empty();
+            if (match(TokenType.ELSE)) {
+                elseBranch = Optional.of(parseStatement());
+            }
+            return new ForEachStmt(param, iterable, body, elseBranch);
         } else {
             Optional<Statement> init = Optional.empty();
             if (!match(TokenType.SEMICOLON)) {
                 if (isLocalVarDeclaration()) {
                     init = Optional.of(parseLocalVarDeclaration());
                 } else {
-                    init = Optional.of(new ExprStmt(parseExpression(Precedence.NONE)));
-                    consume(TokenType.SEMICOLON, "Expected ';' after for loop init.");
+                    Expression initializer = parseExpression(Precedence.NONE);
+                    consume(TokenType.SEMICOLON, "Expected ';' after loop initializer.");
+                    init = Optional.of(new ExprStmt(initializer));
                 }
             }
 
             Optional<Expression> condition = Optional.empty();
-            if (!match(TokenType.SEMICOLON)) {
+            if (!check(TokenType.SEMICOLON)) {
                 condition = Optional.of(parseExpression(Precedence.NONE));
-                consume(TokenType.SEMICOLON, "Expected ';' after for loop condition.");
             }
+            consume(TokenType.SEMICOLON, "Expected ';' after loop condition.");
 
             Optional<Expression> update = Optional.empty();
             if (!check(TokenType.RIGHT_PAREN)) {
                 update = Optional.of(parseExpression(Precedence.NONE));
             }
-            consume(TokenType.RIGHT_PAREN, "Expected ')' after for loop update.");
+            consume(TokenType.RIGHT_PAREN, "Expected ')' after for clauses.");
 
             Statement body = parseStatement();
-            return new ForStmt(init, condition, update, body);
+            Optional<Statement> elseBranch = Optional.empty();
+            if (match(TokenType.ELSE)) {
+                elseBranch = Optional.of(parseStatement());
+            }
+            return new ForStmt(init, condition, update, body, elseBranch);
         }
     }
 
@@ -1166,7 +1175,13 @@ public final class AccentParser {
                     consume(TokenType.LEFT_BRACE, "Expected '{' for loop block.");
                     List<MarkupNode> body = parseMarkupChildrenInBlock();
                     consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
-                    children.add(new ForMarkupNode(loopVar, iterable, body, forToken));
+                    List<MarkupNode> elseBranch = List.of();
+                    if (match(TokenType.ELSE)) {
+                        consume(TokenType.LEFT_BRACE, "Expected '{' for 'else' block.");
+                        elseBranch = parseMarkupChildrenInBlock();
+                        consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
+                    }
+                    children.add(new ForMarkupNode(loopVar, iterable, body, elseBranch, forToken));
                 } else {
                     Expression expr = parseExpression(Precedence.NONE);
                     consume(TokenType.RIGHT_BRACE, "Expected '}' after expression.");
@@ -1230,7 +1245,13 @@ public final class AccentParser {
                     consume(TokenType.LEFT_BRACE, "Expected '{' loop block.");
                     List<MarkupNode> body = parseMarkupChildrenInBlock();
                     consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
-                    children.add(new ForMarkupNode(loopVar, iterable, body, forToken));
+                    List<MarkupNode> elseBranch = List.of();
+                    if (match(TokenType.ELSE)) {
+                        consume(TokenType.LEFT_BRACE, "Expected '{' for 'else' block.");
+                        elseBranch = parseMarkupChildrenInBlock();
+                        consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
+                    }
+                    children.add(new ForMarkupNode(loopVar, iterable, body, elseBranch, forToken));
                 } else {
                     Expression expr = parseExpression(Precedence.NONE);
                     consume(TokenType.RIGHT_BRACE, "Expected '}' after expression.");

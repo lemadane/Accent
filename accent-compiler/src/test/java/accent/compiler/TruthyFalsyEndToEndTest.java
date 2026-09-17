@@ -443,5 +443,178 @@ class TruthyFalsyEndToEndTest {
         assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
         runClass(binDir, "test.ExhaustiveMain");
     }
-}
 
+    @Test
+    void testIfElseAndForLoopTruthyFalsyForListsAndMaps() throws Exception {
+        String code =
+            "package test;\n" +
+            "import java.util.ArrayList;\n" +
+            "import java.util.HashMap;\n" +
+            "import java.util.List;\n" +
+            "import java.util.Map;\n" +
+            "public class IfElseForMain {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        final emptyList = List.of();\n" +
+            "        final nonEmptyList = List.of(\"item1\", \"item2\");\n" +
+            "        final emptyMap = Map.of();\n" +
+            "        final nonEmptyMap = Map.of(\"k1\", \"v1\");\n" +
+            "\n" +
+            "        // 1. if / else with empty list -> MUST go to else branch\n" +
+            "        boolean emptyListElseRan = false;\n" +
+            "        if (emptyList) {\n" +
+            "            throw new RuntimeException(\"emptyList should not enter then branch\");\n" +
+            "        } else {\n" +
+            "            emptyListElseRan = true;\n" +
+            "        }\n" +
+            "        if (!emptyListElseRan) throw new RuntimeException(\"emptyList failed to enter else branch\");\n" +
+            "\n" +
+            "        // 2. if / else with non-empty list -> MUST go to then branch\n" +
+            "        boolean nonEmptyListThenRan = false;\n" +
+            "        if (nonEmptyList) {\n" +
+            "            nonEmptyListThenRan = true;\n" +
+            "        } else {\n" +
+            "            throw new RuntimeException(\"nonEmptyList should not enter else branch\");\n" +
+            "        }\n" +
+            "        if (!nonEmptyListThenRan) throw new RuntimeException(\"nonEmptyList failed to enter then branch\");\n" +
+            "\n" +
+            "        // 3. if / else with empty map -> MUST go to else branch\n" +
+            "        boolean emptyMapElseRan = false;\n" +
+            "        if (emptyMap) {\n" +
+            "            throw new RuntimeException(\"emptyMap should not enter then branch\");\n" +
+            "        } else {\n" +
+            "            emptyMapElseRan = true;\n" +
+            "        }\n" +
+            "        if (!emptyMapElseRan) throw new RuntimeException(\"emptyMap failed to enter else branch\");\n" +
+            "\n" +
+            "        // 4. if / else with non-empty map -> MUST go to then branch\n" +
+            "        boolean nonEmptyMapThenRan = false;\n" +
+            "        if (nonEmptyMap) {\n" +
+            "            nonEmptyMapThenRan = true;\n" +
+            "        } else {\n" +
+            "            throw new RuntimeException(\"nonEmptyMap should not enter else branch\");\n" +
+            "        }\n" +
+            "        if (!nonEmptyMapThenRan) throw new RuntimeException(\"nonEmptyMap failed to enter then branch\");\n" +
+            "\n" +
+            "        // 5. for loop condition with List (drain list until empty)\n" +
+            "        var listToDrain = new ArrayList<String>(List.of(\"a\", \"b\", \"c\"));\n" +
+            "        int listLoopRuns = 0;\n" +
+            "        for (; listToDrain; ) {\n" +
+            "            listLoopRuns++;\n" +
+            "            listToDrain.remove(0);\n" +
+            "        }\n" +
+            "        if (listLoopRuns != 3) throw new RuntimeException(\"for loop with List condition expected 3 runs, got \" + listLoopRuns);\n" +
+            "\n" +
+            "        // 6. for loop condition with Map (drain map until empty)\n" +
+            "        var mapToDrain = new HashMap<String, String>(Map.of(\"k1\", \"v1\", \"k2\", \"v2\"));\n" +
+            "        int mapLoopRuns = 0;\n" +
+            "        for (; mapToDrain; ) {\n" +
+            "            mapLoopRuns++;\n" +
+            "            var firstKey = mapToDrain.keySet().iterator().next();\n" +
+            "            mapToDrain.remove(firstKey);\n" +
+            "        }\n" +
+            "        if (mapLoopRuns != 2) throw new RuntimeException(\"for loop with Map condition expected 2 runs, got \" + mapLoopRuns);\n" +
+            "    }\n" +
+            "}\n";
+
+        Path tempDir = createTempDir();
+        Path srcDir = tempDir.resolve("src");
+        Path binDir = tempDir.resolve("bin");
+        Path genDir = tempDir.resolve("gen");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("IfElseForMain.accent"), code, StandardCharsets.UTF_8);
+
+        CompilationResult result = compile(srcDir, binDir, genDir);
+        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.IfElseForMain");
+    }
+
+    @Test
+    void testForElseStatementsAndExpressions() throws Exception {
+        String code =
+            "package test;\n" +
+            "import java.util.List;\n" +
+            "import java.util.Map;\n" +
+            "public class ForElseMain {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        // 1. Enhanced for/else with non-empty list (no break)\n" +
+            "        final list1 = List.of(\"a\", \"b\");\n" +
+            "        boolean else1Ran = false;\n" +
+            "        int count1 = 0;\n" +
+            "        for (var item : list1) {\n" +
+            "            count1++;\n" +
+            "        } else {\n" +
+            "            else1Ran = true;\n" +
+            "        }\n" +
+            "        if (count1 != 2) throw new RuntimeException(\"Expected count1 == 2, got \" + count1);\n" +
+            "        if (!else1Ran) throw new RuntimeException(\"For/else without break should execute else branch\");\n" +
+            "\n" +
+            "        // 2. Enhanced for/else with non-empty list (with break)\n" +
+            "        boolean else2Ran = false;\n" +
+            "        int count2 = 0;\n" +
+            "        for (var item : list1) {\n" +
+            "            count2++;\n" +
+            "            if (item.equals(\"a\")) break;\n" +
+            "        } else {\n" +
+            "            else2Ran = true;\n" +
+            "        }\n" +
+            "        if (count2 != 1) throw new RuntimeException(\"Expected count2 == 1, got \" + count2);\n" +
+            "        if (else2Ran) throw new RuntimeException(\"For/else with break should NOT execute else branch\");\n" +
+            "\n" +
+            "        // 3. Enhanced for/else with empty list\n" +
+            "        final emptyList = List.of();\n" +
+            "        boolean else3Ran = false;\n" +
+            "        int count3 = 0;\n" +
+            "        for (var item : emptyList) {\n" +
+            "            count3++;\n" +
+            "        } else {\n" +
+            "            else3Ran = true;\n" +
+            "        }\n" +
+            "        if (count3 != 0) throw new RuntimeException(\"Expected count3 == 0, got \" + count3);\n" +
+            "        if (!else3Ran) throw new RuntimeException(\"For/else with empty list should execute else branch\");\n" +
+            "\n" +
+            "        // 4. Enhanced for/else with null iterable\n" +
+            "        final List nullList = null;\n" +
+            "        boolean else4Ran = false;\n" +
+            "        for (var item : nullList) {\n" +
+            "            throw new RuntimeException(\"Should not run loop body for null\");\n" +
+            "        } else {\n" +
+            "            else4Ran = true;\n" +
+            "        }\n" +
+            "        if (!else4Ran) throw new RuntimeException(\"For/else with null iterable should execute else branch\");\n" +
+            "\n" +
+            "        // 5. Standard for/else loop\n" +
+            "        boolean else5Ran = false;\n" +
+            "        int sum5 = 0;\n" +
+            "        for (var i = 0; i < 3; i++) {\n" +
+            "            sum5 = sum5 + i;\n" +
+            "        } else {\n" +
+            "            else5Ran = true;\n" +
+            "        }\n" +
+            "        if (sum5 != 3 || !else5Ran) throw new RuntimeException(\"Standard for/else without break failed\");\n" +
+            "\n" +
+            "        boolean else6Ran = false;\n" +
+            "        for (var i = 0; i < 3; i++) {\n" +
+            "            if (i == 1) break;\n" +
+            "        } else {\n" +
+            "            else6Ran = true;\n" +
+            "        }\n" +
+            "        if (else6Ran) throw new RuntimeException(\"Standard for/else with break should NOT execute else branch\");\n" +
+            "\n" +
+            "        // 6. for/else loop expression yielding values\n" +
+            "        final res1 = for (var item : emptyList) { yield item; } else { yield \"fallback\"; };\n" +
+            "        if (!res1.equals(List.of(\"fallback\"))) throw new RuntimeException(\"Loop expression for empty list expected List.of('fallback'), got \" + res1);\n" +
+            "    }\n" +
+            "}\n";
+
+        Path tempDir = createTempDir();
+        Path srcDir = tempDir.resolve("src");
+        Path binDir = tempDir.resolve("bin");
+        Path genDir = tempDir.resolve("gen");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("ForElseMain.accent"), code, StandardCharsets.UTF_8);
+
+        CompilationResult result = compile(srcDir, binDir, genDir);
+        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.ForElseMain");
+    }
+}

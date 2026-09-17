@@ -383,6 +383,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             fs.update().ifPresent(this::checkExpression);
             checkStatement(fs.body());
             popScope();
+            fs.elseBranch().ifPresent(this::checkStatement);
         } else if (stmt instanceof ForEachStmt fes) {
             ResolvedType iterType = checkExpression(fes.iterable());
             ResolvedType elemType;
@@ -403,6 +404,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             scopes.getFirst().put(fes.parameter().name(), new LocalVar(fes.parameter().name(), elemType, true, true));
             checkStatement(fes.body());
             popScope();
+            fes.elseBranch().ifPresent(this::checkStatement);
         } else if (stmt instanceof WhileStmt ws) {
             checkExpression(ws.condition());
             checkStatement(ws.body());
@@ -1031,6 +1033,9 @@ public final class SemanticAnalyzer implements ImportResolver {
                 checkMarkupNode(n);
             }
             popScope();
+            for (MarkupNode n : fmn.elseBranch()) {
+                checkMarkupNode(n);
+            }
         } else if (node instanceof FragmentNode fn) {
             for (MarkupNode n : fn.children()) {
                 checkMarkupNode(n);

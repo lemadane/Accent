@@ -330,27 +330,52 @@ final port = try {
 };
 ```
 
-### 11. `for` expression
+### 11. `for` statements and expressions with `else`
 
-Accent uses Java's existing `for` keyword. It does not introduce `foreach`.
+Accent uses Java's existing `for` keyword for both enhanced and traditional loops in statement and expression positions. Accent supports an optional `else` branch on `for` loops (`for/else`).
 
-Enhanced `for` expression:
+#### `for/else` Semantics
+- **Falsy/Empty Iterable**: If the loop iterable is falsy (`null`, empty `List`, empty `Map`, empty array, etc.) or a traditional loop condition starts `false`, the loop body is skipped and the `else` branch executes immediately.
+- **Normal Loop Completion**: If the loop executes to completion without encountering a `break` statement, the `else` branch executes.
+- **Early Exit via `break`**: If a `break` statement is encountered, the `else` branch is skipped.
+
+#### Enhanced `for/else` Statement
+
+```java
+// Executes else branch when list is empty, null, or completed without break
+for (var customer : customers) {
+    if (customer.id().equals(targetId)) {
+        this.process(customer);
+        break; // Skips else branch
+    }
+} else {
+    this.logNotFound();
+}
+```
+
+#### Traditional `for/else` Statement
+
+```java
+for (var i = 0; i < maxAttempts; i++) {
+    if (this.tryConnect()) {
+        break; // Skips else branch on successful connection
+    }
+} else {
+    throw new ConnectionException("All connection attempts failed");
+}
+```
+
+#### `for/else` Expression
+
+Each executed `yield` contributes an element to the resulting collection. When combined with `else`, if the iterable is empty/falsy, the `else` branch evaluates and yields fallback elements:
 
 ```java
 final names = for (Customer! customer : customers) {
     yield customer.name();
+} else {
+    yield "Guest";
 };
 ```
-
-Traditional `for` expression:
-
-```java
-final numbers = for (var i = 0; i < 10; i++) {
-    yield i;
-};
-```
-
-Each executed `yield` contributes an element to the resulting collection.
 
 ### 12. `while` and `do-while` expressions
 
