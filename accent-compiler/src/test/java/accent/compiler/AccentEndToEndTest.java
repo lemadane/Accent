@@ -613,6 +613,11 @@ class AccentEndToEndTest {
             "        if (s1.count() != 2) {\n" +
             "            throw new RuntimeException(\"Singleton state persistence failed: \" + s1.count());\n" +
             "        }\n" +
+            "        final c1 = CacheManager.instance();\n" +
+            "        final c2 = CacheManager.instance();\n" +
+            "        if (c1 != c2 || !c1.getApp().equals(\"Jatot\")) {\n" +
+            "            throw new RuntimeException(\"Singleton class syntax check failed!\");\n" +
+            "        }\n" +
             "    }\n" +
             "}\n" +
             "\n" +
@@ -623,6 +628,12 @@ class AccentEndToEndTest {
             "    }\n" +
             "    public int count() {\n" +
             "        return this.counter;\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "public singleton class CacheManager {\n" +
+            "    public String! getApp() {\n" +
+            "        return \"Jatot\";\n" +
             "    }\n" +
             "}\n";
 
@@ -683,7 +694,7 @@ class AccentEndToEndTest {
             "    }\n" +
             "}\n" +
             "\n" +
-            "public model User(String! id, var String! name, var int age) {}\n";
+            "public model User(final String! id, String! name, int age) {}\n";
 
         Path tempDir = createTempDir();
         Path srcDir = tempDir.resolve("src");

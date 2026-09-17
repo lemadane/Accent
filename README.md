@@ -411,9 +411,9 @@ final normalizedName = name.normalized();
 
 Class extensions are expected to lower to ordinary static Java helper methods. Real instance members take precedence over extension members.
 
-### 14. Native Singleton Declarations
+### 14. Native Singleton Declarations (Kotlin `object` Equivalence)
 
-Accent provides direct syntax for declaring thread-safe singleton classes using the `singleton` keyword (`public singleton UniqueObject { ... }` or `public singleton class UniqueObject { ... }`):
+Accent provides first-class syntax for declaring thread-safe singleton classes using the `singleton` keyword (`public singleton CacheManager { ... }` or `public singleton class CacheManager { ... }`). It is conceptually and functionally equivalent to Kotlin's `object` declaration:
 
 ```java
 public singleton CacheManager {
@@ -429,10 +429,76 @@ public singleton CacheManager {
 }
 ```
 
+#### Singleton Usage
+
+```java
+final cache = CacheManager.instance();
+cache.put("user_1", "Lemuel");
+
+// Or direct method call:
+final user = CacheManager.instance().get("user_1");
+```
+
 #### Singleton Features & Semantics
-* **Zero Boilerplate**: The compiler automatically generates a private constructor and static `instance()` accessor method.
-* **Thread-Safe Lazy Initialization**: Uses the Initialization-on-Demand Holder Idiom for zero-overhead, thread-safe lazy loading.
-* **Accent & Java Interop**: Access the singleton instance via `CacheManager.instance()` in both Accent and Java.
+* **Kotlin `object` Equivalent**: Provides direct language-level singleton semantics (`singleton CacheManager { ... }`).
+* **Zero Boilerplate**: The compiler automatically generates a private constructor (`private CacheManager() {}`) and single static `.instance()` accessor method.
+* **Thread-Safe Lazy Loading**: Emits the **Initialization-on-Demand Holder** JVM idiom, guaranteeing lazy, thread-safe initialization with zero synchronization overhead.
+* **Forbidden `new` Instantiation**: Attempting to call `new CacheManager()` produces a compile-time error.
+* **Accent & Java Interop**: Access the single instance via `CacheManager.instance()` in both Accent and Java codebase.
+
+### 15. Kotlin-Style Data Class Model Declarations (`model`)
+
+Accent provides native support for data classes via the `model` keyword (`public model User(final String! id, String! name, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
+
+```java
+public model User(
+    final String! id,   // final     -> Immutable (getter id() ONLY, no setter)
+    String! name,       // default   -> Mutable   (getter name(), setter setName)
+    int age             // default   -> Mutable   (getter age(), setter setAge)
+) {}
+```
+
+#### Usage Example
+
+```java
+final user = new User("U101", "Lemuel", 42);
+
+// Access getters
+final id = user.id();
+final name = user.name();
+
+// Setters for mutable fields
+user.setName("Lemuel A.");
+user.setAge(43);
+
+// user.setId("U102"); // Compile-time error: 'id' is final!
+
+// Kotlin-style copy method
+final userCopy = user.copy("U101", "Lemuel A.", 43);
+
+// Formatted toString output
+System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
+```
+
+#### Model Features & Semantics
+
+* **Default Mutability**: Fields without `final` are **mutable** by default, generating getters (`name()`, `age()`) AND setters (`setName(...)`, `setAge(...)`).
+* **Explicit Immutability (`final`)**: Fields prefixed with `final` are **immutable** (`private final String id;`), generating a getter only (`id()`) and NO setter (`setId`). Calling a setter on a `final` field results in a compile-time error.
+* **Kotlin-style `copy(...)` Method**: Automatically generates a `copy(...)` method for convenient object cloning.
+* **Value-based `equals()` and `hashCode()`**: Generates value-based equality and hashing implementations.
+* **Automatic `toString()`**: Emits formatted string representation (`User[id=..., name=..., age=...]`).
+* **Built-in `java.io.Serializable`**: Implements `java.io.Serializable` with `serialVersionUID = 1L` out of the box.
+
+#### `model` vs `record` Comparison
+
+| Feature | Accent `record` | Accent `model` |
+| :--- | :--- | :--- |
+| **Primary Purpose** | 100% Immutable Tuple / Data Holder | Kotlin-style Data Class |
+| **Java Target** | Java `record` | `public final class` |
+| **Field Mutability** | Always 100% Immutable | Mutable by default (or Immutable with `final`) |
+| **Setters Generated** | None | Yes (for non-final fields) |
+| **`copy()` Method** | None | Yes |
+| **Serialization** | Standard Record Serialization | Implements `java.io.Serializable` |
 
 ### 14. Virtual Thread concurrency
 
