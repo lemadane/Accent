@@ -106,7 +106,15 @@ public final class AccentLexer {
             case '`' -> scanTemplateString();
             case '$' -> {
                 if (match('"')) {
-                    scanInterpolatedString();
+                    if (peek() == '"' && peekNext() == '"') {
+                        advance();
+                        advance();
+                        scanInterpolatedTextBlock();
+                    } else {
+                        scanInterpolatedString('"');
+                    }
+                } else if (match('`')) {
+                    scanInterpolatedString('`');
                 } else {
                     scanIdentifier();
                 }
@@ -217,7 +225,7 @@ public final class AccentLexer {
         error("ACCENT-L006", "Unterminated template string literal.");
     }
 
-    private void scanInterpolatedString() {
+    private void scanInterpolatedString(char quoteChar) {
         add(TokenType.INTERPOLATED_STRING_START);
 
         int textStart = current;
@@ -297,7 +305,7 @@ public final class AccentLexer {
                 if (!isAtEnd()) {
                     advance();
                 }
-            } else if (c == '"') {
+            } else if (c == quoteChar) {
                 // Emit current text if any
                 if (current - 1 > textStart) {
                     addInterpolatedStringText(textStart, current - 1, textLine, textColumn);
@@ -312,6 +320,101 @@ public final class AccentLexer {
         }
 
         error("ACCENT-L009", "Unterminated interpolated string.");
+    }
+
+    private void scanInterpolatedTextBlock() {
+        add(TokenType.INTERPOLATED_STRING_START);
+
+        int textStart = current;
+        int textLine = line;
+        int textColumn = column;
+
+        while (!isAtEnd()) {
+            if (peek() == '{' && peekNext() == '{') {
+                advance();
+                advance();
+                continue;
+            }
+            if (peek() == '}' && peekNext() == '}') {
+                advance();
+                advance();
+                continue;
+            }
+            if (peek() == '}') {
+                error("ACCENT-L007", "Unexpected '}' in interpolated string. Use '}}' for a literal closing brace.");
+                advance();
+                continue;
+            }
+            if (peek() == '{') {
+                if (current > textStart) {
+                    addInterpolatedStringText(textStart, current, textLine, textColumn);
+                }
+
+                start = current;
+                tokenLine = line;
+                tokenColumn = column;
+                advance();
+                add(TokenType.INTERPOLATION_START);
+
+                int braceDepth = 1;
+                while (!isAtEnd() && braceDepth > 0) {
+                    start = current;
+                    tokenLine = line;
+                    tokenColumn = column;
+
+                    char nextChar = peek();
+                    if (nextChar == '{') {
+                        braceDepth++;
+                    } else if (nextChar == '}') {
+                        braceDepth--;
+                        if (braceDepth == 0) {
+                            break;
+                        }
+                    }
+
+                    scanToken();
+                }
+
+                if (braceDepth > 0) {
+                    error("ACCENT-L008", "Unterminated interpolation expression. Expected '}'.");
+                    return;
+                }
+
+                start = current;
+                tokenLine = line;
+                tokenColumn = column;
+                advance();
+                add(TokenType.INTERPOLATION_END);
+
+                textStart = current;
+                textLine = line;
+                textColumn = column;
+                continue;
+            }
+
+            if (peek() == '"' && peekNext() == '"' && current + 2 < source.length() && source.charAt(current + 2) == '"') {
+                if (current > textStart) {
+                    addInterpolatedStringText(textStart, current, textLine, textColumn);
+                }
+                advance();
+                advance();
+                advance();
+                start = current - 3;
+                tokenLine = line;
+                tokenColumn = column - 3;
+                add(TokenType.INTERPOLATED_STRING_END);
+                return;
+            }
+
+            char c = advance();
+            if (c == '\\') {
+                if (!isAtEnd()) {
+                    advance();
+                }
+            }
+        }
+
+        error("ACCENT-L009", "Unterminated interpolated text block.");
     }
 
     private void addInterpolatedStringText(int startIdx, int endIdx, int l, int col) {
@@ -410,6 +513,8 @@ public final class AccentLexer {
     private static Map<String, TokenType> createKeywords() {
         Map<String, TokenType> keywords = new HashMap<>();
         keywords.put("class", TokenType.CLASS);
+        keywords.put("singleton", TokenType.SINGLETON);
+        keywords.put("model", TokenType.MODEL);
         keywords.put("interface", TokenType.INTERFACE);
         keywords.put("record", TokenType.RECORD);
         keywords.put("enum", TokenType.ENUM);

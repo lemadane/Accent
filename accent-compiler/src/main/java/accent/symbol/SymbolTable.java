@@ -146,6 +146,13 @@ public final class SymbolTable {
             for (TypeNode itf : id.interfaces()) {
                 interfaces.add(resolveTypeName(getTypeName(itf), unit));
             }
+        } else if (decl instanceof ModelDecl md) {
+            if (!interfaces.contains("java.io.Serializable")) {
+                interfaces.add("java.io.Serializable");
+            }
+            for (TypeNode itf : md.interfaces()) {
+                interfaces.add(resolveTypeName(getTypeName(itf), unit));
+            }
         } else if (decl instanceof RecordDecl rd) {
             superclass = Optional.of("java.lang.Record");
             for (TypeNode itf : rd.interfaces()) {
@@ -168,6 +175,39 @@ public final class SymbolTable {
                 fields.add(new FieldInfo(p.name(), List.of("private", "final"), p.type()));
                 methods.add(new MethodInfo(p.name(), List.of("public"), p.type(), List.of()));
             }
+            BaseTypeNode stringType = new BaseTypeNode("java.lang.String", List.of(), true);
+            PrimitiveTypeNode booleanType = new PrimitiveTypeNode("boolean");
+            PrimitiveTypeNode intType = new PrimitiveTypeNode("int");
+            BaseTypeNode objectType = new BaseTypeNode("java.lang.Object", List.of(), false);
+            Parameter objParam = new Parameter(objectType, "o", false, Optional.empty());
+            methods.add(new MethodInfo("toString", List.of("public"), stringType, List.of()));
+            methods.add(new MethodInfo("equals", List.of("public"), booleanType, List.of(objParam)));
+            methods.add(new MethodInfo("hashCode", List.of("public"), intType, List.of()));
+        }
+
+        if (decl instanceof ModelDecl md) {
+            BaseTypeNode selfType = new BaseTypeNode(fullName, List.of(), true);
+            PrimitiveTypeNode voidType = new PrimitiveTypeNode("void");
+            BaseTypeNode stringType = new BaseTypeNode("java.lang.String", List.of(), true);
+            PrimitiveTypeNode booleanType = new PrimitiveTypeNode("boolean");
+            PrimitiveTypeNode intType = new PrimitiveTypeNode("int");
+            BaseTypeNode objectType = new BaseTypeNode("java.lang.Object", List.of(), false);
+            Parameter objParam = new Parameter(objectType, "o", false, Optional.empty());
+
+            for (Parameter p : md.components()) {
+                List<String> fieldMods = p.isMutable() ? List.of("private") : List.of("private", "final");
+                fields.add(new FieldInfo(p.name(), fieldMods, p.type()));
+                methods.add(new MethodInfo(p.name(), List.of("public"), p.type(), List.of()));
+                if (p.isMutable()) {
+                    String setterName = "set" + Character.toUpperCase(p.name().charAt(0)) + p.name().substring(1);
+                    methods.add(new MethodInfo(setterName, List.of("public"), voidType, List.of(p)));
+                }
+            }
+
+            methods.add(new MethodInfo("copy", List.of("public"), selfType, md.components()));
+            methods.add(new MethodInfo("toString", List.of("public"), stringType, List.of()));
+            methods.add(new MethodInfo("equals", List.of("public"), booleanType, List.of(objParam)));
+            methods.add(new MethodInfo("hashCode", List.of("public"), intType, List.of()));
         }
 
         // Add implicit default constructor if record or enum or if class has no constructors
@@ -206,9 +246,16 @@ public final class SymbolTable {
             if (isRecord) {
                 RecordDecl rd = (RecordDecl) decl;
                 constructors.add(new ConstructorInfo(List.of("public"), rd.components()));
+            } else if (decl instanceof ModelDecl md) {
+                constructors.add(new ConstructorInfo(List.of("public"), md.components()));
             } else {
                 constructors.add(new ConstructorInfo(List.of("public"), List.of()));
             }
+        }
+
+        if (decl instanceof ClassDecl cd && cd.isSingleton()) {
+            BaseTypeNode selfType = new BaseTypeNode(fullName, List.of(), true);
+            methods.add(new MethodInfo("instance", List.of("public", "static"), selfType, List.of()));
         }
 
         return new TypeInfo(fullName, isInterface, isRecord, isEnum, false, superclass, interfaces, methods, fields, constructors);

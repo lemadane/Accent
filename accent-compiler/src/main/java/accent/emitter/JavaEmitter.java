@@ -39,8 +39,21 @@ public final class JavaEmitter {
         }
 
         // Declarations
+        String primaryDeclName = null;
         for (TypeDeclaration decl : unit.declarations()) {
-            emitTypeDeclaration(decl);
+            if (!(decl instanceof ExtensionDecl)) {
+                if (decl.modifiers().contains("public")) {
+                    primaryDeclName = decl.name();
+                    break;
+                }
+                if (primaryDeclName == null) {
+                    primaryDeclName = decl.name();
+                }
+            }
+        }
+
+        for (TypeDeclaration decl : unit.declarations()) {
+            emitTypeDeclaration(decl, primaryDeclName);
             sb.append("\n");
         }
 
@@ -51,7 +64,7 @@ public final class JavaEmitter {
         sb.append("    ".repeat(indentLevel));
     }
 
-    private void emitTypeDeclaration(TypeDeclaration decl) {
+    private void emitTypeDeclaration(TypeDeclaration decl, String primaryDeclName) {
         if (decl instanceof ExtensionDecl ed) {
             emitExtensionDeclaration(ed);
             return;
@@ -63,10 +76,16 @@ public final class JavaEmitter {
         printIndent();
         // Modifiers
         for (String mod : decl.modifiers()) {
+            if (mod.equals("public") && !decl.name().equals(primaryDeclName)) {
+                continue;
+            }
             sb.append(mod).append(" ");
         }
 
         if (decl instanceof ClassDecl cd) {
+            if (cd.isSingleton() && !cd.modifiers().contains("final")) {
+                sb.append("final ");
+            }
             sb.append("class ").append(cd.name());
             emitTypeParameters(cd.typeParameters());
             if (cd.superclass().isPresent()) {
@@ -88,6 +107,16 @@ public final class JavaEmitter {
                     if (i > 0) sb.append(", ");
                     sb.append(emitType(id.interfaces().get(i)));
                 }
+            }
+        } else if (decl instanceof ModelDecl md) {
+            if (!md.modifiers().contains("final")) {
+                sb.append("final ");
+            }
+            sb.append("class ").append(md.name());
+            emitTypeParameters(md.typeParameters());
+            sb.append(" implements java.io.Serializable");
+            for (TypeNode itf : md.interfaces()) {
+                sb.append(", ").append(emitType(itf));
             }
         } else if (decl instanceof RecordDecl rd) {
             sb.append("record ").append(rd.name());
@@ -119,6 +148,179 @@ public final class JavaEmitter {
 
         sb.append(" {\n");
         indentLevel++;
+
+        if (decl instanceof ClassDecl cd && cd.isSingleton()) {
+            printIndent();
+            sb.append("private static final class Holder {\n");
+            indentLevel++;
+            printIndent();
+            sb.append("private static final ").append(cd.name()).append(" INSTANCE = new ").append(cd.name()).append("();\n");
+            indentLevel--;
+            printIndent();
+            sb.append("}\n\n");
+
+            printIndent();
+            sb.append("public static ").append(cd.name()).append(" instance() {\n");
+            indentLevel++;
+            printIndent();
+            sb.append("return Holder.INSTANCE;\n");
+            indentLevel--;
+            printIndent();
+            sb.append("}\n\n");
+
+            boolean hasConstructor = cd.members().stream().anyMatch(m -> m instanceof ConstructorDecl);
+            if (!hasConstructor) {
+                printIndent();
+                sb.append("private ").append(cd.name()).append("() {}\n\n");
+            }
+        }
+
+        if (decl instanceof ModelDecl md) {
+            printIndent();
+            sb.append("private static final long serialVersionUID = 1L;\n\n");
+
+            // Fields
+            for (Parameter p : md.components()) {
+                printIndent();
+                if (p.isMutable()) {
+                    sb.append("private ");
+                } else {
+                    sb.append("private final ");
+                }
+                sb.append(emitType(p.type())).append(" ").append(p.name()).append(";\n");
+            }
+            sb.append("\n");
+
+            // Constructor
+            printIndent();
+            sb.append("public ").append(md.name()).append("(");
+            for (int i = 0; i < md.components().size(); i++) {
+                if (i > 0) sb.append(", ");
+                Parameter p = md.components().get(i);
+                sb.append(emitType(p.type())).append(p.isVarargs() ? "... " : " ").append(p.name());
+            }
+            sb.append(") {\n");
+            indentLevel++;
+            for (Parameter p : md.components()) {
+                printIndent();
+                sb.append("this.").append(p.name()).append(" = ").append(p.name()).append(";\n");
+            }
+            indentLevel--;
+            printIndent();
+            sb.append("}\n\n");
+
+            // Getters
+            for (Parameter p : md.components()) {
+                printIndent();
+                sb.append("public ").append(emitType(p.type())).append(" ").append(p.name()).append("() {\n");
+                indentLevel++;
+                printIndent();
+                sb.append("return this.").append(p.name()).append(";\n");
+                indentLevel--;
+                printIndent();
+                sb.append("}\n\n");
+            }
+
+            // Setters for var fields
+            for (Parameter p : md.components()) {
+                if (p.isMutable()) {
+                    String setterName = "set" + Character.toUpperCase(p.name().charAt(0)) + p.name().substring(1);
+                    printIndent();
+                    sb.append("public void ").append(setterName).append("(").append(emitType(p.type())).append(" ").append(p.name()).append(") {\n");
+                    indentLevel++;
+                    printIndent();
+                    sb.append("this.").append(p.name()).append(" = ").append(p.name()).append(";\n");
+                    indentLevel--;
+                    printIndent();
+                    sb.append("}\n\n");
+                }
+            }
+
+            // Copy method
+            printIndent();
+            sb.append("public ").append(md.name()).append(" copy(");
+            for (int i = 0; i < md.components().size(); i++) {
+                if (i > 0) sb.append(", ");
+                Parameter p = md.components().get(i);
+                sb.append(emitType(p.type())).append(" ").append(p.name());
+            }
+            sb.append(") {\n");
+            indentLevel++;
+            printIndent();
+            sb.append("return new ").append(md.name()).append("(");
+            for (int i = 0; i < md.components().size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(md.components().get(i).name());
+            }
+            sb.append(");\n");
+            indentLevel--;
+            printIndent();
+            sb.append("}\n\n");
+
+            // equals method
+            printIndent();
+            sb.append("@Override\n");
+            printIndent();
+            sb.append("public boolean equals(Object o) {\n");
+            indentLevel++;
+            printIndent();
+            sb.append("if (this == o) return true;\n");
+            printIndent();
+            sb.append("if (o == null || getClass() != o.getClass()) return false;\n");
+            printIndent();
+            sb.append(md.name()).append(" that = (").append(md.name()).append(") o;\n");
+            if (md.components().isEmpty()) {
+                printIndent();
+                sb.append("return true;\n");
+            } else {
+                printIndent();
+                sb.append("return ");
+                for (int i = 0; i < md.components().size(); i++) {
+                    if (i > 0) sb.append(" && ");
+                    Parameter p = md.components().get(i);
+                    sb.append("java.util.Objects.equals(this.").append(p.name()).append(", that.").append(p.name()).append(")");
+                }
+                sb.append(";\n");
+            }
+            indentLevel--;
+            printIndent();
+            sb.append("}\n\n");
+
+            // hashCode method
+            printIndent();
+            sb.append("@Override\n");
+            printIndent();
+            sb.append("public int hashCode() {\n");
+            indentLevel++;
+            printIndent();
+            sb.append("return java.util.Objects.hash(");
+            for (int i = 0; i < md.components().size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append("this.").append(md.components().get(i).name());
+            }
+            sb.append(");\n");
+            indentLevel--;
+            printIndent();
+            sb.append("}\n\n");
+
+            // toString method
+            printIndent();
+            sb.append("@Override\n");
+            printIndent();
+            sb.append("public String toString() {\n");
+            indentLevel++;
+            printIndent();
+            sb.append("return \"").append(md.name()).append("[\" + ");
+            for (int i = 0; i < md.components().size(); i++) {
+                if (i > 0) sb.append(" + \", \" + ");
+                Parameter p = md.components().get(i);
+                sb.append("\"").append(p.name()).append("=\" + this.").append(p.name());
+            }
+            sb.append(" + \"]\";\n");
+            indentLevel--;
+            printIndent();
+            sb.append("}\n\n");
+        }
 
         if (decl instanceof EnumDecl ed) {
             printIndent();

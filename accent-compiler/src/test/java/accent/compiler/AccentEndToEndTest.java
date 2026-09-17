@@ -38,6 +38,9 @@ class AccentEndToEndTest {
             java.lang.reflect.Method mainMethod = clazz.getMethod("main", String[].class);
             mainMethod.setAccessible(true);
             mainMethod.invoke(null, (Object) new String[0]);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            if (e.getCause() instanceof RuntimeException re) throw re;
+            throw e;
         } finally {
             classLoader.close();
         }
@@ -501,11 +504,45 @@ class AccentEndToEndTest {
             "        if (!textBlock.contains(\"{name}\")) {\n" +
             "            throw new RuntimeException(\"Fail normal textblock braces: \" + textBlock);\n" +
             "        }\n" +
+            "\n" +
+            "        // 8. C#-style {expr} string interpolation with $\"-\", $`...`, and multiline $\"\"\"...\"\"\" text blocks\n" +
+            "        final interpolated1 = $\"Hello {name}, next year age will be {age + 1}!\";\n" +
+            "        final interpolated2 = $`Hello {name}, next year age will be {age + 1}!`;\n" +
+            "        if (!interpolated1.equals(\"Hello Lemuel, next year age will be 43!\")) {\n" +
+            "            throw new RuntimeException(\"Fail C# style string interpolation 1: \" + interpolated1);\n" +
+            "        }\n" +
+            "        if (!interpolated2.equals(\"Hello Lemuel, next year age will be 43!\")) {\n" +
+            "            throw new RuntimeException(\"Fail C# style string interpolation 2: \" + interpolated2);\n" +
+            "        }\n" +
+            "\n" +
+            "        final interpolatedMultiBlock = $\"\"\"\n" +
+            "            Name: {name}\n" +
+            "            Age: {age}\n" +
+            "            \"\"\";\n" +
+            "        if (!interpolatedMultiBlock.contains(\"Name: Lemuel\") || !interpolatedMultiBlock.contains(\"Age: 42\")) {\n" +
+            "            throw new RuntimeException(\"Fail multiline text block interpolation: \" + interpolatedMultiBlock);\n" +
+            "        }\n" +
+            "\n" +
+            "        // 9. Singleton class testing (.instance() accessor)\n" +
+            "        final cfg1 = AppConfig.instance();\n" +
+            "        final cfg2 = AppConfig.instance();\n" +
+            "        if (cfg1 != cfg2) {\n" +
+            "            throw new RuntimeException(\"Fail singleton instance equality check!\");\n" +
+            "        }\n" +
+            "        if (!cfg1.appName().equals(\"JatotApp\")) {\n" +
+            "            throw new RuntimeException(\"Fail singleton method call: \" + cfg1.appName());\n" +
+            "        }\n" +
             "    }\n" +
             "\n" +
             "    private static int recordCall(List<Integer> list, int id) {\n" +
             "        list.add(id);\n" +
             "        return id * 10;\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "singleton AppConfig {\n" +
+            "    public String! appName() {\n" +
+            "        return \"JatotApp\";\n" +
             "    }\n" +
             "}\n";
 
@@ -558,5 +595,127 @@ class AccentEndToEndTest {
         CompilationResult res2 = compile(srcDir2, tempDir2.resolve("bin"), tempDir2.resolve("gen"));
         assertFalse(res2.successful());
         assertTrue(res2.diagnostics().stream().anyMatch(d -> d.message().contains("Interpolation expression cannot have type void.")));
+    }
+
+    @Test
+    void testSingletonClassDeclaration() throws Exception {
+        String code = 
+            "package test;\n" +
+            "public class SingletonMain {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        final s1 = StateTracker.instance();\n" +
+            "        final s2 = StateTracker.instance();\n" +
+            "        if (s1 != s2) {\n" +
+            "            throw new RuntimeException(\"Singleton identity check failed!\");\n" +
+            "        }\n" +
+            "        s1.increment();\n" +
+            "        s2.increment();\n" +
+            "        if (s1.count() != 2) {\n" +
+            "            throw new RuntimeException(\"Singleton state persistence failed: \" + s1.count());\n" +
+            "        }\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "singleton StateTracker {\n" +
+            "    private int counter = 0;\n" +
+            "    public void increment() {\n" +
+            "        this.counter = this.counter + 1;\n" +
+            "    }\n" +
+            "    public int count() {\n" +
+            "        return this.counter;\n" +
+            "    }\n" +
+            "}\n";
+
+        Path tempDir = createTempDir();
+        Path srcDir = tempDir.resolve("src");
+        Path binDir = tempDir.resolve("bin");
+        Path genDir = tempDir.resolve("gen");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("SingletonMain.accent"), code, StandardCharsets.UTF_8);
+
+        CompilationResult result = compile(srcDir, binDir, genDir);
+        assertTrue(result.successful(), "Singleton compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.SingletonMain");
+
+        // Negative check: Attempting to call 'new StateTracker()' should fail compilation
+        String badCode = 
+            "package test;\n" +
+            "public class BadSingleton {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        final s = new StateTracker();\n" +
+            "    }\n" +
+            "}\n" +
+            "singleton StateTracker {}\n";
+        Path badDir = createTempDir();
+        Path badSrc = badDir.resolve("src");
+        Files.createDirectories(badSrc);
+        Files.writeString(badSrc.resolve("BadSingleton.accent"), badCode, StandardCharsets.UTF_8);
+        CompilationResult badResult = compile(badSrc, badDir.resolve("bin"), badDir.resolve("gen"));
+        assertFalse(badResult.successful(), "Should fail when attempting to instantiate singleton with 'new'");
+    }
+
+    @Test
+    void testModelDeclaration() throws Exception {
+        String code = 
+            "package test;\n" +
+            "public class ModelMain {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        final user = new User(\"U101\", \"Lemuel\", 42);\n" +
+            "        if (!user.id().equals(\"U101\") || !user.name().equals(\"Lemuel\") || user.age() != 42) {\n" +
+            "            throw new RuntimeException(\"Fail model getter check: \" + user);\n" +
+            "        }\n" +
+            "        user.setName(\"Lemuel A.\");\n" +
+            "        user.setAge(43);\n" +
+            "        if (!user.name().equals(\"Lemuel A.\") || user.age() != 43) {\n" +
+            "            throw new RuntimeException(\"Fail model setter check: \" + user);\n" +
+            "        }\n" +
+            "        final str = user.toString();\n" +
+            "        if (!str.equals(\"User[id=U101, name=Lemuel A., age=43]\")) {\n" +
+            "            throw new RuntimeException(\"Fail model toString check: \" + str);\n" +
+            "        }\n" +
+            "        final userCopy = user.copy(\"U101\", \"Lemuel A.\", 43);\n" +
+            "        if (!user.equals(userCopy) || user.hashCode() != userCopy.hashCode()) {\n" +
+            "            throw new RuntimeException(\"Fail model equals/hashCode/copy check!\");\n" +
+            "        }\n" +
+            "        if (!(user instanceof java.io.Serializable)) {\n" +
+            "            throw new RuntimeException(\"Fail model Serializable check!\");\n" +
+            "        }\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "public model User(String! id, var String! name, var int age) {}\n";
+
+        Path tempDir = createTempDir();
+        Path srcDir = tempDir.resolve("src");
+        Path binDir = tempDir.resolve("bin");
+        Path genDir = tempDir.resolve("gen");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("ModelMain.accent"), code, StandardCharsets.UTF_8);
+
+        CompilationResult result = compile(srcDir, binDir, genDir);
+        assertTrue(result.successful(), "Model compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.ModelMain");
+    }
+
+    @Test
+    void testFinalModelFieldCannotHaveSetter() throws Exception {
+        String badCode = 
+            "package test;\n" +
+            "public class BadModel {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        final user = new User(\"U101\", \"Lemuel\");\n" +
+            "        user.setId(\"U102\");\n" +
+            "    }\n" +
+            "}\n" +
+            "model User(final String! id, var String! name) {}\n";
+
+        Path tempDir = createTempDir();
+        Path srcDir = tempDir.resolve("src");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("BadModel.accent"), badCode, StandardCharsets.UTF_8);
+
+        CompilationResult result = compile(srcDir, tempDir.resolve("bin"), tempDir.resolve("gen"));
+        assertFalse(result.successful(), "Compilation should fail when calling setter on final field 'id'");
+        assertTrue(result.diagnostics().stream().anyMatch(d -> d.message().contains("is final and cannot have a setter")));
     }
 }

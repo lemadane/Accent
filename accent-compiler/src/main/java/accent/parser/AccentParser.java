@@ -203,7 +203,14 @@ public final class AccentParser {
         }
 
         if (match(TokenType.CLASS)) {
-            return parseClassDecl(modifiers);
+            return parseClassDecl(modifiers, false);
+        } else if (match(TokenType.SINGLETON)) {
+            if (check(TokenType.CLASS)) {
+                advance();
+            }
+            return parseClassDecl(modifiers, true);
+        } else if (match(TokenType.MODEL)) {
+            return parseModelDecl(modifiers);
         } else if (match(TokenType.INTERFACE)) {
             return parseInterfaceDecl(modifiers);
         } else if (match(TokenType.RECORD)) {
@@ -214,7 +221,7 @@ public final class AccentParser {
             return parseExtensionDecl();
         }
 
-        throw error(peek(), "Expected class, interface, record, enum, or extension declaration.");
+        throw error(peek(), "Expected class, singleton, model, interface, record, enum, or extension declaration.");
     }
 
     private String parseAnnotationAsString() {
@@ -237,17 +244,11 @@ public final class AccentParser {
         return sb.toString();
     }
 
-    private ClassDecl parseClassDecl(List<String> modifiers) {
+    private ClassDecl parseClassDecl(List<String> modifiers, boolean isSingleton) {
         String name = consume(TokenType.IDENTIFIER, "Expected class name.").lexeme();
         List<TypeParameter> typeParams = parseTypeParameters();
 
         Optional<TypeNode> superclass = Optional.empty();
-        if (match(TokenType.ELSE)) { // Wait, Java uses extends, let's allow identifier 'extends' or key token
-            // Wait, does the lexer treat 'extends' as keyword? Let's check TokenType.
-            // In TokenType.java, there is no EXTENDS keyword!
-            // This means 'extends' is lexed as IDENTIFIER!
-            // Let's check if we match IDENTIFIER "extends"
-        }
         if (check(TokenType.IDENTIFIER) && peek().lexeme().equals("extends")) {
             advance();
             superclass = Optional.of(parseType());
@@ -268,7 +269,7 @@ public final class AccentParser {
         }
         consume(TokenType.RIGHT_BRACE, "Expected '}' after class body.");
 
-        return new ClassDecl(modifiers, name, typeParams, superclass, interfaces, members);
+        return new ClassDecl(modifiers, name, typeParams, superclass, interfaces, members, isSingleton);
     }
 
     private InterfaceDecl parseInterfaceDecl(List<String> modifiers) {
@@ -322,6 +323,38 @@ public final class AccentParser {
         consume(TokenType.RIGHT_BRACE, "Expected '}' after record body.");
 
         return new RecordDecl(modifiers, name, typeParams, components, interfaces, members);
+    }
+
+    private ModelDecl parseModelDecl(List<String> modifiers) {
+        String name = consume(TokenType.IDENTIFIER, "Expected model name.").lexeme();
+        List<TypeParameter> typeParams = parseTypeParameters();
+
+        consume(TokenType.LEFT_PAREN, "Expected '(' before model components.");
+        List<Parameter> components = new ArrayList<>();
+        if (!check(TokenType.RIGHT_PAREN)) {
+            do {
+                components.add(parseParameter(true));
+            } while (match(TokenType.COMMA));
+        }
+        consume(TokenType.RIGHT_PAREN, "Expected ')' after model components.");
+
+        List<TypeNode> interfaces = new ArrayList<>();
+        if (check(TokenType.IDENTIFIER) && peek().lexeme().equals("implements")) {
+            advance();
+            do {
+                interfaces.add(parseType());
+            } while (match(TokenType.COMMA));
+        }
+
+        List<Member> members = new ArrayList<>();
+        if (match(TokenType.LEFT_BRACE)) {
+            while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()) {
+                members.add(parseMember(name));
+            }
+            consume(TokenType.RIGHT_BRACE, "Expected '}' after model body.");
+        }
+
+        return new ModelDecl(modifiers, name, typeParams, components, interfaces, members);
     }
 
     private EnumDecl parseEnumDecl(List<String> modifiers) {
@@ -480,10 +513,84 @@ public final class AccentParser {
         return params;
     }
 
+    private boolean isTypeStartToken(Token t) {
+        if (t.type() == TokenType.IDENTIFIER || t.type() == TokenType.VOID) return true;
+        String lex = t.lexeme();
+        return lex.equals("int") || lex.equals("long") || lex.equals("double") ||
+               lex.equals("float") || lex.equals("boolean") || lex.equals("char") ||
+               lex.equals("byte") || lex.equals("short");
+    }
+
+    private boolean isMutableParameterStart() {
+        Token t0 = peek();
+        if (t0.lexeme().equals("int") || t0.lexeme().equals("long") || t0.lexeme().equals("double") ||
+            t0.lexeme().equals("float") || t0.lexeme().equals("boolean") || t0.lexeme().equals("char") ||
+            t0.lexeme().equals("byte") || t0.lexeme().equals("short")) {
+            return true;
+        }
+        if (t0.type() != TokenType.IDENTIFIER) {
+            return false;
+        }
+        int idx = current + 1;
+        while (idx < tokens.size()) {
+            TokenType tt = tokens.get(idx).type();
+            if (tt == TokenType.BANG) {
+                idx++;
+            } else if (tt == TokenType.DOT) {
+                idx++;
+                if (idx < tokens.size() && tokens.get(idx).type() == TokenType.IDENTIFIER) {
+                    idx++;
+                }
+            } else if (tt == TokenType.LESS) {
+                int depth = 1;
+                idx++;
+                while (idx < tokens.size() && depth > 0) {
+                    if (tokens.get(idx).type() == TokenType.LESS) depth++;
+                    else if (tokens.get(idx).type() == TokenType.GREATER) depth--;
+                    idx++;
+                }
+            } else if (tt == TokenType.LEFT_BRACKET) {
+                idx++;
+                if (idx < tokens.size() && tokens.get(idx).type() == TokenType.RIGHT_BRACKET) {
+                    idx++;
+                }
+                if (idx < tokens.size() && tokens.get(idx).type() == TokenType.BANG) {
+                    idx++;
+                }
+            } else {
+                break;
+            }
+        }
+        if (idx < tokens.size()) {
+            Token target = tokens.get(idx);
+            if (target.type() == TokenType.IDENTIFIER) {
+                return true;
+            }
+            if (target.type() == TokenType.DOT && idx + 2 < tokens.size() &&
+                tokens.get(idx + 1).type() == TokenType.DOT &&
+                tokens.get(idx + 2).type() == TokenType.DOT &&
+                idx + 3 < tokens.size() && tokens.get(idx + 3).type() == TokenType.IDENTIFIER) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private Parameter parseParameter() {
+        return parseParameter(false);
+    }
+
+    private Parameter parseParameter(boolean defaultMutable) {
+        boolean isExplicitFinal = match(TokenType.FINAL);
+        boolean isMutable = defaultMutable && !isExplicitFinal;
         TypeNode type;
         if (match(TokenType.VAR)) {
-            type = new BaseTypeNode("var", List.of(), false);
+            if (isMutableParameterStart()) {
+                isMutable = !isExplicitFinal;
+                type = parseType();
+            } else {
+                type = new BaseTypeNode("var", List.of(), false);
+            }
         } else {
             type = parseType();
         }
@@ -498,7 +605,7 @@ public final class AccentParser {
         if (match(TokenType.ASSIGN)) {
             defaultValue = Optional.of(parseExpression(Precedence.NONE));
         }
-        return new Parameter(type, name, isVarargs, defaultValue);
+        return new Parameter(type, name, isVarargs, defaultValue, isMutable);
     }
 
     private List<TypeNode> parseThrows() {
@@ -831,7 +938,7 @@ public final class AccentParser {
             case XOR, XNOR -> Precedence.XOR_XNOR;
             case AND_AND, AND, NAND -> Precedence.AND;
             case EQUAL_EQUAL, BANG_EQUAL -> Precedence.EQUALITY;
-            case LESS, LESS_EQUAL, GREATER, GREATER_EQUAL -> Precedence.COMPARISON;
+            case LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, INSTANCEOF -> Precedence.COMPARISON;
             case PLUS, MINUS -> Precedence.TERM;
             case STAR, SLASH, PERCENT -> Precedence.FACTOR;
             case DOT, OPTIONAL_CHAIN, LEFT_PAREN, LEFT_BRACKET, PLUS_PLUS, MINUS_MINUS -> Precedence.CALL;

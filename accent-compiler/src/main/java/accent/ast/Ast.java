@@ -57,11 +57,20 @@ public interface Ast {
     }
 
     // Type Declarations
-    sealed interface TypeDeclaration extends Node permits ClassDecl, InterfaceDecl, RecordDecl, EnumDecl, ExtensionDecl {
+    sealed interface TypeDeclaration extends Node permits ClassDecl, ModelDecl, InterfaceDecl, RecordDecl, EnumDecl, ExtensionDecl {
         List<String> modifiers();
         String name();
         List<Member> members();
     }
+
+    record ModelDecl(
+            List<String> modifiers,
+            String name,
+            List<TypeParameter> typeParameters,
+            List<Parameter> components,
+            List<TypeNode> interfaces,
+            List<Member> members
+    ) implements TypeDeclaration {}
 
     record ClassDecl(
             List<String> modifiers,
@@ -69,8 +78,20 @@ public interface Ast {
             List<TypeParameter> typeParameters,
             Optional<TypeNode> superclass,
             List<TypeNode> interfaces,
-            List<Member> members
-    ) implements TypeDeclaration {}
+            List<Member> members,
+            boolean isSingleton
+    ) implements TypeDeclaration {
+        public ClassDecl(
+                List<String> modifiers,
+                String name,
+                List<TypeParameter> typeParameters,
+                Optional<TypeNode> superclass,
+                List<TypeNode> interfaces,
+                List<Member> members
+        ) {
+            this(modifiers, name, typeParameters, superclass, interfaces, members, false);
+        }
+    }
 
     record InterfaceDecl(
             List<String> modifiers,
@@ -112,7 +133,11 @@ public interface Ast {
 
     record EnumConstant(String name, List<Expression> arguments) implements Node {}
 
-    record Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue) implements Node {}
+    record Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue, boolean isMutable) implements Node {
+        public Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue) {
+            this(type, name, isVarargs, defaultValue, false);
+        }
+    }
 
     // Members
     sealed interface Member extends Node permits FieldDecl, ConstructorDecl, MethodDecl {

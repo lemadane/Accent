@@ -103,6 +103,8 @@ public final class SemanticAnalyzer implements ImportResolver {
         for (TypeDeclaration decl : unit.declarations()) {
             if (decl instanceof ClassDecl cd) {
                 analyzeClass(cd);
+            } else if (decl instanceof ModelDecl md) {
+                analyzeModel(md);
             } else if (decl instanceof RecordDecl rd) {
                 analyzeRecord(rd);
             } else if (decl instanceof InterfaceDecl id) {
@@ -197,6 +199,22 @@ public final class SemanticAnalyzer implements ImportResolver {
             analyzeMember(member);
         }
         
+        popScope();
+        this.currentClass = null;
+    }
+
+    private void analyzeModel(ModelDecl md) {
+        String pkg = currentUnit.packageName().orElse("");
+        String fullName = pkg.isEmpty() ? md.name() : pkg + "." + md.name();
+        this.currentClass = symbolTable.getType(fullName);
+
+        pushScope();
+        injectLoggerScope(md.modifiers(), md.members(), null);
+
+        for (Member member : md.members()) {
+            analyzeMember(member);
+        }
+
         popScope();
         this.currentClass = null;
     }
@@ -540,6 +558,9 @@ public final class SemanticAnalyzer implements ImportResolver {
             return new ResolvedType(symbolTable.getType("java.lang.Object"), false, List.of(), 0);
         } else if (expr instanceof BinaryExpr bin) {
             ResolvedType left = checkExpression(bin.left());
+            if (bin.operator().type() == accent.lexer.TokenType.INSTANCEOF) {
+                return new ResolvedType(symbolTable.getType("boolean"), true, List.of(), 0);
+            }
             ResolvedType right = checkExpression(bin.right());
 
             if (bin.operator().type() == accent.lexer.TokenType.ASSIGN) {
@@ -676,6 +697,17 @@ public final class SemanticAnalyzer implements ImportResolver {
                             }
                             return retType;
                         }
+                    }
+                }
+
+                if (mc.methodName().startsWith("set") && mc.methodName().length() > 3) {
+                    String fieldName = Character.toLowerCase(mc.methodName().charAt(3)) + mc.methodName().substring(4);
+                    SymbolTable.FieldInfo fInfo = rec.info().fields().stream()
+                            .filter(f -> f.name().equals(fieldName))
+                            .findFirst().orElse(null);
+                    if (fInfo != null && fInfo.modifiers().contains("final")) {
+                        error(mc.token(), "Cannot call setter '" + mc.methodName() + "': field '" + fieldName + "' in type '" + rec.info().fullName() + "' is final and cannot have a setter.");
+                        return new ResolvedType(symbolTable.getType("void"), false, List.of(), 0);
                     }
                 }
 

@@ -411,6 +411,29 @@ final normalizedName = name.normalized();
 
 Class extensions are expected to lower to ordinary static Java helper methods. Real instance members take precedence over extension members.
 
+### 14. Native Singleton Declarations
+
+Accent provides direct syntax for declaring thread-safe singleton classes using the `singleton` keyword (`public singleton UniqueObject { ... }` or `public singleton class UniqueObject { ... }`):
+
+```java
+public singleton CacheManager {
+    private final Map<String, Object> cache = new HashMap<>();
+
+    public void put(String key, Object val) {
+        this.cache.put(key, val);
+    }
+
+    public Object get(String key) {
+        return this.cache.get(key);
+    }
+}
+```
+
+#### Singleton Features & Semantics
+* **Zero Boilerplate**: The compiler automatically generates a private constructor and static `instance()` accessor method.
+* **Thread-Safe Lazy Initialization**: Uses the Initialization-on-Demand Holder Idiom for zero-overhead, thread-safe lazy loading.
+* **Accent & Java Interop**: Access the singleton instance via `CacheManager.instance()` in both Accent and Java.
+
 ### 14. Virtual Thread concurrency
 
 Ordinary Java and Accent methods remain synchronous. Concurrency is requested at the call site:
@@ -524,7 +547,7 @@ When a query blocks on database I/O, the JVM automatically unmounts the virtual 
 
 ### 20. Interpolated Strings
 
-Accent includes native support for type-safe, evaluated string interpolation expressions using the `$"` syntax. The same delimiter seamlessly supports both single-line and multiline string expressions.
+Accent includes native support for type-safe, evaluated string interpolation expressions (C#-style `{expr}`) using the leading `$` prefix (`$"..."`, `$``...``$`, or `$"""..."""`).
 
 #### Four Important Cases
 
@@ -545,18 +568,20 @@ Accent includes native support for type-safe, evaluated string interpolation exp
    String interpolated = $"Hello, {name}";
    // Evaluates at runtime to: Hello, Lemuel
    ```
-4. **Accent Multiline Interpolated String**:
+4. **Accent Multiline Interpolated Text Block**:
    ```accent
-   String interpolatedBlock = $"Hello, {name}
-   Hope you are fine.";
-   // Evaluates to a single multi-line string containing a newline
+   String interpolatedBlock = $"""
+           Hello, {name}!
+           Next year your age will be {age + 1}.
+           """;
+   // Evaluates at runtime with evaluated expressions inside multiline text block
    ```
 
 #### Syntax Rules and Behavior
-* **Activation**: Prefixing a string with `$` (using `$"`) enables runtime interpolation.
-* **Single & Multiline Support**: The exact same `$"..."` syntax is used for both single-line and multiline strings. Triple quotes are not required for multiline interpolated strings.
+* **Activation**: Prefixing a string with `$` (using `$"..."`, `$``...``$`, or `$"""..."""`) enables runtime interpolation.
+* **Single & Multiline Support**: Both `$"..."` and triple-quote text blocks `$"""..."""` support multiline string interpolation.
 * **Compatibility**: Normal Java strings (`"..."`) and Java text blocks (`"""..."""`) do not interpolate. Braces inside them are treated as literal characters.
-* **Brace Interpolation**: An interpolation expression is marked with `{` and ends with the matching `}`.
+* **C#-style Brace Interpolation**: An interpolation expression is marked with `{` and ends with the matching `}` inside an interpolated string.
 * **Literal Braces**: Use doubled braces `{{` to produce a literal `{`, and `}}` to produce a literal `}` inside an interpolated string.
 * **Evaluation Order**: Expressions inside an interpolated string are evaluated strictly from left to right exactly once.
 * **Null Handling**: If an evaluated expression resolves to `null`, it renders as the string `"null"` (equivalent to `String.valueOf(value)`). No `NullPointerException` is thrown from the string mapping itself.

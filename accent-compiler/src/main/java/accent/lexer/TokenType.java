@@ -12,6 +12,8 @@ public enum TokenType {
     INTERPOLATED_STRING_END,
 
     CLASS,
+    SINGLETON,
+    MODEL,
     INTERFACE,
     RECORD,
     ENUM,

@@ -131,7 +131,9 @@ public final class AccentLowerer implements ImportResolver {
         this.currentClass = null;
 
         if (decl instanceof ClassDecl cd) {
-            return new ClassDecl(cd.modifiers(), cd.name(), cd.typeParameters(), cd.superclass(), cd.interfaces(), members);
+            return new ClassDecl(cd.modifiers(), cd.name(), cd.typeParameters(), cd.superclass(), cd.interfaces(), members, cd.isSingleton());
+        } else if (decl instanceof ModelDecl md) {
+            return new ModelDecl(md.modifiers(), md.name(), md.typeParameters(), md.components(), md.interfaces(), members);
         } else if (decl instanceof InterfaceDecl id) {
             return new InterfaceDecl(id.modifiers(), id.name(), id.typeParameters(), id.interfaces(), members);
         } else if (decl instanceof RecordDecl rd) {
