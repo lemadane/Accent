@@ -724,6 +724,15 @@ public final class JavaEmitter {
             r.append(")");
             return r.toString();
         } else if (expr instanceof NewObjectExpr no) {
+            if (no.type() instanceof ArrayTypeNode arr) {
+                StringBuilder r = new StringBuilder("new ").append(emitType(arr.elementType())).append("[");
+                for (int i = 0; i < no.arguments().size(); i++) {
+                    if (i > 0) r.append("][");
+                    r.append(emitExpression(no.arguments().get(i)));
+                }
+                r.append("]");
+                return r.toString();
+            }
             StringBuilder r = new StringBuilder("new ").append(emitType(no.type())).append("(");
             for (int i = 0; i < no.arguments().size(); i++) {
                 if (i > 0) r.append(", ");
@@ -732,9 +741,16 @@ public final class JavaEmitter {
             r.append(")");
             return r.toString();
         } else if (expr instanceof NewArrayExpr na) {
-            StringBuilder r = new StringBuilder("new ").append(emitType(na.type()));
+            TypeNode baseType = na.type();
+            while (baseType instanceof ArrayTypeNode arr) {
+                baseType = arr.elementType();
+            }
+            StringBuilder r = new StringBuilder("new ").append(emitType(baseType));
             for (Expression dim : na.dimensions()) {
                 r.append("[").append(emitExpression(dim)).append("]");
+            }
+            if (na.dimensions().isEmpty()) {
+                r.append("[]");
             }
             if (na.initializer().isPresent()) {
                 r.append(" ").append(emitExpression(na.initializer().get()));

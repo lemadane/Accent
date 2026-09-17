@@ -48,14 +48,37 @@ public final class AccentRuntime {
             }
             return n.longValue() != 0;
         }
-        if (value instanceof String s) {
-            return !s.isEmpty();
+        if (value instanceof CharSequence s) {
+            return s.length() > 0;
         }
         if (value instanceof Character c) {
             return c != '\0';
         }
+        if (value instanceof java.util.Collection<?> col) {
+            return !col.isEmpty();
+        }
+        if (value instanceof java.util.Map<?, ?> map) {
+            return !map.isEmpty();
+        }
+        if (value.getClass().isArray()) {
+            return java.lang.reflect.Array.getLength(value) > 0;
+        }
+        if (value instanceof java.util.Optional<?> opt) {
+            return opt.isPresent();
+        }
+        try {
+            java.lang.reflect.Method m = value.getClass().getMethod("isEmpty");
+            if (m.getParameterCount() == 0 && (m.getReturnType() == boolean.class || m.getReturnType() == Boolean.class)) {
+                m.setAccessible(true);
+                return !((Boolean) m.invoke(value));
+            }
+        } catch (Exception ignored) {
+            // Fallback for custom objects without isEmpty()
+        }
         return true;
     }
+
+
 
     public static boolean isTruthy(boolean value) {
         return value;

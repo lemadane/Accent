@@ -50,6 +50,9 @@ class TruthyFalsyEndToEndTest {
     void testIfStatementTruthyFalsy() throws Exception {
         String code =
             "package test;\n" +
+            "import java.util.List;\n" +
+            "import java.util.Map;\n" +
+            "import java.util.Optional;\n" +
             "public class IfMain {\n" +
             "    public static void main(String[] args) {\n" +
             "        // Strings\n" +
@@ -77,14 +80,37 @@ class TruthyFalsyEndToEndTest {
             "        if (doubleVal) { dblRan = true; }\n" +
             "        if (!dblRan) throw new RuntimeException(\"non-zero double should be truthy\");\n" +
             "\n" +
-            "        // Null and objects\n" +
+            "        // Null, objects, collections, maps, optionals\n" +
             "        final Object nullObj = null;\n" +
             "        final Object realObj = new Object();\n" +
+            "        final emptyList = List.of();\n" +
+            "        final nonEmptyList = List.of(\"item\");\n" +
+            "        final emptyMap = Map.of();\n" +
+            "        final nonEmptyMap = Map.of(\"key\", \"val\");\n" +
+            "        final emptyOptional = Optional.empty();\n" +
+            "        final nonEmptyOptional = Optional.of(\"item\");\n"
+ +
+            "\n" +
             "        if (nullObj) { throw new RuntimeException(\"null should be falsy\"); }\n" +
             "\n" +
             "        boolean objRan = false;\n" +
             "        if (realObj) { objRan = true; }\n" +
             "        if (!objRan) throw new RuntimeException(\"object reference should be truthy\");\n" +
+            "\n" +
+            "        if (emptyList) { throw new RuntimeException(\"empty list should be falsy\"); }\n" +
+            "        boolean listRan = false;\n" +
+            "        if (nonEmptyList) { listRan = true; }\n" +
+            "        if (!listRan) throw new RuntimeException(\"non-empty list should be truthy\");\n" +
+            "\n" +
+            "        if (emptyMap) { throw new RuntimeException(\"empty map should be falsy\"); }\n" +
+            "        boolean mapRan = false;\n" +
+            "        if (nonEmptyMap) { mapRan = true; }\n" +
+            "        if (!mapRan) throw new RuntimeException(\"non-empty map should be truthy\");\n" +
+            "\n" +
+            "        if (emptyOptional) { throw new RuntimeException(\"empty optional should be falsy\"); }\n" +
+            "        boolean optRan = false;\n" +
+            "        if (nonEmptyOptional) { optRan = true; }\n" +
+            "        if (!optRan) throw new RuntimeException(\"non-empty optional should be truthy\");\n" +
             "    }\n" +
             "}\n";
 
@@ -192,4 +218,230 @@ class TruthyFalsyEndToEndTest {
         assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
         runClass(binDir, "test.LogicalOpsMain");
     }
+
+    @Test
+    void testCustomGenericMapAndContainerTruthyFalsy() throws Exception {
+        String code =
+            "package test;\n" +
+            "import java.util.HashMap;\n" +
+            "public class CustomMapMain {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        final emptyCustomMap = new CustomMap();\n" +
+            "        if (emptyCustomMap) { throw new RuntimeException(\"empty custom map should be falsy\"); }\n" +
+            "\n" +
+            "        final nonEmptyCustomMap = new CustomMap();\n" +
+            "        nonEmptyCustomMap.put(\"a\", 1);\n" +
+            "        if (!nonEmptyCustomMap) { throw new RuntimeException(\"non-empty custom map should be truthy\"); }\n" +
+            "\n" +
+            "        final emptyContainer = new CustomContainer(true);\n" +
+            "        if (emptyContainer) { throw new RuntimeException(\"empty custom container should be falsy\"); }\n" +
+            "\n" +
+            "        final nonEmptyContainer = new CustomContainer(false);\n" +
+            "        if (!nonEmptyContainer) { throw new RuntimeException(\"non-empty custom container should be truthy\"); }\n" +
+            "    }\n" +
+            "}\n" +
+            "class CustomMap extends HashMap {\n" +
+            "    public Object put(Object key, Object value) {\n" +
+            "        return super.put(key, value);\n" +
+            "    }\n" +
+            "}\n" +
+            "class CustomContainer {\n" +
+            "    private final boolean empty;\n" +
+            "    public CustomContainer(boolean empty) { this.empty = empty; }\n" +
+            "    public boolean isEmpty() { return this.empty; }\n" +
+            "}\n";
+
+        Path tempDir = createTempDir();
+        Path srcDir = tempDir.resolve("src");
+        Path binDir = tempDir.resolve("bin");
+        Path genDir = tempDir.resolve("gen");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("CustomMapMain.accent"), code, StandardCharsets.UTF_8);
+
+        CompilationResult result = compile(srcDir, binDir, genDir);
+        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.CustomMapMain");
+    }
+
+    @Test
+    void testQueueStackListTruthyFalsy() throws Exception {
+        String code =
+            "package test;\n" +
+            "import java.util.ArrayList;\n" +
+            "import java.util.LinkedList;\n" +
+            "import java.util.Queue;\n" +
+            "import java.util.Stack;\n" +
+            "public class QueueStackListMain {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        // List\n" +
+            "        final emptyList = new ArrayList<String>();\n" +
+            "        if (emptyList) { throw new RuntimeException(\"empty List should be falsy\"); }\n" +
+            "\n" +
+            "        final nonEmptyList = new ArrayList<String>();\n" +
+            "        nonEmptyList.add(\"item\");\n" +
+            "        if (!nonEmptyList) { throw new RuntimeException(\"non-empty List should be truthy\"); }\n" +
+            "\n" +
+            "        // Queue\n" +
+            "        final Queue<String> emptyQueue = new LinkedList<String>();\n" +
+            "        if (emptyQueue) { throw new RuntimeException(\"empty Queue should be falsy\"); }\n" +
+            "\n" +
+            "        final Queue<String> nonEmptyQueue = new LinkedList<String>();\n" +
+            "        nonEmptyQueue.add(\"item\");\n" +
+            "        if (!nonEmptyQueue) { throw new RuntimeException(\"non-empty Queue should be truthy\"); }\n" +
+            "\n" +
+            "        // Stack\n" +
+            "        final emptyStack = new Stack<String>();\n" +
+            "        if (emptyStack) { throw new RuntimeException(\"empty Stack should be falsy\"); }\n" +
+            "\n" +
+            "        final nonEmptyStack = new Stack<String>();\n" +
+            "        nonEmptyStack.push(\"item\");\n" +
+            "        if (!nonEmptyStack) { throw new RuntimeException(\"non-empty Stack should be truthy\"); }\n" +
+            "    }\n" +
+            "}\n";
+
+        Path tempDir = createTempDir();
+        Path srcDir = tempDir.resolve("src");
+        Path binDir = tempDir.resolve("bin");
+        Path genDir = tempDir.resolve("gen");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("QueueStackListMain.accent"), code, StandardCharsets.UTF_8);
+
+        CompilationResult result = compile(srcDir, binDir, genDir);
+        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.QueueStackListMain");
+    }
+
+    @Test
+    void testExhaustiveContainersAndTypesTruthyFalsy() throws Exception {
+        String code =
+            "package test;\n" +
+            "import java.util.*;\n" +
+            "import java.util.concurrent.*;\n" +
+            "public class ExhaustiveMain {\n" +
+            "    public static void main(String[] args) {\n" +
+            "        // 1. All Java Lists\n" +
+            "        final emptyArrayList = new ArrayList<String>();\n" +
+            "        if (emptyArrayList) throw new RuntimeException(\"empty ArrayList should be falsy\");\n" +
+            "        final fullArrayList = new ArrayList<String>(); fullArrayList.add(\"x\");\n" +
+            "        if (!fullArrayList) throw new RuntimeException(\"full ArrayList should be truthy\");\n" +
+            "\n" +
+            "        final emptyLinkedList = new LinkedList<String>();\n" +
+            "        if (emptyLinkedList) throw new RuntimeException(\"empty LinkedList should be falsy\");\n" +
+            "        final fullLinkedList = new LinkedList<String>(); fullLinkedList.add(\"x\");\n" +
+            "        if (!fullLinkedList) throw new RuntimeException(\"full LinkedList should be truthy\");\n" +
+            "\n" +
+            "        final emptyCopyList = new CopyOnWriteArrayList<String>();\n" +
+            "        if (emptyCopyList) throw new RuntimeException(\"empty CopyOnWriteArrayList should be falsy\");\n" +
+            "        final fullCopyList = new CopyOnWriteArrayList<String>(); fullCopyList.add(\"x\");\n" +
+            "        if (!fullCopyList) throw new RuntimeException(\"full CopyOnWriteArrayList should be truthy\");\n" +
+            "\n" +
+            "        // 2. All Java Sets\n" +
+            "        final emptyHashSet = new HashSet<String>();\n" +
+            "        if (emptyHashSet) throw new RuntimeException(\"empty HashSet should be falsy\");\n" +
+            "        final fullHashSet = new HashSet<String>(); fullHashSet.add(\"x\");\n" +
+            "        if (!fullHashSet) throw new RuntimeException(\"full HashSet should be truthy\");\n" +
+            "\n" +
+            "        final emptyTreeSet = new TreeSet<String>();\n" +
+            "        if (emptyTreeSet) throw new RuntimeException(\"empty TreeSet should be falsy\");\n" +
+            "        final fullTreeSet = new TreeSet<String>(); fullTreeSet.add(\"x\");\n" +
+            "        if (!fullTreeSet) throw new RuntimeException(\"full TreeSet should be truthy\");\n" +
+            "\n" +
+            "        final Set<String> emptyLinkedSet = new LinkedHashSet<String>();\n" +
+            "        if (emptyLinkedSet) throw new RuntimeException(\"empty LinkedHashSet should be falsy\");\n" +
+            "        final Set<String> fullLinkedSet = new LinkedHashSet<String>(); fullLinkedSet.add(\"x\");\n" +
+            "        if (!fullLinkedSet) throw new RuntimeException(\"full LinkedHashSet should be truthy\");\n" +
+            "\n" +
+            "        final Set<String> emptySkipSet = new ConcurrentSkipListSet<String>();\n" +
+            "        if (emptySkipSet) throw new RuntimeException(\"empty ConcurrentSkipListSet should be falsy\");\n" +
+            "        final Set<String> fullSkipSet = new ConcurrentSkipListSet<String>(); fullSkipSet.add(\"x\");\n" +
+            "        if (!fullSkipSet) throw new RuntimeException(\"full ConcurrentSkipListSet should be truthy\");\n" +
+            "\n" +
+            "        // 3. All Java Maps\n" +
+            "        final Map<String, String> emptyHashMap = new HashMap<String, String>();\n" +
+            "        if (emptyHashMap) throw new RuntimeException(\"empty HashMap should be falsy\");\n" +
+            "        final Map<String, String> fullHashMap = new HashMap<String, String>(); fullHashMap.put(\"a\", \"b\");\n" +
+            "        if (!fullHashMap) throw new RuntimeException(\"full HashMap should be truthy\");\n" +
+            "\n" +
+            "        final Map<String, String> emptyTreeMap = new TreeMap<String, String>();\n" +
+            "        if (emptyTreeMap) throw new RuntimeException(\"empty TreeMap should be falsy\");\n" +
+            "        final Map<String, String> fullTreeMap = new TreeMap<String, String>(); fullTreeMap.put(\"a\", \"b\");\n" +
+            "        if (!fullTreeMap) throw new RuntimeException(\"full TreeMap should be truthy\");\n" +
+            "\n" +
+            "        final Map<String, String> emptyLinkedMap = new LinkedHashMap<String, String>();\n" +
+            "        if (emptyLinkedMap) throw new RuntimeException(\"empty LinkedHashMap should be falsy\");\n" +
+            "        final Map<String, String> fullLinkedMap = new LinkedHashMap<String, String>(); fullLinkedMap.put(\"a\", \"b\");\n" +
+            "        if (!fullLinkedMap) throw new RuntimeException(\"full LinkedHashMap should be truthy\");\n" +
+            "\n" +
+            "        final Map<String, String> emptyConcurrentMap = new ConcurrentHashMap<String, String>();\n" +
+            "        if (emptyConcurrentMap) throw new RuntimeException(\"empty ConcurrentHashMap should be falsy\");\n" +
+            "        final Map<String, String> fullConcurrentMap = new ConcurrentHashMap<String, String>(); fullConcurrentMap.put(\"a\", \"b\");\n" +
+            "        if (!fullConcurrentMap) throw new RuntimeException(\"full ConcurrentHashMap should be truthy\");\n" +
+            "\n" +
+            "        final Map<String, String> emptyHashtable = new Hashtable<String, String>();\n" +
+            "        if (emptyHashtable) throw new RuntimeException(\"empty Hashtable should be falsy\");\n" +
+            "        final Map<String, String> fullHashtable = new Hashtable<String, String>(); fullHashtable.put(\"a\", \"b\");\n" +
+            "        if (!fullHashtable) throw new RuntimeException(\"full Hashtable should be truthy\");\n" +
+            "\n" +
+            "        // 4. Queues & Deques\n" +
+            "        final Queue<String> emptyDeque = new ArrayDeque<String>();\n" +
+            "        if (emptyDeque) throw new RuntimeException(\"empty ArrayDeque should be falsy\");\n" +
+            "        final Queue<String> fullDeque = new ArrayDeque<String>(); fullDeque.add(\"x\");\n" +
+            "        if (!fullDeque) throw new RuntimeException(\"full ArrayDeque should be truthy\");\n" +
+            "\n" +
+            "        final Queue<String> emptyPriorityQueue = new PriorityQueue<String>();\n" +
+            "        if (emptyPriorityQueue) throw new RuntimeException(\"empty PriorityQueue should be falsy\");\n" +
+            "        final Queue<String> fullPriorityQueue = new PriorityQueue<String>(); fullPriorityQueue.add(\"x\");\n" +
+            "        if (!fullPriorityQueue) throw new RuntimeException(\"full PriorityQueue should be truthy\");\n" +
+            "\n" +
+            "        final Queue<String> emptyBlockingQueue = new LinkedBlockingQueue<String>();\n" +
+            "        if (emptyBlockingQueue) throw new RuntimeException(\"empty LinkedBlockingQueue should be falsy\");\n" +
+            "        final Queue<String> fullBlockingQueue = new LinkedBlockingQueue<String>(); fullBlockingQueue.add(\"x\");\n" +
+            "        if (!fullBlockingQueue) throw new RuntimeException(\"full LinkedBlockingQueue should be truthy\");\n" +
+            "\n" +
+            "        // 5. Arrays (Primitive & Object)\n" +
+            "        final emptyIntArr = new int[](0);\n" +
+            "        if (emptyIntArr) throw new RuntimeException(\"empty int array should be falsy\");\n" +
+            "        final fullIntArr = new int[](2);\n" +
+            "        if (!fullIntArr) throw new RuntimeException(\"full int array should be truthy\");\n" +
+            "\n" +
+            "        final emptyStrArr = new String[](0);\n" +
+            "        if (emptyStrArr) throw new RuntimeException(\"empty String array should be falsy\");\n" +
+            "        final fullStrArr = new String[](1);\n" +
+            "        if (!fullStrArr) throw new RuntimeException(\"full String array should be truthy\");\n" +
+            "\n" +
+            "        // 6. CharSequence & Characters\n" +
+            "        final emptySb = new StringBuilder(\"\");\n" +
+            "        if (emptySb) throw new RuntimeException(\"empty StringBuilder should be falsy\");\n" +
+            "        final fullSb = new StringBuilder(\"data\");\n" +
+            "        if (!fullSb) throw new RuntimeException(\"full StringBuilder should be truthy\");\n" +
+            "\n" +
+            "        final Character nullChar = Character.valueOf(Character.MIN_VALUE);\n" +
+            "        if (nullChar) throw new RuntimeException(\"null character Character.MIN_VALUE should be falsy\");\n" +
+            "        final Character validChar = Character.valueOf(Character.MAX_VALUE);\n" +
+            "        if (!validChar) throw new RuntimeException(\"character Character.MAX_VALUE should be truthy\");\n" +
+            "\n" +
+            "        // 7. Edge Cases: Nested containers & collections containing null/zero\n" +
+            "        final nestedList = List.of(List.of());\n" +
+            "        if (!nestedList) throw new RuntimeException(\"List containing empty list should be truthy (outer list has 1 element)\");\n" +
+            "\n" +
+            "        final nullContainingList = Collections.singletonList(null);\n" +
+            "        if (!nullContainingList) throw new RuntimeException(\"List containing null element should be truthy (size 1)\");\n" +
+            "\n" +
+            "        final zeroContainingList = List.of(0);\n" +
+            "        if (!zeroContainingList) throw new RuntimeException(\"List containing 0 should be truthy (size 1)\");\n" +
+            "    }\n" +
+            "}\n";
+
+        Path tempDir = createTempDir();
+        Path srcDir = tempDir.resolve("src");
+        Path binDir = tempDir.resolve("bin");
+        Path genDir = tempDir.resolve("gen");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("ExhaustiveMain.accent"), code, StandardCharsets.UTF_8);
+
+        CompilationResult result = compile(srcDir, binDir, genDir);
+        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
+        runClass(binDir, "test.ExhaustiveMain");
+    }
 }
+

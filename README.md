@@ -270,17 +270,29 @@ final val = condition ? "Zack" : "Guest";
 
 Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`!`, `not`, `&&`, `||`, `and`, `or`, `nand`, `nor`, `xor`, `xnor`).
 
-#### Falsy values
-- `null`
-- `false`
-- Number zero (`0`, `0.0`, `0L`, `0.0f`, `NaN`)
-- Empty string (`""`)
+#### Truthy / Falsy rules table
 
-#### Truthy values
-- `true`
-- Non-zero numbers (e.g. `1`, `-42`, `3.14`)
-- Non-empty strings (e.g. `"hello"`, `"0"`, `"false"`)
-- Non-null objects, collections, and arrays
+| Value / Type | Code Example | Truthiness | Evaluation in Accent `if (x)` |
+|---|---|---|---|
+| **Null Reference** | `null` | **Falsy** | `false` |
+| **Boolean false** | `false` | **Falsy** | `false` |
+| **Zero Number** | `0`, `0.0`, `0L`, `0.0f`, `NaN` | **Falsy** | `false` (`n != 0`) |
+| **Empty String** | `""` | **Falsy** | `false` (`!s.isEmpty()`) |
+| **Empty Generic List / Collection** | `List.of()`, `new ArrayList<>()` | **Falsy** | `false` (`!col.isEmpty()`) |
+| **Empty Generic Map** | `Map.of()`, `new HashMap<>()` | **Falsy** | `false` (`!map.isEmpty()`) |
+| **Empty Array** | `new String[0]`, `new int[0]` | **Falsy** | `false` (`length > 0`) |
+| **Empty Optional** | `Optional.empty()` | **Falsy** | `false` (`opt.isPresent()`) |
+| **Boolean true** | `true` | **Truthy** | `true` |
+| **Non-Zero Number** | `42`, `-1`, `3.14` | **Truthy** | `true` |
+| **Non-Empty String** | `"hello"`, `"0"`, `"false"` | **Truthy** | `true` |
+| **Non-Empty Collection / List** | `List.of("item")` | **Truthy** | `true` |
+| **Non-Empty Map** | `Map.of("key", "val")` | **Truthy** | `true` |
+| **Non-Empty Array** | `new String[]{"item"}` | **Truthy** | `true` |
+| **Non-Empty Optional** | `Optional.of("item")` | **Truthy** | `true` |
+| **Object Instance** | `new User()`, `new Object()` | **Truthy** | `true` |
+
+
+
 
 #### Examples
 
