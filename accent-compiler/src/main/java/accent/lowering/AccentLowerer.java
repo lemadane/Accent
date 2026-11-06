@@ -140,6 +140,15 @@ public final class AccentLowerer implements ImportResolver {
             members.add(lowerMember(m));
         }
 
+        if (decl.isSingleton() && (decl instanceof ModelDecl || decl instanceof RecordDecl)) {
+            List<Parameter> components = decl instanceof ModelDecl model ? model.components() : ((RecordDecl) decl).components();
+            TypeNode self = new BaseTypeNode(fullName, List.of(), true);
+            List<Expression> defaults = components.stream().map(p -> p.defaultValue().orElseThrow()).toList();
+            MethodDecl factory = new MethodDecl(List.of("private", "static"), List.of(), false, self,
+                    "__accentCreateSingleton", List.of(), List.of(), Optional.of(new BlockStmt(List.of(
+                            new ReturnStmt(Optional.of(new NewObjectExpr(self, defaults, null)))))));
+            members.add(lowerMember(factory));
+        }
         this.currentClass = null;
 
         if (decl instanceof ClassDecl cd) {
@@ -149,6 +158,9 @@ public final class AccentLowerer implements ImportResolver {
         } else if (decl instanceof InterfaceDecl id) {
             return new InterfaceDecl(id.modifiers(), id.name(), id.typeParameters(), id.interfaces(), members);
         } else if (decl instanceof RecordDecl rd) {
+            if (rd.isSingleton()) {
+                return new ModelDecl(rd.modifiers(), rd.name(), rd.typeParameters(), rd.components(), rd.interfaces(), members);
+            }
             return new RecordDecl(rd.modifiers(), rd.name(), rd.typeParameters(), rd.components(), rd.interfaces(), members);
         } else if (decl instanceof EnumDecl ed) {
             return new EnumDecl(ed.modifiers(), ed.name(), ed.interfaces(), ed.constants(), members);

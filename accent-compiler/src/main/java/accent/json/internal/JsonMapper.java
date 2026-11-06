@@ -18,6 +18,9 @@ public class JsonMapper {
 
     @SuppressWarnings("unchecked")
     public <T> T mapToRecord(Object jsonObj, Class<T> clazz) {
+        if (clazz.isAnnotationPresent(accent.runtime.Singleton.class)) {
+            throw new JsonMappingException("Cannot parse into singleton " + clazz.getName() + "; use .instance().");
+        }
         if (!clazz.isRecord() && !accent.runtime.AccentModel.class.isAssignableFrom(clazz)) {
             throw new JsonMappingException("Only records and Accent models are supported for typed parsing.");
         }

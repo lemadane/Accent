@@ -147,7 +147,7 @@
       "patterns": [
         {
           "name": "storage.type.accent",
-          "match": "\\b(class|interface|record|enum|extension|model|void|int|long|double|float|boolean|char|byte|short|var|final)\\b"
+          "match": "\\b(class|interface|record|enum|extension|model|singleton|void|int|long|double|float|boolean|char|byte|short|var|final)\\b"
         }
       ]
     },

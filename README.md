@@ -394,10 +394,10 @@ Class extensions are expected to lower to ordinary static Java helper methods. R
 
 ### 14. Native Singleton Declarations (Kotlin `object` Equivalence)
 
-Accent provides first-class syntax for declaring thread-safe singleton classes using the `singleton` keyword (`public singleton CacheManager { ... }` or `public singleton class CacheManager { ... }`). It is conceptually and functionally equivalent to Kotlin's `object` declaration:
+Use `singleton` before `class`, `record`, or `model` to declare one lazily initialized instance. The previous standalone `singleton Name` syntax is no longer accepted:
 
 ```java
-public singleton CacheManager {
+public singleton class CacheManager {
     private final Map<String, Object> cache = new HashMap<>();
 
     public void put(String key, Object val) {
@@ -421,11 +421,34 @@ final user = CacheManager.instance().get("user_1");
 ```
 
 #### Singleton Features & Semantics
-* **Kotlin `object` Equivalent**: Provides direct language-level singleton semantics (`singleton CacheManager { ... }`).
+* **Kotlin `object` Equivalent**: Provides direct language-level singleton semantics (`singleton class CacheManager { ... }`).
 * **Zero Boilerplate**: The compiler automatically generates a private constructor (`private CacheManager() {}`) and single static `.instance()` accessor method.
 * **Thread-Safe Lazy Loading**: Emits the **Initialization-on-Demand Holder** JVM idiom, guaranteeing lazy, thread-safe initialization with zero synchronization overhead.
 * **Forbidden `new` Instantiation**: Attempting to call `new CacheManager()` produces a compile-time error.
 * **Accent & Java Interop**: Access the single instance via `CacheManager.instance()` in both Accent and Java codebase.
+
+#### Singleton records and models
+
+```java
+public singleton record Defaults(
+    String! theme = "light",
+    int retryLimit = 3
+) {}
+
+public singleton model AppState(
+    final String! id = "app",
+    String! theme = "light",
+    int attempts = 0
+) {}
+
+final defaults = Defaults.instance(); // immutable component bindings
+final state = AppState.instance();
+state.setTheme("dark");              // shared mutable state
+```
+
+Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Classes may declare a private parameterless constructor; record/model constructors are generated and private. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `__accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
+
+A singleton record compiles to a final immutable class rather than a JVM record, so its constructor can be private. It retains component accessors, value methods, native `toJson()`/`toXml()`, and typed List/Map serialization support. Its runtime `Class.isRecord()` is false, and it is not a subtype of `java.lang.Record`. Singleton model/record Java serialization resolves back to the shared instance; JSON/XML typed parsing rejects singleton targets to avoid constructing duplicates. Untyped parsing of their serialized data remains available.
 
 ### 15. Kotlin-Style Data Class Model Declarations (`model`)
 

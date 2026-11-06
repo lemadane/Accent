@@ -73,9 +73,14 @@ public final class JavaEmitter {
         String savedClassName = currentClassName;
         currentClassName = decl.name();
 
+        if (decl.isSingleton()) {
+            printIndent();
+            sb.append("@accent.runtime.Singleton\n");
+        }
         printIndent();
         // Modifiers
         for (String mod : decl.modifiers()) {
+            if (mod.equals("singleton")) continue;
             if (mod.equals("public") && !decl.name().equals(primaryDeclName)) {
                 continue;
             }
@@ -149,29 +154,24 @@ public final class JavaEmitter {
         sb.append(" {\n");
         indentLevel++;
 
-        if (decl instanceof ClassDecl cd && cd.isSingleton()) {
+        if (decl.isSingleton()) {
             printIndent();
             sb.append("private static final class Holder {\n");
             indentLevel++;
             printIndent();
-            sb.append("private static final ").append(cd.name()).append(" INSTANCE = new ").append(cd.name()).append("();\n");
+            sb.append("private static final ").append(decl.name()).append(" INSTANCE = ");
+            if (decl instanceof ModelDecl) sb.append(decl.name()).append(".__accentCreateSingleton();\n");
+            else sb.append("new ").append(decl.name()).append("();\n");
             indentLevel--;
             printIndent();
             sb.append("}\n\n");
-
             printIndent();
-            sb.append("public static ").append(cd.name()).append(" instance() {\n");
-            indentLevel++;
+            sb.append("public static ").append(decl.name()).append(" instance() { return Holder.INSTANCE; }\n\n");
             printIndent();
-            sb.append("return Holder.INSTANCE;\n");
-            indentLevel--;
-            printIndent();
-            sb.append("}\n\n");
-
-            boolean hasConstructor = cd.members().stream().anyMatch(m -> m instanceof ConstructorDecl);
-            if (!hasConstructor) {
+            sb.append("private Object readResolve() { return Holder.INSTANCE; }\n\n");
+            if (decl instanceof ClassDecl && decl.members().stream().noneMatch(m -> m instanceof ConstructorDecl)) {
                 printIndent();
-                sb.append("private ").append(cd.name()).append("() {}\n\n");
+                sb.append("private ").append(decl.name()).append("() {}\n\n");
             }
         }
 
@@ -193,7 +193,7 @@ public final class JavaEmitter {
 
             // Constructor
             printIndent();
-            sb.append("public ").append(md.name()).append("(");
+            sb.append(md.isSingleton() ? "private " : "public ").append(md.name()).append("(");
             for (int i = 0; i < md.components().size(); i++) {
                 if (i > 0) sb.append(", ");
                 Parameter p = md.components().get(i);
@@ -236,26 +236,29 @@ public final class JavaEmitter {
                 }
             }
 
-            // Copy method
-            printIndent();
-            sb.append("public ").append(md.name()).append(" copy(");
-            for (int i = 0; i < md.components().size(); i++) {
-                if (i > 0) sb.append(", ");
-                Parameter p = md.components().get(i);
-                sb.append(emitType(p.type())).append(" ").append(p.name());
+            if (!md.isSingleton()) {
+                // Copy method
+                printIndent();
+                sb.append("public ").append(md.name()).append(" copy(");
+                for (int i = 0; i < md.components().size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    Parameter p = md.components().get(i);
+                    sb.append(emitType(p.type())).append(" ").append(p.name());
+                }
+                sb.append(") {\n");
+                indentLevel++;
+                printIndent();
+                sb.append("return new ").append(md.name()).append("(");
+                for (int i = 0; i < md.components().size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(md.components().get(i).name());
+                }
+                sb.append(");\n");
+                indentLevel--;
+                printIndent();
+                sb.append("}\n\n");
+
             }
-            sb.append(") {\n");
-            indentLevel++;
-            printIndent();
-            sb.append("return new ").append(md.name()).append("(");
-            for (int i = 0; i < md.components().size(); i++) {
-                if (i > 0) sb.append(", ");
-                sb.append(md.components().get(i).name());
-            }
-            sb.append(");\n");
-            indentLevel--;
-            printIndent();
-            sb.append("}\n\n");
 
             // equals method
             printIndent();
@@ -310,7 +313,8 @@ public final class JavaEmitter {
             sb.append("public String toString() {\n");
             indentLevel++;
             printIndent();
-            sb.append("return \"").append(md.name()).append("[\" + ");
+            sb.append("return \"").append(md.name()).append("[\"");
+            if (!md.components().isEmpty()) sb.append(" + ");
             for (int i = 0; i < md.components().size(); i++) {
                 if (i > 0) sb.append(" + \", \" + ");
                 Parameter p = md.components().get(i);

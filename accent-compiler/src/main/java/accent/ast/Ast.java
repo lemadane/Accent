@@ -61,6 +61,7 @@ public interface Ast {
         List<String> modifiers();
         String name();
         List<Member> members();
+        default boolean isSingleton() { return modifiers().contains("singleton"); }
     }
 
     record ModelDecl(

@@ -540,7 +540,7 @@ class AccentEndToEndTest {
             "    }\n" +
             "}\n" +
             "\n" +
-            "singleton AppConfig {\n" +
+            "singleton class AppConfig {\n" +
             "    public String! appName() {\n" +
             "        return \"JatotApp\";\n" +
             "    }\n" +
@@ -621,7 +621,7 @@ class AccentEndToEndTest {
             "    }\n" +
             "}\n" +
             "\n" +
-            "singleton StateTracker {\n" +
+            "singleton class StateTracker {\n" +
             "    private int counter = 0;\n" +
             "    public void increment() {\n" +
             "        this.counter = this.counter + 1;\n" +
@@ -656,7 +656,7 @@ class AccentEndToEndTest {
             "        final s = new StateTracker();\n" +
             "    }\n" +
             "}\n" +
-            "singleton StateTracker {}\n";
+            "singleton class StateTracker {}\n";
         Path badDir = createTempDir();
         Path badSrc = badDir.resolve("src");
         Files.createDirectories(badSrc);

@@ -205,10 +205,11 @@ public final class AccentParser {
         if (match(TokenType.CLASS)) {
             return parseClassDecl(modifiers, false);
         } else if (match(TokenType.SINGLETON)) {
-            if (check(TokenType.CLASS)) {
-                advance();
-            }
-            return parseClassDecl(modifiers, true);
+            modifiers.add("singleton");
+            if (match(TokenType.CLASS)) return parseClassDecl(modifiers, true);
+            if (match(TokenType.RECORD)) return parseRecordDecl(modifiers);
+            if (match(TokenType.MODEL)) return parseModelDecl(modifiers);
+            throw error(peek(), "Expected 'class', 'record', or 'model' after 'singleton'.");
         } else if (match(TokenType.MODEL)) {
             return parseModelDecl(modifiers);
         } else if (match(TokenType.INTERFACE)) {

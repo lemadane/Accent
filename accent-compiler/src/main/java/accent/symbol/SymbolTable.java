@@ -11,6 +11,7 @@ public final class SymbolTable {
     private final Map<String, TypeInfo> typeCache = new HashMap<>();
     private final Map<String, List<TypeInfo>> packageTypes = new HashMap<>();
     private final ClassLoader classLoader;
+    private final Set<String> singletonTypes = new HashSet<>();
     private final List<ExtensionDecl> extensions = new ArrayList<>();
 
     public SymbolTable() {
@@ -63,6 +64,7 @@ public final class SymbolTable {
             } else {
                 TypeInfo info = createSourceTypeInfo(pkg, decl, unit);
                 typeCache.put(info.fullName(), info);
+                if (decl.isSingleton()) singletonTypes.add(info.fullName());
                 packageTypes.computeIfAbsent(pkg, k -> new ArrayList<>()).add(info);
             }
         }
@@ -103,6 +105,10 @@ public final class SymbolTable {
             }
             return null;
         }
+    }
+
+    public boolean isSingletonType(TypeInfo type) {
+        return type != null && singletonTypes.contains(type.fullName());
     }
 
     /** Native container methods require record/model element or value types. */
@@ -176,7 +182,8 @@ public final class SymbolTable {
                 interfaces.add(resolveTypeName(getTypeName(itf), unit));
             }
         } else if (decl instanceof RecordDecl rd) {
-            superclass = Optional.of("java.lang.Record");
+            if (rd.isSingleton()) interfaces.add("accent.runtime.AccentModel");
+            else superclass = Optional.of("java.lang.Record");
             for (TypeNode itf : rd.interfaces()) {
                 interfaces.add(resolveTypeName(getTypeName(itf), unit));
             }
@@ -226,7 +233,7 @@ public final class SymbolTable {
                 }
             }
 
-            methods.add(new MethodInfo("copy", List.of("public"), selfType, md.components()));
+            if (!md.isSingleton()) methods.add(new MethodInfo("copy", List.of("public"), selfType, md.components()));
             methods.add(new MethodInfo("toString", List.of("public"), stringType, List.of()));
             methods.add(new MethodInfo("equals", List.of("public"), booleanType, List.of(objParam)));
             methods.add(new MethodInfo("hashCode", List.of("public"), intType, List.of()));
@@ -275,7 +282,7 @@ public final class SymbolTable {
             }
         }
 
-        if (decl instanceof ClassDecl cd && cd.isSingleton()) {
+        if (decl.isSingleton()) {
             BaseTypeNode selfType = new BaseTypeNode(fullName, List.of(), true);
             methods.add(new MethodInfo("instance", List.of("public", "static"), selfType, List.of()));
         }
@@ -306,6 +313,7 @@ public final class SymbolTable {
         boolean isInterface = clazz.isInterface();
         boolean isEnum = clazz.isEnum();
         boolean isRecord = clazz.isRecord();
+        if (clazz.isAnnotationPresent(accent.runtime.Singleton.class)) singletonTypes.add(clazz.getName().replace('$', '.'));
 
         Optional<String> superclass = Optional.ofNullable(clazz.getSuperclass()).map(Class::getName);
         List<String> interfaces = new ArrayList<>();

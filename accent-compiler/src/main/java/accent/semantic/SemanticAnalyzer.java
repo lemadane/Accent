@@ -182,6 +182,46 @@ public final class SemanticAnalyzer implements ImportResolver {
         }
     }
 
+    private void validateSingleton(TypeDeclaration decl) {
+        if (!decl.isSingleton()) return;
+        List<TypeParameter> typeParameters = decl instanceof ClassDecl cd ? cd.typeParameters()
+                : decl instanceof ModelDecl md ? md.typeParameters() : ((RecordDecl) decl).typeParameters();
+        if (!typeParameters.isEmpty()) error(null, "Singleton declarations cannot have type parameters.");
+        List<Parameter> components = decl instanceof ModelDecl md ? md.components()
+                : decl instanceof RecordDecl rd ? rd.components() : List.of();
+        boolean savedStatic = isStaticContext;
+        isStaticContext = true;
+        for (Parameter component : components) {
+            if (Set.of("instance", "copy", "clone", "readResolve", "__accentCreateSingleton").contains(component.name())) {
+                error(null, "Reserved singleton component name: " + component.name());
+            }
+            if (component.isVarargs()) error(null, "Singleton components cannot be varargs.");
+            if (component.defaultValue().isEmpty()) {
+                error(null, "Singleton component '" + component.name() + "' requires a default value.");
+            } else {
+                ResolvedType actual = checkExpression(component.defaultValue().get());
+                ResolvedType expected = symbolTable.resolveTypeNode(component.type(), this);
+                if (actual != null && !actual.isCompatibleWith(expected, symbolTable)) {
+                    error(null, "Incompatible default value for singleton component '" + component.name() + "'.");
+                }
+            }
+        }
+        isStaticContext = savedStatic;
+        for (Member member : decl.members()) {
+            if (decl instanceof RecordDecl && member instanceof FieldDecl field && !field.modifiers().contains("static")) {
+                error(null, "Singleton records cannot declare additional instance fields.");
+            }
+            if (member instanceof ConstructorDecl constructor) {
+                if (!(decl instanceof ClassDecl) || !constructor.modifiers().contains("private") || !constructor.parameters().isEmpty()) {
+                    error(null, "Singleton constructors must be private and parameterless; model/record constructors are generated.");
+                }
+            }
+            if (member instanceof MethodDecl method && Set.of("instance", "copy", "clone", "readResolve", "__accentCreateSingleton").contains(method.name())) {
+                error(null, "Reserved singleton method: " + method.name());
+            }
+        }
+    }
+
     private void analyzeClass(ClassDecl cd) {
         String pkg = currentUnit.packageName().orElse("");
         String fullName = pkg.isEmpty() ? cd.name() : pkg + "." + cd.name();
@@ -189,6 +229,7 @@ public final class SemanticAnalyzer implements ImportResolver {
         
         pushScope();
         injectLoggerScope(cd.modifiers(), cd.members(), null);
+        validateSingleton(cd);
 
         for (Member member : cd.members()) {
             analyzeMember(member);
@@ -205,6 +246,7 @@ public final class SemanticAnalyzer implements ImportResolver {
 
         pushScope();
         injectLoggerScope(rd.modifiers(), rd.members(), null);
+        validateSingleton(rd);
 
         for (Member member : rd.members()) {
             analyzeMember(member);
@@ -221,6 +263,7 @@ public final class SemanticAnalyzer implements ImportResolver {
 
         pushScope();
         injectLoggerScope(md.modifiers(), md.members(), null);
+        validateSingleton(md);
 
         for (Member member : md.members()) {
             analyzeMember(member);
@@ -737,6 +780,9 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
         } else if (expr instanceof NewObjectExpr no) {
             ResolvedType type = symbolTable.resolveTypeNode(no.type(), this);
+            if (symbolTable.isSingletonType(type.info())) {
+                error(no.token(), "Cannot construct singleton '" + type.info().fullName() + "'; use .instance().");
+            }
             for (Expression arg : no.arguments()) {
                 checkExpression(arg);
             }
