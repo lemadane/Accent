@@ -844,9 +844,7 @@ public final class JavaEmitter {
                    type == accent.lexer.TokenType.LESS || type == accent.lexer.TokenType.LESS_EQUAL ||
                    type == accent.lexer.TokenType.GREATER || type == accent.lexer.TokenType.GREATER_EQUAL ||
                    type == accent.lexer.TokenType.AND_AND || type == accent.lexer.TokenType.OR_OR ||
-                   type == accent.lexer.TokenType.AND || type == accent.lexer.TokenType.OR ||
-                   type == accent.lexer.TokenType.NAND || type == accent.lexer.TokenType.NOR ||
-                   type == accent.lexer.TokenType.XOR || type == accent.lexer.TokenType.XNOR;
+                   type == accent.lexer.TokenType.AND || type == accent.lexer.TokenType.OR;
         }
         if (expr instanceof UnaryExpr un) {
             accent.lexer.TokenType type = un.operator().type();
@@ -972,18 +970,6 @@ public final class JavaEmitter {
             }
             if (type == accent.lexer.TokenType.OR || type == accent.lexer.TokenType.OR_OR) {
                 return "(" + emitCondition(bin.left()) + " || " + emitCondition(bin.right()) + ")";
-            }
-            if (type == accent.lexer.TokenType.NAND) {
-                return "(!(" + emitCondition(bin.left()) + " && " + emitCondition(bin.right()) + "))";
-            }
-            if (type == accent.lexer.TokenType.NOR) {
-                return "(!(" + emitCondition(bin.left()) + " || " + emitCondition(bin.right()) + "))";
-            }
-            if (type == accent.lexer.TokenType.XOR) {
-                return "(" + emitCondition(bin.left()) + " != " + emitCondition(bin.right()) + ")";
-            }
-            if (type == accent.lexer.TokenType.XNOR) {
-                return "(" + emitCondition(bin.left()) + " == " + emitCondition(bin.right()) + ")";
             }
             String left = emitExpression(bin.left());
             String right = emitExpression(bin.right());

@@ -12,11 +12,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tests for textual boolean operators: not, and, or, nand, nor, xor, xnor.
+ * Tests for textual boolean operators: not, and, or.
  *
  * Covers:
  *  - Lexer: each operator tokenized as its own type, not inside longer identifiers
- *  - End-to-end: truth tables, short-circuit, mixed symbolic+textual, type errors
+ *  - End-to-end: truth tables, short-circuit, combined textual operators, type errors
  */
 class BooleanOperatorTest {
 
@@ -81,27 +81,89 @@ class BooleanOperatorTest {
     }
 
     @Test
-    void lexerRecognizesNandKeyword() {
-        LexResult r = lex("a nand b");
-        assertEquals(TokenType.NAND, r.tokens().get(1).type());
+    void rejectsSymbolicLogicalOperatorsWithReplacementHints() {
+        String[][] cases = {
+                {"true && false", "and"},
+                {"true || false", "or"},
+                {"!true", "not"},
+                {"!(true and false)", "not"},
+                {"not !false", "not"}
+        };
+        for (String[] testCase : cases) {
+            var source = new SourceFile(Path.of("Test.accent"),
+                    "public class Test { public boolean run() { return " + testCase[0] + "; } }");
+            var result = new AccentCompiler().check(source);
+            assertFalse(result.successful(), testCase[0]);
+            assertTrue(result.diagnostics().stream()
+                    .anyMatch(d -> d.message().contains("Use '" + testCase[1] + "' instead")),
+                    () -> result.diagnostics().toString());
+        }
     }
 
     @Test
-    void lexerRecognizesNorKeyword() {
-        LexResult r = lex("a nor b");
-        assertEquals(TokenType.NOR, r.tokens().get(1).type());
+    void preservesNonNullTypesInequalityAndLiteralSymbols() {
+        var source = new SourceFile(Path.of("Test.accent"), """
+                public class Test {
+                    public boolean run(String! value, String[]! values) {
+                        final symbols = "! && ||";
+                        // ! && || in comments are harmless.
+                        return value != null and not false or true;
+                    }
+                }
+                """);
+        var result = new AccentCompiler().check(source);
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
     }
 
     @Test
-    void lexerRecognizesXorKeyword() {
-        LexResult r = lex("a xor b");
-        assertEquals(TokenType.XOR, r.tokens().get(1).type());
+    void textualOperatorsShortCircuit() throws Exception {
+        Path tempDir = createTempDir();
+        Path source = tempDir.resolve("ShortCircuit.accent");
+        Files.writeString(source, """
+                public class ShortCircuit {
+                    public static boolean fail() {
+                        throw new RuntimeException("Right operand must not run");
+                    }
+                    public static void main(String[] args) {
+                        if (false and fail()) throw new RuntimeException("and failed");
+                        if (not (true or fail())) throw new RuntimeException("or failed");
+                    }
+                }
+                """);
+        Path binDir = tempDir.resolve("bin");
+        var result = compile(source, binDir, tempDir.resolve("gen"));
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        runClass(binDir, "ShortCircuit");
     }
 
     @Test
-    void lexerRecognizesXnorKeyword() {
-        LexResult r = lex("a xnor b");
-        assertEquals(TokenType.XNOR, r.tokens().get(1).type());
+    void removedOperatorsAreOrdinaryIdentifiers() throws Exception {
+        for (String name : List.of("nand", "nor", "xor", "xnor")) {
+            assertEquals(TokenType.IDENTIFIER, lex(name).tokens().get(0).type());
+            SourceFile source = new SourceFile(Path.of("Test.accent"),
+                    "public class Test { public boolean run() { return true " + name + " false; } }");
+            assertFalse(new AccentCompiler().check(source).successful(),
+                    name + " must not be accepted as an operator");
+        }
+        Path tempDir = createTempDir();
+        Path source = tempDir.resolve("Identifiers.accent");
+        Files.writeString(source, """
+                public class Identifiers {
+                    public static void main(String[] args) {
+                        boolean nand = true;
+                        boolean nor = false;
+                        boolean xor = true;
+                        boolean xnor = false;
+                        if (not (nand and not nor and xor and not xnor)) {
+                            throw new RuntimeException("Former operator identifiers failed");
+                        }
+                    }
+                }
+                """);
+        Path binDir = tempDir.resolve("bin");
+        CompilationResult result = compile(source, binDir, tempDir.resolve("gen"));
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        runClass(binDir, "Identifiers");
     }
 
     @Test
@@ -112,14 +174,6 @@ class BooleanOperatorTest {
             assertEquals(TokenType.IDENTIFIER, r.tokens().get(i).type(),
                 "Expected IDENTIFIER but got " + r.tokens().get(i).type() + " for: " + r.tokens().get(i).lexeme());
         }
-    }
-
-    @Test
-    void lexerPreservesSymbolicOperators() {
-        LexResult r = lex("!a && b || c");
-        assertEquals(TokenType.BANG,    r.tokens().get(0).type());
-        assertEquals(TokenType.AND_AND, r.tokens().get(2).type());
-        assertEquals(TokenType.OR_OR,   r.tokens().get(4).type());
     }
 
     @Test
@@ -142,7 +196,7 @@ class BooleanOperatorTest {
 
     @Test
     void testTruthTablesAllOperators() throws Exception {
-        // Tests AND, OR, NAND, NOR, XOR, XNOR truth tables via transpiled Java
+        // Tests AND, OR, NOT truth tables via transpiled Java
         String code =
             "package test;\n" +
             "public class TruthTableMain {\n" +
@@ -164,30 +218,6 @@ class BooleanOperatorTest {
             "        tf = true  or false; if (tf != true)  throw new RuntimeException(\"OR tf\");\n" +
             "        tt = true  or true;  if (tt != true)  throw new RuntimeException(\"OR tt\");\n" +
             "\n" +
-            "        // NAND\n" +
-            "        ff = false nand false; if (ff != true)  throw new RuntimeException(\"NAND ff\");\n" +
-            "        ft = false nand true;  if (ft != true)  throw new RuntimeException(\"NAND ft\");\n" +
-            "        tf = true  nand false; if (tf != true)  throw new RuntimeException(\"NAND tf\");\n" +
-            "        tt = true  nand true;  if (tt != false) throw new RuntimeException(\"NAND tt\");\n" +
-            "\n" +
-            "        // NOR\n" +
-            "        ff = false nor false; if (ff != true)  throw new RuntimeException(\"NOR ff\");\n" +
-            "        ft = false nor true;  if (ft != false) throw new RuntimeException(\"NOR ft\");\n" +
-            "        tf = true  nor false; if (tf != false) throw new RuntimeException(\"NOR tf\");\n" +
-            "        tt = true  nor true;  if (tt != false) throw new RuntimeException(\"NOR tt\");\n" +
-            "\n" +
-            "        // XOR\n" +
-            "        ff = false xor false; if (ff != false) throw new RuntimeException(\"XOR ff\");\n" +
-            "        ft = false xor true;  if (ft != true)  throw new RuntimeException(\"XOR ft\");\n" +
-            "        tf = true  xor false; if (tf != true)  throw new RuntimeException(\"XOR tf\");\n" +
-            "        tt = true  xor true;  if (tt != false) throw new RuntimeException(\"XOR tt\");\n" +
-            "\n" +
-            "        // XNOR\n" +
-            "        ff = false xnor false; if (ff != true)  throw new RuntimeException(\"XNOR ff\");\n" +
-            "        ft = false xnor true;  if (ft != false) throw new RuntimeException(\"XNOR ft\");\n" +
-            "        tf = true  xnor false; if (tf != false) throw new RuntimeException(\"XNOR tf\");\n" +
-            "        tt = true  xnor true;  if (tt != true)  throw new RuntimeException(\"XNOR tt\");\n" +
-            "\n" +
             "        // NOT\n" +
             "        final a = not true;  if (a != false) throw new RuntimeException(\"NOT true\");\n" +
             "        final b = not false; if (b != true)  throw new RuntimeException(\"NOT false\");\n" +
@@ -207,31 +237,7 @@ class BooleanOperatorTest {
     }
 
     @Test
-    void testSymbolicOperatorsStillWork() throws Exception {
-        String code =
-            "package test;\n" +
-            "public class SymbolicMain {\n" +
-            "    public static void main(String[] args) {\n" +
-            "        final a = !true;           if (a != false) throw new RuntimeException(\"!true\");\n" +
-            "        final b = true && false;   if (b != false) throw new RuntimeException(\"&&\");\n" +
-            "        final c = false || true;   if (c != true)  throw new RuntimeException(\"||\");\n" +
-            "    }\n" +
-            "}\n";
-
-        Path tempDir = createTempDir();
-        Path srcDir = tempDir.resolve("src");
-        Path binDir = tempDir.resolve("bin");
-        Path genDir = tempDir.resolve("gen");
-        Files.createDirectories(srcDir);
-        Files.writeString(srcDir.resolve("SymbolicMain.accent"), code, StandardCharsets.UTF_8);
-
-        CompilationResult result = compile(srcDir, binDir, genDir);
-        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
-        runClass(binDir, "test.SymbolicMain");
-    }
-
-    @Test
-    void testMixedTextualAndSymbolicOperators() throws Exception {
+    void testCombinedTextualOperators() throws Exception {
         String code =
             "package test;\n" +
             "public class MixedMain {\n" +
@@ -240,12 +246,12 @@ class BooleanOperatorTest {
             "        boolean suspended = false;\n" +
             "        boolean hidden = false;\n" +
             "        boolean enabled = true;\n" +
-            "        // active && not suspended  ->  true && !false  ->  true\n" +
-            "        final allowed = active && not suspended;\n" +
-            "        if (!allowed) throw new RuntimeException(\"mixed 1\");\n" +
-            "        // enabled and !hidden  ->  true && !false  ->  true\n" +
-            "        final visible = enabled and !hidden;\n" +
-            "        if (!visible) throw new RuntimeException(\"mixed 2\");\n" +
+            "        // active and not suspended  ->  true and not false  ->  true\n" +
+            "        final allowed = active and not suspended;\n" +
+            "        if (not allowed) throw new RuntimeException(\"mixed 1\");\n" +
+            "        // enabled and not hidden  ->  true and not false  ->  true\n" +
+            "        final visible = enabled and not hidden;\n" +
+            "        if (not visible) throw new RuntimeException(\"mixed 2\");\n" +
             "    }\n" +
             "}\n";
 
@@ -300,19 +306,19 @@ class BooleanOperatorTest {
             "        return authenticated and not suspended or administrator;\n" +
             "    }\n" +
             "    public static boolean exactlyOneSelected(boolean emailSelected, boolean smsSelected) {\n" +
-            "        return emailSelected xor smsSelected;\n" +
+            "        return emailSelected != smsSelected;\n" +
             "    }\n" +
             "    public static boolean haveSameStatus(boolean firstActive, boolean secondActive) {\n" +
-            "        return firstActive xnor secondActive;\n" +
+            "        return firstActive == secondActive;\n" +
             "    }\n" +
             "    public static void main(String[] args) {\n" +
-            "        if (!canAccess(true, false, false)) throw new RuntimeException(\"canAccess 1\");\n" +
+            "        if (not canAccess(true, false, false)) throw new RuntimeException(\"canAccess 1\");\n" +
             "        if (canAccess(true, true, false))   throw new RuntimeException(\"canAccess 2\");\n" +
-            "        if (!canAccess(false, true, true))  throw new RuntimeException(\"canAccess 3\");\n" +
-            "        if (!exactlyOneSelected(true, false)) throw new RuntimeException(\"xor 1\");\n" +
-            "        if (exactlyOneSelected(true, true))   throw new RuntimeException(\"xor 2\");\n" +
-            "        if (!haveSameStatus(true, true))   throw new RuntimeException(\"xnor 1\");\n" +
-            "        if (haveSameStatus(true, false))   throw new RuntimeException(\"xnor 2\");\n" +
+            "        if (not canAccess(false, true, true))  throw new RuntimeException(\"canAccess 3\");\n" +
+            "        if (not exactlyOneSelected(true, false)) throw new RuntimeException(\"exclusive selection 1\");\n" +
+            "        if (exactlyOneSelected(true, true))   throw new RuntimeException(\"exclusive selection 2\");\n" +
+            "        if (not haveSameStatus(true, true))   throw new RuntimeException(\"same status 1\");\n" +
+            "        if (haveSameStatus(true, false))   throw new RuntimeException(\"same status 2\");\n" +
             "    }\n" +
             "}\n";
 
@@ -339,7 +345,7 @@ class BooleanOperatorTest {
             "public class TruthyIntAndMain {\n" +
             "    public static void main(String[] args) {\n" +
             "        boolean r = 1 and 2;\n" +
-            "        if (!r) throw new RuntimeException(\"1 and 2 should be true\");\n" +
+            "        if (not r) throw new RuntimeException(\"1 and 2 should be true\");\n" +
             "        boolean r2 = 0 and 2;\n" +
             "        if (r2) throw new RuntimeException(\"0 and 2 should be false\");\n" +
             "    }\n" +
@@ -366,7 +372,7 @@ class BooleanOperatorTest {
             "        boolean r1 = not 42;\n" +
             "        if (r1) throw new RuntimeException(\"not 42 should be false\");\n" +
             "        boolean r2 = not 0;\n" +
-            "        if (!r2) throw new RuntimeException(\"not 0 should be true\");\n" +
+            "        if (not r2) throw new RuntimeException(\"not 0 should be true\");\n" +
             "    }\n" +
             "}\n";
 

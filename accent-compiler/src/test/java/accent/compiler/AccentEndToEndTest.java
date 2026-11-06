@@ -164,7 +164,7 @@ class AccentEndToEndTest {
             "    public static void main(String[] args) {\n" +
             "        final String name = null;\n" +
             "        final fallback = name ?? \"Default\";\n" +
-            "        if (!fallback.equals(\"Default\")) { throw new RuntimeException(\"Null coalescing failed\"); }\n" +
+            "        if (not fallback.equals(\"Default\")) { throw new RuntimeException(\"Null coalescing failed\"); }\n" +
             "    }\n" +
             "}\n";
 
@@ -195,7 +195,7 @@ class AccentEndToEndTest {
             "    public static void main(String[] args) {\n" +
             "        final text = \"hello\";\n" +
             "        final result = text.shout();\n" +
-            "        if (!result.equals(\"HELLO\")) { throw new RuntimeException(\"Extension method failed\"); }\n" +
+            "        if (not result.equals(\"HELLO\")) { throw new RuntimeException(\"Extension method failed\"); }\n" +
             "    }\n" +
             "}\n";
 
@@ -314,7 +314,7 @@ class AccentEndToEndTest {
             "    public static void main(String[] args) {\n" +
             "        final condition = true;\n" +
             "        final val = condition ? \"Zack\" : \"Guest\";\n" +
-            "        if (!val.equals(\"Zack\")) { throw new RuntimeException(\"Expected Zack\"); }\n" +
+            "        if (not val.equals(\"Zack\")) { throw new RuntimeException(\"Expected Zack\"); }\n" +
             "\n" +
             "        final nested = condition ? (false ? 1 : 2) : 3;\n" +
             "        if (nested != 2) { throw new RuntimeException(\"Expected 2\"); }\n" +
@@ -443,14 +443,14 @@ class AccentEndToEndTest {
             "        final name = \"Lemuel\";\n" +
             "        final age = 42;\n" +
             "        final result = $\"Hello, {name}! You are {age} years old.\";\n" +
-            "        if (!result.equals(\"Hello, Lemuel! You are 42 years old.\")) {\n" +
+            "        if (not result.equals(\"Hello, Lemuel! You are 42 years old.\")) {\n" +
             "            throw new RuntimeException(\"Fail basic: \" + result);\n" +
             "        }\n" +
             "\n" +
             "        // 2. Arithmetic, ternary, and nested expressions\n" +
             "        final active = true;\n" +
             "        final math = $\"Total: {10 * 5}, Status: {active ? \"Active\" : \"Inactive\"}\";\n" +
-            "        if (!math.equals(\"Total: 50, Status: Active\")) {\n" +
+            "        if (not math.equals(\"Total: 50, Status: Active\")) {\n" +
             "            throw new RuntimeException(\"Fail expressions: \" + math);\n" +
             "        }\n" +
             "\n" +
@@ -458,7 +458,7 @@ class AccentEndToEndTest {
             "        final braces = $\"{{name: \\\"{name}\\\", age: {age}}}\";\n" +
             "        final quote = Character.toString(34);\n" +
             "        final expectedBraces = \"{name: \" + quote + \"Lemuel\" + quote + \", age: 42}\";\n" +
-            "        if (!braces.equals(expectedBraces)) {\n" +
+            "        if (not braces.equals(expectedBraces)) {\n" +
             "            throw new RuntimeException(\"Fail braces: \" + braces);\n" +
             "        }\n" +
             "\n" +
@@ -469,24 +469,24 @@ class AccentEndToEndTest {
             "        final expectedMultiline = $\"First line: Lemuel\n" +
             "Second line\n" +
             "Third line: 42\";\n" +
-            "        if (!multiline.equals(expectedMultiline)) {\n" +
+            "        if (not multiline.equals(expectedMultiline)) {\n" +
             "            throw new RuntimeException(\"Fail multiline: \\\"\" + multiline + \"\\\"\");\n" +
             "        }\n" +
             "\n" +
             "        // 5. Null handling\n" +
             "        final Object nullVal = null;\n" +
             "        final nullTest = $\"Value: {nullVal}\";\n" +
-            "        if (!nullTest.equals(\"Value: null\")) {\n" +
+            "        if (not nullTest.equals(\"Value: null\")) {\n" +
             "            throw new RuntimeException(\"Fail null handling: \" + nullTest);\n" +
             "        }\n" +
             "\n" +
             "        // 6. Evaluation order check\n" +
             "        final List<Integer> order = new ArrayList<Integer>();\n" +
             "        final orderTest = $\"{recordCall(order, 1)}-{recordCall(order, 2)}-{recordCall(order, 3)}\";\n" +
-            "        if (!orderTest.equals(\"10-20-30\")) {\n" +
+            "        if (not orderTest.equals(\"10-20-30\")) {\n" +
             "            throw new RuntimeException(\"Fail order value: \" + orderTest);\n" +
             "        }\n" +
-            "        if (order.size() != 3 || order.get(0) != 1 || order.get(1) != 2 || order.get(2) != 3) {\n" +
+            "        if (order.size() != 3 or order.get(0) != 1 or order.get(1) != 2 or order.get(2) != 3) {\n" +
             "            throw new RuntimeException(\"Fail evaluation order side effects: \" + order);\n" +
             "        }\n" +
             "\n" +
@@ -494,24 +494,24 @@ class AccentEndToEndTest {
             "        final String $value = \"Hello\";\n" +
             "        final String user$name = \"Lemuel\";\n" +
             "        final ordinary = \"Hello, {name}\";\n" +
-            "        if (!ordinary.equals(\"Hello, {name}\")) {\n" +
+            "        if (not ordinary.equals(\"Hello, {name}\")) {\n" +
             "            throw new RuntimeException(\"Fail normal string braces: \" + ordinary);\n" +
             "        }\n" +
             "\n" +
             "        final textBlock = \"\"\"\n" +
             "            Hello, {name}\n" +
             "            \"\"\";\n" +
-            "        if (!textBlock.contains(\"{name}\")) {\n" +
+            "        if (not textBlock.contains(\"{name}\")) {\n" +
             "            throw new RuntimeException(\"Fail normal textblock braces: \" + textBlock);\n" +
             "        }\n" +
             "\n" +
             "        // 8. C#-style {expr} string interpolation with $\"-\", $`...`, and multiline $\"\"\"...\"\"\" text blocks\n" +
             "        final interpolated1 = $\"Hello {name}, next year age will be {age + 1}!\";\n" +
             "        final interpolated2 = $`Hello {name}, next year age will be {age + 1}!`;\n" +
-            "        if (!interpolated1.equals(\"Hello Lemuel, next year age will be 43!\")) {\n" +
+            "        if (not interpolated1.equals(\"Hello Lemuel, next year age will be 43!\")) {\n" +
             "            throw new RuntimeException(\"Fail C# style string interpolation 1: \" + interpolated1);\n" +
             "        }\n" +
-            "        if (!interpolated2.equals(\"Hello Lemuel, next year age will be 43!\")) {\n" +
+            "        if (not interpolated2.equals(\"Hello Lemuel, next year age will be 43!\")) {\n" +
             "            throw new RuntimeException(\"Fail C# style string interpolation 2: \" + interpolated2);\n" +
             "        }\n" +
             "\n" +
@@ -519,7 +519,7 @@ class AccentEndToEndTest {
             "            Name: {name}\n" +
             "            Age: {age}\n" +
             "            \"\"\";\n" +
-            "        if (!interpolatedMultiBlock.contains(\"Name: Lemuel\") || !interpolatedMultiBlock.contains(\"Age: 42\")) {\n" +
+            "        if (not interpolatedMultiBlock.contains(\"Name: Lemuel\") or not interpolatedMultiBlock.contains(\"Age: 42\")) {\n" +
             "            throw new RuntimeException(\"Fail multiline text block interpolation: \" + interpolatedMultiBlock);\n" +
             "        }\n" +
             "\n" +
@@ -529,7 +529,7 @@ class AccentEndToEndTest {
             "        if (cfg1 != cfg2) {\n" +
             "            throw new RuntimeException(\"Fail singleton instance equality check!\");\n" +
             "        }\n" +
-            "        if (!cfg1.appName().equals(\"JatotApp\")) {\n" +
+            "        if (not cfg1.appName().equals(\"JatotApp\")) {\n" +
             "            throw new RuntimeException(\"Fail singleton method call: \" + cfg1.appName());\n" +
             "        }\n" +
             "    }\n" +
@@ -615,7 +615,7 @@ class AccentEndToEndTest {
             "        }\n" +
             "        final c1 = CacheManager.instance();\n" +
             "        final c2 = CacheManager.instance();\n" +
-            "        if (c1 != c2 || !c1.getApp().equals(\"Jatot\")) {\n" +
+            "        if (c1 != c2 or not c1.getApp().equals(\"Jatot\")) {\n" +
             "            throw new RuntimeException(\"Singleton class syntax check failed!\");\n" +
             "        }\n" +
             "    }\n" +
@@ -672,23 +672,23 @@ class AccentEndToEndTest {
             "public class ModelMain {\n" +
             "    public static void main(String[] args) {\n" +
             "        final user = new User(\"U101\", \"Lemuel\", 42);\n" +
-            "        if (!user.id().equals(\"U101\") || !user.name().equals(\"Lemuel\") || user.age() != 42) {\n" +
+            "        if (not user.id().equals(\"U101\") or not user.name().equals(\"Lemuel\") or user.age() != 42) {\n" +
             "            throw new RuntimeException(\"Fail model getter check: \" + user);\n" +
             "        }\n" +
             "        user.setName(\"Lemuel A.\");\n" +
             "        user.setAge(43);\n" +
-            "        if (!user.name().equals(\"Lemuel A.\") || user.age() != 43) {\n" +
+            "        if (not user.name().equals(\"Lemuel A.\") or user.age() != 43) {\n" +
             "            throw new RuntimeException(\"Fail model setter check: \" + user);\n" +
             "        }\n" +
             "        final str = user.toString();\n" +
-            "        if (!str.equals(\"User[id=U101, name=Lemuel A., age=43]\")) {\n" +
+            "        if (not str.equals(\"User[id=U101, name=Lemuel A., age=43]\")) {\n" +
             "            throw new RuntimeException(\"Fail model toString check: \" + str);\n" +
             "        }\n" +
             "        final userCopy = user.copy(\"U101\", \"Lemuel A.\", 43);\n" +
-            "        if (!user.equals(userCopy) || user.hashCode() != userCopy.hashCode()) {\n" +
+            "        if (not user.equals(userCopy) or user.hashCode() != userCopy.hashCode()) {\n" +
             "            throw new RuntimeException(\"Fail model equals/hashCode/copy check!\");\n" +
             "        }\n" +
-            "        if (!(user instanceof java.io.Serializable)) {\n" +
+            "        if (not (user instanceof java.io.Serializable)) {\n" +
             "            throw new RuntimeException(\"Fail model Serializable check!\");\n" +
             "        }\n" +
             "    }\n" +

@@ -55,10 +55,6 @@ public enum TokenType {
     NOT,
     AND,
     OR,
-    NAND,
-    NOR,
-    XOR,
-    XNOR,
 
     // Generator support
     GENERATOR,

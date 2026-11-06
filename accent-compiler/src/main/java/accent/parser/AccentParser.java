@@ -919,9 +919,8 @@ public final class AccentParser {
         TERNARY,          // ? :
         LAMBDA,           // ->
         NULL_COALESCING,  // ??
-        OR,               // ||  or  nor
-        XOR_XNOR,         // xor xnor
-        AND,              // &&  and  nand
+        OR,               // or
+        AND,              // and
         EQUALITY,         // == !=
         COMPARISON,       // < > <= >= instanceof
         TERM,             // + -
@@ -937,9 +936,8 @@ public final class AccentParser {
             case QUESTION -> Precedence.TERNARY;
             case ARROW -> Precedence.LAMBDA;
             case NULL_COALESCING -> Precedence.NULL_COALESCING;
-            case OR_OR, OR, NOR -> Precedence.OR;
-            case XOR, XNOR -> Precedence.XOR_XNOR;
-            case AND_AND, AND, NAND -> Precedence.AND;
+            case OR -> Precedence.OR;
+            case AND -> Precedence.AND;
             case EQUAL_EQUAL, BANG_EQUAL -> Precedence.EQUALITY;
             case LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, INSTANCEOF -> Precedence.COMPARISON;
             case PLUS, MINUS -> Precedence.TERM;
@@ -1047,7 +1045,8 @@ public final class AccentParser {
                     yield expr;
                 }
             }
-            case BANG, MINUS, PLUS -> {
+            case BANG -> throw error(token, "Use 'not' instead of '!' for logical negation.");
+            case MINUS, PLUS -> {
                 Expression right = parseExpression(Precedence.UNARY);
                 yield new UnaryExpr(token, right, false);
             }
@@ -1481,26 +1480,6 @@ public final class AccentParser {
             case OR -> {
                 // 'or' -> same as '||'  (short-circuit OR)
                 Expression right = parseExpression(Precedence.OR);
-                yield new BinaryExpr(left, op, right);
-            }
-            case NAND -> {
-                // 'nand' -> short-circuit: !(left && right)
-                Expression right = parseExpression(Precedence.AND);
-                yield new BinaryExpr(left, op, right);
-            }
-            case NOR -> {
-                // 'nor' -> short-circuit: !(left || right)
-                Expression right = parseExpression(Precedence.OR);
-                yield new BinaryExpr(left, op, right);
-            }
-            case XOR -> {
-                // 'xor' -> both operands evaluated: left != right
-                Expression right = parseExpression(Precedence.XOR_XNOR);
-                yield new BinaryExpr(left, op, right);
-            }
-            case XNOR -> {
-                // 'xnor' -> both operands evaluated: left == right
-                Expression right = parseExpression(Precedence.XOR_XNOR);
                 yield new BinaryExpr(left, op, right);
             }
             default -> {

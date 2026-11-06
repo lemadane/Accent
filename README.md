@@ -138,26 +138,22 @@ order.calculateTotal();
 
 ### 7. Textual boolean operators
 
-Accent supports seven boolean operators in both textual and symbolic form.
+Accent supports three textual boolean operators.
 
 #### Operator table
 
-| Textual   | Symbolic equivalent | Meaning                      |
+| Textual   | Java equivalent     | Meaning                      |
 |-----------|---------------------|------------------------------|
 | `not`     | `!`                 | Logical negation             |
 | `and`     | `&&`                | Short-circuit logical AND    |
 | `or`      | `\|\|`              | Short-circuit logical OR     |
-| `nand`    | —                   | Negated logical AND          |
-| `nor`     | —                   | Negated logical OR           |
-| `xor`     | —                   | Exclusive OR                 |
-| `xnor`    | —                   | Logical equivalence          |
 
-The existing symbolic operators `!`, `&&`, and `||` remain fully supported and may be freely mixed with textual operators:
+Logical expressions must use `not`, `and`, and `or`. Using unary `!`, `&&`, or `||` produces a compiler error. The non-null type suffix (`String!`) and inequality operator (`!=`) remain supported.
 
 ```java
-boolean allowed = active && not suspended;
-boolean visible = enabled and !hidden;
-boolean accepted = valid || trusted or administrator;
+boolean allowed = active and not suspended;
+boolean visible = enabled and not hidden;
+boolean accepted = valid or trusted or administrator;
 ```
 
 #### Operator semantics
@@ -167,52 +163,37 @@ boolean accepted = valid || trusted or administrator;
 | `not a`        | `!a`                   |
 | `a and b`      | `a && b`               |
 | `a or b`       | `a \|\| b`             |
-| `a nand b`     | `!(a && b)`            |
-| `a nor b`      | `!(a \|\| b)`          |
-| `a xor b`      | `a != b`               |
-| `a xnor b`     | `a == b`               |
 
 #### Truth table
 
-| A     | B     | AND   | OR    | NAND  | NOR   | XOR   | XNOR  |
-|-------|-------|-------|-------|-------|-------|-------|-------|
-| false | false | false | false | true  | true  | false | true  |
-| false | true  | false | true  | true  | false | true  | false |
-| true  | false | false | true  | true  | false | true  | false |
-| true  | true  | true  | true  | false | false | false | true  |
+| A     | B     | AND   | OR    |
+|-------|-------|-------|-------|
+| false | false | false | false |
+| false | true  | false | true  |
+| true  | false | false | true  |
+| true  | true  | true  | true  |
 
 #### Operator precedence (highest to lowest)
 
 1. Parentheses
-2. Unary `!` and `not`
-3. `&&`, `and`, `nand`
-4. `xor`, `xnor`
-5. `||`, `or`, `nor`
+2. Unary `not`
+3. `and`
+4. `or`
 
 Binary operators at the same level are left-associative:
 
 ```java
 not a and b          // parsed as: (not a) and b
 a or b and c         // parsed as: a or (b and c)
-a xor b and c        // parsed as: a xor (b and c)
-a nand b or c        // parsed as: (a nand b) or c
 ```
 
 #### Short-circuit behavior
 
 `and` and `or` have the same short-circuit semantics as `&&` and `||`.
-`nand` and `nor` also short-circuit where possible:
-
-```java
-false nand expensiveCheck()   // expensiveCheck() is NOT called — result is always true
-true  nor  expensiveCheck()   // expensiveCheck() is NOT called — result is always false
-```
-
-`xor` and `xnor` must evaluate both operands because their result depends on both values.
 
 #### Type checking
 
-All seven textual boolean operators accept truthy/falsy operands of any type and produce boolean results:
+All three textual boolean operators accept truthy/falsy operands of any type and produce boolean results:
 
 ```java
 // Valid with truthy/falsy operands
@@ -226,7 +207,7 @@ boolean strResult = "hello" and 42; // true
 The following identifiers are reserved as boolean operator keywords and may not be used as variable, method, or type names:
 
 ```text
-not  and  or  nand  nor  xor  xnor
+not  and  or
 ```
 
 Note: `notification`, `android`, `ordinary`, `xorValue`, etc. remain valid identifiers because keywords are only matched on exact word boundaries.
@@ -248,7 +229,7 @@ public boolean exactlyOneSelected(
         boolean emailSelected,
         boolean smsSelected) {
 
-    return emailSelected xor smsSelected;
+    return emailSelected != smsSelected;
 }
 ```
 
@@ -257,7 +238,7 @@ public boolean haveSameStatus(
         boolean firstActive,
         boolean secondActive) {
 
-    return firstActive xnor secondActive;
+    return firstActive == secondActive;
 }
 ```
 
@@ -268,7 +249,7 @@ final val = condition ? "Zack" : "Guest";
 
 ### 8. Truthy and falsy conditions
 
-Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`!`, `not`, `&&`, `||`, `and`, `or`, `nand`, `nor`, `xor`, `xnor`).
+Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`not`, `and`, `or`).
 
 #### Truthy / Falsy rules table
 

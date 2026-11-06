@@ -75,16 +75,16 @@ public final class AccentLexer {
             case '>' -> add(match('=') ? TokenType.GREATER_EQUAL : TokenType.GREATER);
             case '&' -> {
                 if (match('&')) {
-                    add(TokenType.AND_AND);
+                    error("ACCENT-L011", "Use 'and' instead of '&&' for logical conjunction.");
                 } else {
-                    error("ACCENT-L001", "Expected '&' to form '&&'.");
+                    error("ACCENT-L001", "Unexpected '&'. Use 'and' for logical conjunction.");
                 }
             }
             case '|' -> {
                 if (match('|')) {
-                    add(TokenType.OR_OR);
+                    error("ACCENT-L012", "Use 'or' instead of '||' for logical disjunction.");
                 } else {
-                    error("ACCENT-L002", "Expected '|' to form '||'.");
+                    error("ACCENT-L002", "Unexpected '|'. Use 'or' for logical disjunction.");
                 }
             }
             case '/' -> scanSlash();
@@ -554,10 +554,6 @@ public final class AccentLexer {
         keywords.put("not",  TokenType.NOT);
         keywords.put("and",  TokenType.AND);
         keywords.put("or",   TokenType.OR);
-        keywords.put("nand", TokenType.NAND);
-        keywords.put("nor",  TokenType.NOR);
-        keywords.put("xor",  TokenType.XOR);
-        keywords.put("xnor", TokenType.XNOR);
         keywords.put("generator", TokenType.GENERATOR);
         keywords.put("emit",      TokenType.EMIT);
         return Map.copyOf(keywords);

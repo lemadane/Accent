@@ -57,43 +57,43 @@ Line 3: Finished.";
     }
 
     private static void assertWelcome(String actual, String expected) {
-        if (!actual.equals(expected)) {
+        if (not actual.equals(expected)) {
             throw new RuntimeException("Test 1 Failed! Expected '" + expected + "', got '" + actual + "'");
         }
     }
 
     private static void assertSummary(String actual, String expected) {
-        if (!actual.equals(expected)) {
+        if (not actual.equals(expected)) {
             throw new RuntimeException("Test 2 Failed! Expected '" + expected + "', got '" + actual + "'");
         }
     }
 
     private static void assertBraces(String actual, String expected) {
-        if (!actual.equals(expected)) {
+        if (not actual.equals(expected)) {
             throw new RuntimeException("Test 3 Failed! Expected '" + expected + "', got '" + actual + "'");
         }
     }
 
     private static void assertMultiline(String actual, String expected) {
-        if (!actual.equals(expected)) {
+        if (not actual.equals(expected)) {
             throw new RuntimeException("Test 4 Failed! Expected '" + expected + "', got '" + actual + "'");
         }
     }
 
     private static void assertNull(String actual, String expected) {
-        if (!actual.equals(expected)) {
+        if (not actual.equals(expected)) {
             throw new RuntimeException("Test 5 Failed! Expected '" + expected + "', got '" + actual + "'");
         }
     }
 
     private static void assertOrder(String actual, String expected) {
-        if (!actual.equals(expected)) {
+        if (not actual.equals(expected)) {
             throw new RuntimeException("Test 6 Failed! Expected '" + expected + "', got '" + actual + "'");
         }
     }
 
     private static void assertOrderSideEffects(List<Integer> order) {
-        if (order.size() != 3 || order.get(0) != 1 || order.get(1) != 2 || order.get(2) != 3) {
+        if (order.size() != 3 or order.get(0) != 1 or order.get(1) != 2 or order.get(2) != 3) {
             throw new RuntimeException("Test 6 Side Effects Failed! Order list is: " + order);
         }
     }

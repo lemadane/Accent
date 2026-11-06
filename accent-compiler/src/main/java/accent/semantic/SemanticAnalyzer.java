@@ -605,11 +605,7 @@ public final class SemanticAnalyzer implements ImportResolver {
 
             // Textual boolean operators: accept truthy/falsy operands of any type, return boolean
             if (opType == accent.lexer.TokenType.AND  ||
-                opType == accent.lexer.TokenType.OR   ||
-                opType == accent.lexer.TokenType.NAND ||
-                opType == accent.lexer.TokenType.NOR  ||
-                opType == accent.lexer.TokenType.XOR  ||
-                opType == accent.lexer.TokenType.XNOR) {
+                opType == accent.lexer.TokenType.OR) {
                 return new ResolvedType(symbolTable.getType("boolean"), true, List.of(), 0);
             }
 

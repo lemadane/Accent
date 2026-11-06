@@ -690,9 +690,7 @@ public final class AccentLowerer implements ImportResolver {
                 opType == TokenType.LESS || opType == TokenType.LESS_EQUAL ||
                 opType == TokenType.GREATER || opType == TokenType.GREATER_EQUAL ||
                 opType == TokenType.AND_AND || opType == TokenType.OR_OR ||
-                opType == TokenType.AND || opType == TokenType.OR ||
-                opType == TokenType.NAND || opType == TokenType.NOR ||
-                opType == TokenType.XOR || opType == TokenType.XNOR) {
+                opType == TokenType.AND || opType == TokenType.OR) {
                 return new ResolvedType(symbolTable.getType("boolean"), true, List.of(), 0);
             }
             return getTypeOf(bin.left());
