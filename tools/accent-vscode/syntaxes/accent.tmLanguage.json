@@ -1,9 +1,16 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Accent",
+  "scopeName": "source.accent",
   "patterns": [
     {
       "include": "#comments"
+    },
+    {
+      "include": "#annotations"
+    },
+    {
+      "include": "#triple-strings"
     },
     {
       "include": "#interpolated-strings"
@@ -12,13 +19,28 @@
       "include": "#strings"
     },
     {
-      "include": "#html-tags"
+      "include": "#accent-keywords"
     },
     {
-      "include": "#keywords"
+      "include": "#java-keywords"
     },
     {
-      "include": "#annotations"
+      "include": "#storage-types"
+    },
+    {
+      "include": "#storage-modifiers"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#method-calls"
+    },
+    {
+      "include": "#type-identifiers"
+    },
+    {
+      "include": "#variables"
     }
   ],
   "repository": {
@@ -35,42 +57,20 @@
         }
       ]
     },
-    "keywords": {
-      "patterns": [
-        {
-          "name": "keyword.control.accent",
-          "match": "\\b(if|else|for|while|do|try|catch|finally|throw|return|yield|break|continue|async|await|generator|emit)\\b"
-        },
-        {
-          "name": "storage.type.accent",
-          "match": "\\b(class|interface|record|enum|extension|void|int|long|double|float|boolean|char|byte|short)\\b"
-        },
-        {
-          "name": "storage.modifier.accent",
-          "match": "\\b(public|private|protected|static|final|transient|volatile|synchronized|native|abstract|strictfp)\\b"
-        }
-      ]
-    },
     "annotations": {
       "patterns": [
         {
-          "name": "meta.declaration.annotation.accent",
+          "name": "storage.type.annotation.accent",
           "match": "@[a-zA-Z0-9_.]+"
         }
       ]
     },
-    "strings": {
+    "triple-strings": {
       "patterns": [
         {
-          "name": "string.quoted.double.accent",
-          "begin": "\"",
-          "end": "\"",
-          "patterns": [
-            {
-              "name": "constant.character.escape.accent",
-              "match": "\\\\."
-            }
-          ]
+          "name": "string.quoted.triple.accent",
+          "begin": "\"\"\"",
+          "end": "\"\"\""
         }
       ]
     },
@@ -112,42 +112,100 @@
         }
       ]
     },
-    "html-tags": {
+    "strings": {
       "patterns": [
         {
-          "name": "meta.embedded.block.html.accent",
-          "begin": "<([a-zA-Z0-9:-]+)(?=\\s|>|/>)",
-          "beginCaptures": {
-            "1": {
-              "name": "entity.name.tag.accent"
-            }
-          },
-          "end": "(/?>)",
+          "name": "string.quoted.double.accent",
+          "begin": "\"",
+          "end": "\"",
           "patterns": [
             {
-              "name": "entity.other.attribute-name.accent",
-              "match": "\\b([a-zA-Z0-9:-]+)\\s*="
-            },
-            {
-              "include": "#interpolation-expression"
-            },
-            {
-              "include": "#strings"
+              "name": "constant.character.escape.accent",
+              "match": "\\\\."
             }
           ]
+        }
+      ]
+    },
+    "accent-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.accent",
+          "match": "\\b(not|and|or|nand|nor|xor|xnor|yield|async|await|generator|emit)\\b"
+        }
+      ]
+    },
+    "java-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.accent",
+          "match": "\\b(if|else|for|while|do|try|catch|finally|throw|return|break|continue|new|instanceof|switch|case|default)\\b"
+        }
+      ]
+    },
+    "storage-types": {
+      "patterns": [
+        {
+          "name": "storage.type.accent",
+          "match": "\\b(class|interface|record|enum|extension|model|void|int|long|double|float|boolean|char|byte|short|var|final)\\b"
+        }
+      ]
+    },
+    "storage-modifiers": {
+      "patterns": [
+        {
+          "name": "storage.modifier.accent",
+          "match": "\\b(public|private|protected|static|transient|volatile|synchronized|native|abstract|strictfp|package|import)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.accent",
+          "match": "\\b[0-9]+(\\.[0-9]+)?([fFdDlL])?\\b"
         },
         {
-          "name": "meta.embedded.block.html.accent",
-          "begin": "</([a-zA-Z0-9:-]+)>",
-          "beginCaptures": {
+          "name": "constant.language.accent",
+          "match": "\\b(true|false|null|this|super)\\b"
+        }
+      ]
+    },
+    "method-calls": {
+      "patterns": [
+        {
+          "match": "\\.([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+          "captures": {
             "1": {
-              "name": "entity.name.tag.accent"
+              "name": "entity.name.function.accent"
             }
-          },
-          "end": "(?=>)"
+          }
+        },
+        {
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.accent"
+            }
+          }
+        }
+      ]
+    },
+    "type-identifiers": {
+      "patterns": [
+        {
+          "name": "entity.name.type.class.accent",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.other.accent",
+          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
         }
       ]
     }
-  },
-  "scopeName": "source.accent"
+  }
 }

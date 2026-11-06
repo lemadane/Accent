@@ -413,6 +413,12 @@ public final class JavaEmitter {
             sb.append(" {\n");
             
             indentLevel++;
+            Statement firstStmt = cd.body().statements().isEmpty() ? null : cd.body().statements().get(0);
+            boolean hasSuperCall = false;
+            if (firstStmt instanceof ExprStmt es && es.expression() instanceof MethodCallExpr mc && "super".equals(mc.methodName())) {
+                hasSuperCall = true;
+                emitStatement(firstStmt);
+            }
             // Inject runtime null checks for non-null parameters
             for (Parameter p : cd.parameters()) {
                 if (p.type().isNonNull() && !isPrimitive(p.type())) {
@@ -421,8 +427,8 @@ public final class JavaEmitter {
                             .append(", \"Parameter '").append(p.name()).append("' must not be null\");\n");
                 }
             }
-            for (Statement s : cd.body().statements()) {
-                emitStatement(s);
+            for (int i = hasSuperCall ? 1 : 0; i < cd.body().statements().size(); i++) {
+                emitStatement(cd.body().statements().get(i));
             }
             indentLevel--;
             printIndent();
@@ -1006,7 +1012,6 @@ public final class JavaEmitter {
             if (mc.receiver() != null) {
                 r.append(emitExpression(mc.receiver())).append(".");
             }
-            r.append(mc.methodName());
             if (!mc.typeArguments().isEmpty()) {
                 r.append("<");
                 for (int i = 0; i < mc.typeArguments().size(); i++) {
@@ -1015,6 +1020,7 @@ public final class JavaEmitter {
                 }
                 r.append(">");
             }
+            r.append(mc.methodName());
             r.append("(");
             for (int i = 0; i < mc.arguments().size(); i++) {
                 if (i > 0) r.append(", ");

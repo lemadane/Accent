@@ -112,10 +112,18 @@ public final class SymbolTable {
             ResolvedType elem = resolveTypeNode(arr.elementType(), resolver);
             return new ResolvedType(elem.info(), arr.isNonNull(), elem.typeArguments(), elem.arrayDimensions() + 1);
         } else if (node instanceof BaseTypeNode base) {
-            TypeInfo info = resolver.resolve(base.name());
+            TypeInfo info = resolver != null ? resolver.resolve(base.name()) : null;
             if (info == null) {
-                // If resolver cannot resolve, default to String or throw
-                info = getType("java.lang.String");
+                info = getType(base.name());
+            }
+            if (info == null) {
+                info = getType("java.lang." + base.name());
+            }
+            if (info == null) {
+                info = getType("java.util." + base.name());
+            }
+            if (info == null) {
+                info = getType("java.lang.Object");
             }
             List<ResolvedType> args = new ArrayList<>();
             for (TypeNode arg : base.typeArguments()) {
@@ -287,14 +295,15 @@ public final class SymbolTable {
         List<ConstructorInfo> constructors = new ArrayList<>();
 
         // Map fields
-        for (Field f : clazz.getDeclaredFields()) {
+        for (Field f : clazz.getFields()) {
             if (Modifier.isPublic(f.getModifiers()) || Modifier.isProtected(f.getModifiers())) {
                 fields.add(new FieldInfo(f.getName(), getModifiersList(f.getModifiers()), mapClassToTypeNode(f.getType())));
             }
         }
 
         // Map methods
-        for (Method m : clazz.getDeclaredMethods()) {
+        for (Method m : clazz.getMethods()) {
+            if (m.isBridge() || m.isSynthetic()) continue;
             if (Modifier.isPublic(m.getModifiers()) || Modifier.isProtected(m.getModifiers())) {
                 List<Parameter> params = new ArrayList<>();
                 int idx = 0;
@@ -387,18 +396,20 @@ public final class SymbolTable {
                 return this.info.fullName().equals(other.info.fullName()) || other.info.fullName().equals("java.lang.Object");
             }
 
-            // Standard object compatibility: this must be a subtype of other
+            // Standard object compatibility: Object source or subtype target
+            if (this.info.fullName().equals("java.lang.Object") && !other.isPrimitive()) return true;
             return isSubtypeOf(this.info, other.info.fullName(), table);
         }
 
         private boolean isSubtypeOf(TypeInfo type, String targetFullName, SymbolTable table) {
             if (type.fullName().equals(targetFullName)) return true;
+            if (targetFullName.equals("java.lang.Object") && !type.isPrimitive()) return true;
             if (type.superclass().isPresent()) {
-                TypeInfo superInfo = table.getType(type.superclass().get());
+                TypeInfo superInfo = getTypeWithFallback(table, type.superclass().get());
                 if (superInfo != null && isSubtypeOf(superInfo, targetFullName, table)) return true;
             }
             for (String itf : type.interfaces()) {
-                TypeInfo itfInfo = table.getType(itf);
+                TypeInfo itfInfo = getTypeWithFallback(table, itf);
                 if (itfInfo != null && isSubtypeOf(itfInfo, targetFullName, table)) return true;
             }
             return false;
@@ -425,6 +436,19 @@ public final class SymbolTable {
         }
     }
 
+    private static TypeInfo getTypeWithFallback(SymbolTable table, String name) {
+        TypeInfo info = table.getType(name);
+        if (info != null) return info;
+        int lastDot = name.lastIndexOf('.');
+        String simpleName = lastDot != -1 ? name.substring(lastDot + 1) : name;
+        info = table.getType(simpleName);
+        if (info != null) return info;
+        info = table.getType("java.lang." + simpleName);
+        if (info != null) return info;
+        info = table.getType("java.util." + simpleName);
+        return info;
+    }
+
     public record TypeInfo(
             String fullName,
             boolean isInterface,
@@ -440,6 +464,125 @@ public final class SymbolTable {
         public String simpleName() {
             int lastDot = fullName.lastIndexOf('.');
             return lastDot == -1 ? fullName : fullName.substring(lastDot + 1);
+        }
+
+        public MethodInfo findMethod(String name, SymbolTable symbolTable) {
+            return findMethod(name, null, symbolTable);
+        }
+
+        public MethodInfo findMethod(String name, List<ResolvedType> argTypes, SymbolTable symbolTable) {
+            List<MethodInfo> candidates = findAllMethods(name, symbolTable);
+            if (candidates.isEmpty()) return null;
+
+            if (argTypes != null) {
+                // Filter by parameter count matching
+                List<MethodInfo> arityMatches = candidates.stream()
+                        .filter(m -> m.parameters().size() == argTypes.size())
+                        .toList();
+                if (!arityMatches.isEmpty()) {
+                    // Try to find compatible type match with non-Object return type
+                    for (MethodInfo m : arityMatches) {
+                        boolean compatible = true;
+                        for (int i = 0; i < argTypes.size(); i++) {
+                            ResolvedType paramType = symbolTable.resolveTypeNode(m.parameters().get(i).type(), symbolTable::getType);
+                            ResolvedType argType = argTypes.get(i);
+                            if (paramType != null && argType != null) {
+                                if (!argType.isCompatibleWith(paramType, symbolTable)) {
+                                    compatible = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if (compatible && !isObjectReturnType(m.returnType())) {
+                            return m;
+                        }
+                    }
+                    // Fallback to any compatible match
+                    for (MethodInfo m : arityMatches) {
+                        boolean compatible = true;
+                        for (int i = 0; i < argTypes.size(); i++) {
+                            ResolvedType paramType = symbolTable.resolveTypeNode(m.parameters().get(i).type(), symbolTable::getType);
+                            ResolvedType argType = argTypes.get(i);
+                            if (paramType != null && argType != null) {
+                                if (!argType.isCompatibleWith(paramType, symbolTable)) {
+                                    compatible = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if (compatible) return m;
+                    }
+                    // Arity match with non-object return type
+                    MethodInfo nonObj = arityMatches.stream().filter(m -> !isObjectReturnType(m.returnType())).findFirst().orElse(null);
+                    if (nonObj != null) return nonObj;
+                    return arityMatches.get(0);
+                }
+            }
+
+            // Fallback: pick candidate with most specific return type (non-Object)
+            MethodInfo nonObj = candidates.stream().filter(m -> !isObjectReturnType(m.returnType())).findFirst().orElse(null);
+            return nonObj != null ? nonObj : candidates.get(0);
+        }
+
+        public List<MethodInfo> findAllMethods(String name, SymbolTable symbolTable) {
+            List<MethodInfo> list = new ArrayList<>();
+            collectMethods(name, symbolTable, list, new HashSet<>());
+            return list;
+        }
+
+        private void collectMethods(String name, SymbolTable symbolTable, List<MethodInfo> list, Set<String> visited) {
+            if (!visited.add(fullName)) return;
+            for (MethodInfo m : methods) {
+                if (m.name().equals(name)) {
+                    list.add(m);
+                }
+            }
+            if (superclass.isPresent()) {
+                TypeInfo superInfo = getTypeWithFallback(symbolTable, superclass.get());
+                if (superInfo != null) {
+                    superInfo.collectMethods(name, symbolTable, list, visited);
+                }
+            }
+            for (String itf : interfaces) {
+                TypeInfo itfInfo = getTypeWithFallback(symbolTable, itf);
+                if (itfInfo != null) {
+                    itfInfo.collectMethods(name, symbolTable, list, visited);
+                }
+            }
+            if (!fullName.equals("java.lang.Object") && !isPrimitive) {
+                TypeInfo objInfo = symbolTable.getType("java.lang.Object");
+                if (objInfo != null) {
+                    objInfo.collectMethods(name, symbolTable, list, visited);
+                }
+            }
+        }
+
+        private boolean isObjectReturnType(TypeNode type) {
+            if (type instanceof BaseTypeNode base) {
+                return base.name().equals("java.lang.Object") || base.name().equals("Object");
+            }
+            return false;
+        }
+
+        public FieldInfo findField(String name, SymbolTable symbolTable) {
+            for (FieldInfo f : fields) {
+                if (f.name().equals(name)) return f;
+            }
+            if (superclass.isPresent()) {
+                TypeInfo superInfo = getTypeWithFallback(symbolTable, superclass.get());
+                if (superInfo != null) {
+                    FieldInfo f = superInfo.findField(name, symbolTable);
+                    if (f != null) return f;
+                }
+            }
+            for (String itf : interfaces) {
+                TypeInfo itfInfo = getTypeWithFallback(symbolTable, itf);
+                if (itfInfo != null) {
+                    FieldInfo f = itfInfo.findField(name, symbolTable);
+                    if (f != null) return f;
+                }
+            }
+            return null;
         }
     }
 

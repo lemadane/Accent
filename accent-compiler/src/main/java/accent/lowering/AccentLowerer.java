@@ -31,26 +31,38 @@ public final class AccentLowerer implements ImportResolver {
 
     @Override
     public TypeInfo resolve(String simpleName) {
+        if (simpleName.contains(".")) {
+            TypeInfo directInfo = symbolTable.getType(simpleName);
+            if (directInfo != null) return directInfo;
+        }
+
         if (currentUnit == null) return symbolTable.getType(simpleName);
+
         String pkg = currentUnit.packageName().orElse("");
         String fullName = pkg.isEmpty() ? simpleName : pkg + "." + simpleName;
         TypeInfo info = symbolTable.getType(fullName);
         if (info != null) return info;
 
         for (String imp : currentUnit.imports()) {
-            if (imp.endsWith("." + simpleName)) {
-                info = symbolTable.getType(imp);
+            String cleanImp = imp.startsWith("static ") ? imp.substring(7) : imp;
+            if (cleanImp.equals(simpleName) || cleanImp.endsWith("." + simpleName)) {
+                info = symbolTable.getType(cleanImp);
                 if (info != null) return info;
             }
         }
         for (String imp : currentUnit.imports()) {
-            if (imp.endsWith(".*")) {
-                String pkgName = imp.substring(0, imp.length() - 2);
+            String cleanImp = imp.startsWith("static ") ? imp.substring(7) : imp;
+            if (cleanImp.endsWith(".*")) {
+                String pkgName = cleanImp.substring(0, cleanImp.length() - 2);
                 info = symbolTable.getType(pkgName + "." + simpleName);
                 if (info != null) return info;
             }
         }
         info = symbolTable.getType("java.lang." + simpleName);
+        if (info != null) return info;
+        info = symbolTable.getType("java.util." + simpleName);
+        if (info != null) return info;
+        info = symbolTable.getType("java.math." + simpleName);
         if (info != null) return info;
         return symbolTable.getType(simpleName);
     }
@@ -339,6 +351,10 @@ public final class AccentLowerer implements ImportResolver {
                 Expression left = lowerExpression(bin.left());
                 Expression right = lowerExpression(bin.right());
                 ResolvedType type = getTypeOf(left);
+                if (type == null) {
+                    ResolvedType rightType = getTypeOf(right);
+                    if (rightType != null) type = rightType;
+                }
 
                 String tempVarName = nextTempVar();
                 Token checkOp = new Token(TokenType.BANG_EQUAL, "!=", bin.operator().line(), bin.operator().column());
@@ -383,9 +399,7 @@ public final class AccentLowerer implements ImportResolver {
                 
                 List<Parameter> params = List.of();
                 if (type != null) {
-                    SymbolTable.MethodInfo mInfo = type.info().methods().stream()
-                            .filter(m -> m.name().equals(mc.methodName()))
-                            .findFirst().orElse(null);
+                    SymbolTable.MethodInfo mInfo = type.info().findMethod(mc.methodName(), symbolTable);
                     if (mInfo != null) {
                         params = mInfo.parameters();
                     }
@@ -409,9 +423,7 @@ public final class AccentLowerer implements ImportResolver {
             if (rec != null) {
                 ResolvedType recType = getTypeOf(rec);
                 if (recType != null) {
-                    SymbolTable.MethodInfo mInfo = recType.info().methods().stream()
-                            .filter(m -> m.name().equals(mc.methodName()))
-                            .findFirst().orElse(null);
+                    SymbolTable.MethodInfo mInfo = recType.info().findMethod(mc.methodName(), symbolTable);
                     if (mInfo != null) {
                         params = mInfo.parameters();
                     } else {
@@ -437,9 +449,7 @@ public final class AccentLowerer implements ImportResolver {
             } else {
                 // Implicit this
                 if (currentClass != null) {
-                    SymbolTable.MethodInfo mInfo = currentClass.methods().stream()
-                            .filter(m -> m.name().equals(mc.methodName()))
-                            .findFirst().orElse(null);
+                    SymbolTable.MethodInfo mInfo = currentClass.findMethod(mc.methodName(), symbolTable);
                     if (mInfo != null) {
                         params = mInfo.parameters();
                     }
@@ -695,7 +705,7 @@ public final class AccentLowerer implements ImportResolver {
         } else if (expr instanceof MemberAccessExpr ma) {
             ResolvedType rec = getTypeOf(ma.receiver());
             if (rec != null) {
-                SymbolTable.FieldInfo fInfo = rec.info().fields().stream().filter(f -> f.name().equals(ma.memberName())).findFirst().orElse(null);
+                SymbolTable.FieldInfo fInfo = rec.info().findField(ma.memberName(), symbolTable);
                 if (fInfo != null) return symbolTable.resolveTypeNode(fInfo.type(), this);
             }
         } else if (expr instanceof MethodCallExpr mc) {
@@ -706,7 +716,7 @@ public final class AccentLowerer implements ImportResolver {
                 rec = new ResolvedType(currentClass, true, List.of(), 0);
             }
             if (rec != null) {
-                SymbolTable.MethodInfo mInfo = rec.info().methods().stream().filter(m -> m.name().equals(mc.methodName())).findFirst().orElse(null);
+                SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), symbolTable);
                 if (mInfo != null) return symbolTable.resolveTypeNode(mInfo.returnType(), this);
 
                 // Extension methods

@@ -6,6 +6,7 @@ Standard IDE support for the Accent programming language in VS Code.
 - **Syntax Highlighting**: Complete highlighting for standard Java structures, multiline interpolated strings, JSX-style HTML components, and `async`/`await` primitives.
 - **Language Diagnostics**: Real-time parser and compiler semantic diagnostics.
 - **Code Intellisense**: Auto-completion, hover information, and jump-to-definition.
+- **Code Formatting**: Automatic formatting with 2-space base indent and 4-space continuation indent.
 - **Generated Java Code View**: Side-by-side read-only transpile preview.
 
 ## Getting Started

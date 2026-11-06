@@ -64,6 +64,11 @@ public final class SemanticAnalyzer implements ImportResolver {
 
     @Override
     public TypeInfo resolve(String simpleName) {
+        if (simpleName.contains(".")) {
+            TypeInfo directInfo = symbolTable.getType(simpleName);
+            if (directInfo != null) return directInfo;
+        }
+
         // Resolve simple type name to full type name using package and imports
         if (currentUnit == null) return symbolTable.getType(simpleName);
 
@@ -75,23 +80,29 @@ public final class SemanticAnalyzer implements ImportResolver {
 
         // 2. Explicit imports
         for (String imp : currentUnit.imports()) {
-            if (imp.endsWith("." + simpleName)) {
-                info = symbolTable.getType(imp);
+            String cleanImp = imp.startsWith("static ") ? imp.substring(7) : imp;
+            if (cleanImp.equals(simpleName) || cleanImp.endsWith("." + simpleName)) {
+                info = symbolTable.getType(cleanImp);
                 if (info != null) return info;
             }
         }
 
         // 3. Wildcard imports
         for (String imp : currentUnit.imports()) {
-            if (imp.endsWith(".*")) {
-                String pkgName = imp.substring(0, imp.length() - 2);
+            String cleanImp = imp.startsWith("static ") ? imp.substring(7) : imp;
+            if (cleanImp.endsWith(".*")) {
+                String pkgName = cleanImp.substring(0, cleanImp.length() - 2);
                 info = symbolTable.getType(pkgName + "." + simpleName);
                 if (info != null) return info;
             }
         }
 
-        // 4. Implicit java.lang
+        // 4. Implicit java.lang, java.util, java.math
         info = symbolTable.getType("java.lang." + simpleName);
+        if (info != null) return info;
+        info = symbolTable.getType("java.util." + simpleName);
+        if (info != null) return info;
+        info = symbolTable.getType("java.math." + simpleName);
         if (info != null) return info;
 
         // 5. Raw fallback
@@ -632,10 +643,13 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
             return type;
         } else if (expr instanceof MemberAccessExpr ma) {
+            if (ma.memberName().equals("class")) {
+                return new ResolvedType(symbolTable.getType("java.lang.Class"), true, List.of(), 0);
+            }
             ResolvedType rec = checkExpression(ma.receiver());
             if (rec != null) {
                 // Resolve member
-                SymbolTable.FieldInfo fInfo = rec.info().fields().stream().filter(f -> f.name().equals(ma.memberName())).findFirst().orElse(null);
+                SymbolTable.FieldInfo fInfo = rec.info().findField(ma.memberName(), symbolTable);
                 if (fInfo != null) {
                     ResolvedType fType = symbolTable.resolveTypeNode(fInfo.type(), this);
                     if (ma.isOptional()) {
@@ -665,11 +679,13 @@ public final class SemanticAnalyzer implements ImportResolver {
                 argTypes.add(checkExpression(arg));
             }
 
+            if (mc.methodName().equals("super")) {
+                return new ResolvedType(symbolTable.getType("void"), false, List.of(), 0);
+            }
+
             if (rec != null) {
                 // 1. Resolve normal instance/static methods
-                SymbolTable.MethodInfo mInfo = rec.info().methods().stream()
-                        .filter(m -> m.name().equals(mc.methodName()))
-                        .findFirst().orElse(null);
+                SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), argTypes, symbolTable);
 
                 if (mInfo != null) {
                     ResolvedType retType = symbolTable.resolveTypeNode(mInfo.returnType(), this);

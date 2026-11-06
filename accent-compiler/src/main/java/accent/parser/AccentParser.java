@@ -581,6 +581,9 @@ public final class AccentParser {
     }
 
     private Parameter parseParameter(boolean defaultMutable) {
+        while (check(TokenType.AT)) {
+            parseAnnotationAsString();
+        }
         boolean isExplicitFinal = match(TokenType.FINAL);
         boolean isMutable = defaultMutable && !isExplicitFinal;
         TypeNode type;
@@ -1441,11 +1444,15 @@ public final class AccentParser {
                 }
             }
             case LEFT_PAREN -> {
-                // Call on a method, e.g. identifier(args). Only valid if left is IdentifierExpr.
+                // Call on a method, e.g. identifier(args) or super(args). Only valid if left is IdentifierExpr or SuperExpr.
                 if (left instanceof IdentifierExpr id) {
                     List<Expression> arguments = parseCallArguments();
                     consume(TokenType.RIGHT_PAREN, "Expected ')' after method arguments.");
                     yield new MethodCallExpr(null, id.name(), List.of(), arguments, false, op);
+                } else if (left instanceof SuperExpr) {
+                    List<Expression> arguments = parseCallArguments();
+                    consume(TokenType.RIGHT_PAREN, "Expected ')' after method arguments.");
+                    yield new MethodCallExpr(null, "super", List.of(), arguments, false, op);
                 }
                 throw error(op, "Function pointers or calling non-method expressions is not supported.");
             }

@@ -110,7 +110,21 @@ public final class AccentCompiler {
             }
         }
 
-        SymbolTable symbolTable = new SymbolTable();
+        ClassLoader customClassLoader = ClassLoader.getSystemClassLoader();
+        if (classpath != null && !classpath.isEmpty()) {
+            List<java.net.URL> urls = new ArrayList<>();
+            for (String cp : classpath) {
+                try {
+                    urls.add(Path.of(cp).toUri().toURL());
+                } catch (Exception e) {
+                    // Ignore invalid path
+                }
+            }
+            if (!urls.isEmpty()) {
+                customClassLoader = new java.net.URLClassLoader(urls.toArray(new java.net.URL[0]), ClassLoader.getSystemClassLoader());
+            }
+        }
+        SymbolTable symbolTable = new SymbolTable(customClassLoader);
         List<CompilationUnit> accentUnits = new ArrayList<>();
         List<Path> originalJavaFiles = new ArrayList<>();
 

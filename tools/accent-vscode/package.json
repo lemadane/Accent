@@ -2,14 +2,19 @@
   "name": "accent-vscode",
   "displayName": "Accent Language Support",
   "description": "IDE support for the Accent programming language",
-  "version": "0.1.0",
-  "publisher": "accent",
+  "version": "0.1.3",
+  "publisher": "accentlang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/accent-lang/accent"
+  },
   "icon": "icons/accent.png",
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Formatters"
   ],
   "activationEvents": [
     "onLanguage:accent"
@@ -50,6 +55,11 @@
           "type": "string",
           "default": "",
           "description": "Path to the Accent compiler jar."
+        },
+        "accent.languageServer.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Accent language server executable."
         },
         "accent.trace.server": {
           "type": "string",

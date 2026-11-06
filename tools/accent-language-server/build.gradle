@@ -31,3 +31,21 @@ tasks.named('test') {
     useJUnitPlatform()
     jvmArgs('-XX:+EnableDynamicAgentLoading')
 }
+
+tasks.named('startScripts', CreateStartScripts) {
+    doLast {
+        File scriptFile = new File(outputDir, applicationName)
+        if (scriptFile.exists()) {
+            String text = scriptFile.text
+            String fallback = '''
+# Auto-detect bundled JDK if JAVA_HOME is not set
+if [ -z "$JAVA_HOME" ] && ! command -v java >/dev/null 2>&1; then
+    if [ -x "$APP_HOME/../../../../../jdk/bin/java" ]; then
+        JAVA_HOME="$(cd "$APP_HOME/../../../../../jdk" && pwd)"
+    fi
+fi
+'''
+            scriptFile.text = text.replace('# Determine the Java command to use to start the JVM.', fallback + '\n# Determine the Java command to use to start the JVM.')
+        }
+    }
+}
