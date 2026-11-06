@@ -24,11 +24,17 @@ public class AccentHtmlAutoConfiguration {
             @Override
             public Object postProcessAfterInitialization(Object bean, String beanName) {
                 if (bean instanceof RequestMappingHandlerAdapter adapter && adapter.getReturnValueHandlers() != null) {
+                    var converters = adapter.getMessageConverters();
+                    if (converters.stream().noneMatch(HtmlHttpMessageConverter.class::isInstance)) {
+                        converters.add(0, new HtmlHttpMessageConverter());
+                    }
                     var handlers = new ArrayList<HandlerMethodReturnValueHandler>();
                     // Native HTML must be selected before Spring's @ResponseBody handler.
                     handlers.add(new HtmlReturnValueHandler());
+                    handlers.add(new HtmlEntityReturnValueHandler());
                     for (var handler : adapter.getReturnValueHandlers()) {
-                        if (!(handler instanceof HtmlReturnValueHandler)) handlers.add(handler);
+                        if (!(handler instanceof HtmlReturnValueHandler)
+                                && !(handler instanceof HtmlEntityReturnValueHandler)) handlers.add(handler);
                     }
                     adapter.setReturnValueHandlers(handlers);
                 }

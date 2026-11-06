@@ -46,6 +46,10 @@ class AccentSpringEndToEndTest {
                 package integrationfixture;
                 import org.springframework.web.bind.annotation.*;
                 import accent.html.Html;
+                import org.springframework.http.ResponseEntity;
+                import org.springframework.http.MediaType;
+                import org.springframework.http.HttpHeaders;
+                import org.springframework.http.HttpStatus;
                 @RestController
                 public class Endpoint {
                     @GetMapping("/query")
@@ -60,6 +64,36 @@ class AccentSpringEndToEndTest {
                     public Html html() { return (<p>Hello HTML</p>); }
                     @GetMapping("/component")
                     public Welcome component() { return new Welcome("Lem"); }
+                    @GetMapping("/wrapped-component")
+                    public ResponseEntity<Welcome> wrappedComponent() {
+                        HttpHeaders headers = new HttpHeaders();
+                        headers.add("X-Accent", "component");
+                        headers.setContentType(MediaType.TEXT_HTML);
+                        return new ResponseEntity<Welcome>(new Welcome("José & Ana"), headers, HttpStatus.CREATED);
+                    }
+                    @GetMapping("/wrapped-html")
+                    public ResponseEntity<Html> wrappedHtml() {
+                        HttpHeaders headers = new HttpHeaders();
+                        headers.add("X-Accent", "html");
+                        Html body = (<p>你好</p>);
+                        return new ResponseEntity<Html>(body, headers, HttpStatus.ACCEPTED);
+                    }
+                    @GetMapping("/wrapped-json")
+                    public ResponseEntity<Payload> wrappedJson() {
+                        return new ResponseEntity<Payload>(new Payload("hello"), HttpStatus.OK);
+                    }
+                    @GetMapping("/wrapped-empty")
+                    public ResponseEntity<Html> wrappedEmpty() {
+                        return new ResponseEntity<Html>(HttpStatus.NO_CONTENT);
+                    }
+                    @GetMapping("/wrapped-charset")
+                    public ResponseEntity<Welcome> wrappedCharset() {
+                        HttpHeaders headers = new HttpHeaders();
+                        headers.setContentType(MediaType.parseMediaType("text/html;charset=ISO-8859-1"));
+                        return new ResponseEntity<Welcome>(new Welcome("José"), headers, HttpStatus.OK);
+                    }
+                    @GetMapping(value = "/html-as-json", produces = "application/json")
+                    public Html htmlAsJson() { return (<p>HTML</p>); }
                     @GetMapping("/json")
                     public Payload json() { return new Payload("hello"); }
                     @GetMapping("/null-html")
@@ -120,6 +154,88 @@ class AccentSpringEndToEndTest {
                 .withUserConfiguration(MvcConfiguration.class)
                 .withInitializer(context -> ((BeanDefinitionRegistry) context.getBeanFactory())
                         .registerBeanDefinition("accentEndpoint", new RootBeanDefinition(endpoint)));
+    }
+
+
+    @Test
+    void wrappedComponentsPreserveStatusHeadersEscapingAndUnicode() {
+        webRunner().run(context -> {
+            MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).build();
+            mvc.perform(get("/wrapped-component").accept("text/html"))
+                    .andExpect(status().isCreated()).andExpect(header().string("X-Accent", "component"))
+                    .andExpect(content().contentType("text/html;charset=UTF-8"))
+                    .andExpect(content().string("<p>José &amp; Ana</p>"));
+        });
+    }
+
+    @Test
+    void wrappedHtmlNegotiatesUtf8AndPreservesStatus() {
+        webRunner().run(context -> {
+            MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).build();
+            mvc.perform(get("/wrapped-html").accept("text/html"))
+                    .andExpect(status().isAccepted()).andExpect(header().string("X-Accent", "html"))
+                    .andExpect(content().contentType("text/html;charset=UTF-8"))
+                    .andExpect(content().string("<p>你好</p>"));
+        });
+    }
+
+    @Test
+    void preservesExplicitCharsetAndLeavesJsonAndEmptyEntitiesToSpring() {
+        webRunner().run(context -> {
+            MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).build();
+            mvc.perform(get("/wrapped-charset").accept("text/html"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType("text/html;charset=ISO-8859-1"))
+                    .andExpect(content().bytes("<p>José</p>".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1)));
+            mvc.perform(get("/wrapped-json").accept("application/json"))
+                    .andExpect(status().isOk()).andExpect(content().json("{\"message\":\"hello\"}"));
+            mvc.perform(get("/wrapped-empty").accept("application/json"))
+                    .andExpect(status().isNoContent()).andExpect(content().string(""));
+        });
+    }
+
+    @Test
+    void rejectsIncompatibleOrExplicitlyExcludedHtmlRequests() {
+        webRunner().run(context -> {
+            MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).build();
+            for (String path : List.of("/html", "/component", "/wrapped-html", "/wrapped-component")) {
+                mvc.perform(get(path).accept("application/json")).andExpect(status().isNotAcceptable());
+                mvc.perform(get(path).accept("text/html;q=0")).andExpect(status().isNotAcceptable());
+                mvc.perform(get(path).accept("text/html;q=0, */*;q=1")).andExpect(status().isNotAcceptable());
+                mvc.perform(get(path).accept("invalid")).andExpect(status().isNotAcceptable());
+            }
+            mvc.perform(get("/html").accept("text/*")).andExpect(status().isOk());
+            mvc.perform(get("/html-as-json").accept("application/json"))
+                    .andExpect(status().isNotAcceptable());
+        });
+    }
+
+    @Test
+    void readmeComponentAndControllerCompileAndServeTogether() throws Exception {
+        Path readme = Path.of("../README.md");
+        String section = Files.readString(readme).split("### 4. Create and Use HTML Components in Spring Boot", 2)[1];
+        Path sources = Files.createDirectory(tempDir.resolve("readme-src"));
+        Files.writeString(sources.resolve("UserCard.accent"), section.split("```accent\\n", 2)[1].split("```", 2)[0]);
+        Files.writeString(sources.resolve("UserController.java"), section.split("```java\\n", 2)[1].split("```", 2)[0]);
+        Path output = tempDir.resolve("readme-classes");
+        var result = new AccentCompiler().compile(List.of(sources), output,
+                Arrays.asList(System.getProperty("java.class.path").split(java.io.File.pathSeparator)),
+                tempDir.resolve("readme-java"), true);
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        try (var readmeLoader = new URLClassLoader(new java.net.URL[]{output.toUri().toURL()})) {
+            Class<?> controller = readmeLoader.loadClass("com.example.demo.UserController");
+            new WebApplicationContextRunner()
+                    .withConfiguration(AutoConfigurations.of(AccentHtmlAutoConfiguration.class))
+                    .withUserConfiguration(MvcConfiguration.class)
+                    .withInitializer(context -> ((BeanDefinitionRegistry) context.getBeanFactory())
+                            .registerBeanDefinition("readmeController", new RootBeanDefinition(controller)))
+                    .run(context -> {
+                        MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).build();
+                        mvc.perform(get("/user").accept("text/html")).andExpect(status().isOk())
+                                .andExpect(content().string("<div class=\"card\"><h3>Alice</h3><p>alice@example.com</p></div>"));
+                        mvc.perform(get("/user").accept("application/json")).andExpect(status().isNotAcceptable());
+                    });
+        }
     }
 
     @Test

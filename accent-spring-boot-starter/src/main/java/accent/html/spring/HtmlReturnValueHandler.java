@@ -1,15 +1,24 @@
 package accent.html.spring;
 
-import accent.html.Html;
 import accent.html.Component;
-import accent.html.HtmlWriter;
-import jakarta.servlet.http.HttpServletResponse;
+import accent.html.Html;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import org.springframework.core.MethodParameter;
+import org.springframework.http.MediaType;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.accept.HeaderContentNegotiationStrategy;
 import org.springframework.web.context.request.NativeWebRequest;
-import org.springframework.web.method.support.HandlerMethodReturnValueHandler;
 import org.springframework.web.method.support.ModelAndViewContainer;
+import org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor;
 
-public final class HtmlReturnValueHandler implements HandlerMethodReturnValueHandler {
+/** Handles native HTML even on controllers without @ResponseBody. */
+public final class HtmlReturnValueHandler extends RequestResponseBodyMethodProcessor {
+    public HtmlReturnValueHandler() {
+        super(List.of(new HtmlHttpMessageConverter()));
+    }
 
     @Override
     public boolean supportsReturnType(MethodParameter returnType) {
@@ -18,39 +27,27 @@ public final class HtmlReturnValueHandler implements HandlerMethodReturnValueHan
     }
 
     @Override
-    public void handleReturnValue(
-            Object returnValue,
-            MethodParameter returnType,
-            ModelAndViewContainer container,
-            NativeWebRequest request
-    ) throws Exception {
-        container.setRequestHandled(true);
+    public void handleReturnValue(Object value, MethodParameter returnType,
+            ModelAndViewContainer container, NativeWebRequest request)
+            throws IOException, HttpMediaTypeNotAcceptableException {
+        if (value != null) checkAccept(request);
+        super.handleReturnValue(value, returnType, container, request);
+    }
 
-        if (returnValue == null) {
-            return;
+    static void checkAccept(NativeWebRequest request) throws HttpMediaTypeNotAcceptableException {
+        // Spring 6.1 also considers q=0 compatible. Honor explicit HTML exclusions.
+        var acceptable = new ArrayList<>(new HeaderContentNegotiationStrategy()
+                .resolveMediaTypes(request));
+        acceptable.sort(Comparator.comparingInt((MediaType type) ->
+                type.isWildcardType() ? 0 : type.isWildcardSubtype() ? 1 : 2).reversed());
+        for (MediaType type : acceptable) {
+            if (type.isCompatibleWith(MediaType.TEXT_HTML)) {
+                if (type.getQualityValue() == 0) {
+                    throw new HttpMediaTypeNotAcceptableException(List.of(MediaType.TEXT_HTML));
+                }
+                return;
+            }
         }
-
-        HttpServletResponse response = request.getNativeResponse(HttpServletResponse.class);
-        if (response == null) {
-            throw new IllegalStateException("HttpServletResponse not available");
-        }
-
-        response.setContentType("text/html");
-        response.setCharacterEncoding("UTF-8");
-
-        Html html;
-        if (returnValue instanceof Component component) {
-            html = component.render();
-        } else if (returnValue instanceof Html val) {
-            html = val;
-        } else {
-            throw new IllegalStateException("Unexpected return value type: " + returnValue.getClass().getName());
-        }
-
-        if (html != null) {
-            HtmlWriter writer = new HtmlWriter(response.getWriter());
-            html.writeTo(writer);
-            writer.flush();
-        }
+        throw new HttpMediaTypeNotAcceptableException(List.of(MediaType.TEXT_HTML));
     }
 }

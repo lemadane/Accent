@@ -999,81 +999,53 @@ The build uses a Java 21 toolchain and compiles with `--release 21`.
 
 ## Using Accent in Your Project
 
-Accent can be added as a dependency to any Gradle or Spring Boot project.
+Use JDK 21 or newer. The following Gradle setup builds against a local Accent checkout, so it does not depend on a remote package having been published.
 
-### Option 1: Via JitPack (Recommended — No GitHub Token Required)
+### 1. Connect Your Accent Checkout
 
-JitPack allows using Accent directly without setting up personal access token credentials:
-
-```groovy
-repositories {
-    mavenCentral()
-    maven { url 'https://jitpack.io' }
-}
-
-dependencies {
-    // Core Accent Compiler
-    implementation 'com.github.accent:accent-lang:v0.1.0-alpha.2'
-}
-```
-
----
-
-### Option 2: Via GitHub Packages
-
-#### 1. Add credentials
-
-You need a GitHub Personal Access Token with at least `read:packages` scope.
-Export it as environment variables (or store it in `~/.gradle/gradle.properties`):
-
-```bash
-export GITHUB_ACTOR="your_github_username"
-export GITHUB_TOKEN="your_personal_access_token"
-```
-
-Or in `~/.gradle/gradle.properties`:
-```properties
-githubActor=your_github_username
-githubToken=your_personal_access_token
-```
-
-#### 2. Configure `build.gradle`
+Clone this repository next to your application directory. Add this to your application's `settings.gradle` (adjust the path if needed):
 
 ```groovy
-repositories {
-    mavenCentral()
-    maven {
-        url = uri("https://maven.pkg.github.com/accent-lang/accent")
-        credentials {
-            username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("githubActor")
-            password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("githubToken")
-        }
+rootProject.name = 'my-accent-app'
+includeBuild('../accent')
+```
+
+Gradle substitutes Accent's actual modules from the included build.
+
+### 2. Add the Spring Boot Starter
+
+Add this to `build.gradle`:
+
+```groovy
+plugins {
+    id 'java'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
-dependencies {
-    // Core Accent Compiler
-    implementation 'accent:accent-compiler:0.1.0-alpha.1'
-    // HTML Components Runtime
-    implementation 'accent:accent-html-runtime:0.1.0-alpha.1'
-    // Spring Boot Auto-configuration & Return Value Handler
-    implementation 'accent:accent-html-spring:0.1.0-alpha.1'
+repositories {
+    mavenCentral()
 }
 
-sourceSets {
-    main {
-        java {
-            srcDirs += ['build/generated/sources/accent/main']
-        }
-    }
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web:3.3.1'
+    implementation 'accent:accent-spring-boot-starter:0.1.0-alpha.2'
 }
+
+sourceSets.main.java.srcDir('build/generated/sources/accent/main')
 ```
 
-### 3. Configure the Accent Compile Task (Gradle or Maven)
+The starter includes `accent-compiler`, which also contains the HTML runtime. There are no separate `accent-html-runtime` or `accent-html-spring` modules. For applications without Spring, depend on `accent:accent-compiler:0.1.0-alpha.2` instead.
 
-#### For Gradle (`build.gradle`):
+Remote Maven, GitHub Packages, or JitPack use requires a separately published and verified artifact; this guide uses the local composite build above.
 
-Add the Accent transpiler task so `.accent` files in `src/main/accent/` are automatically compiled to Java during `./gradlew build`:
+### 3. Configure the Accent Compile Task
+
+Add this task to the same `build.gradle`. It compiles `.accent` files and saves the generated Java before the application's Java controllers are compiled:
 
 ```groovy
 tasks.register('compileAccent', JavaExec) {
@@ -1082,70 +1054,22 @@ tasks.register('compileAccent', JavaExec) {
     classpath = configurations.compileClasspath
     mainClass = 'accent.cli.AccentCli'
     workingDir = projectDir
-    
-    doFirst {
-        new File(projectDir, 'build/generated/sources/accent/main').mkdirs()
-    }
-    
-    args 'compile', 'src/main/accent', '-d', 'build/classes/java/main', '-cp', configurations.compileClasspath.asPath, '--save-java', 'build/generated/sources/accent/main'
-    
-    inputs.dir('src/main/accent').optional()
+
+    args 'compile', 'src/main/accent', '-d', 'build/classes/java/main',
+         '-cp', configurations.compileClasspath.asPath,
+         '--save-java', 'build/generated/sources/accent/main'
+
+    inputs.dir('src/main/accent')
+    inputs.files(configurations.compileClasspath)
     outputs.dir('build/generated/sources/accent/main')
 }
 
-compileJava.dependsOn compileAccent
+tasks.named('compileJava') {
+    dependsOn 'compileAccent'
+}
 ```
 
-#### For Maven (`pom.xml`):
-
-Add JitPack to your `<repositories>` and configure the `exec-maven-plugin` to run `AccentCli` during the `generate-sources` build phase:
-
-```xml
-<repositories>
-    <repository>
-        <id>jitpack.io</id>
-        <url>https://jitpack.io</url>
-    </repository>
-</repositories>
-
-<dependencies>
-    <dependency>
-        <groupId>com.github.accent</groupId>
-        <artifactId>accent-lang</artifactId>
-        <version>v0.1.0-alpha.1</version>
-    </dependency>
-</dependencies>
-
-<build>
-    <plugins>
-        <plugin>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>exec-maven-plugin</artifactId>
-            <version>3.1.0</version>
-            <executions>
-                <execution>
-                    <id>compile-accent</id>
-                    <phase>generate-sources</phase>
-                    <goals>
-                        <goal>java</goal>
-                    </goals>
-                    <configuration>
-                        <mainClass>accent.cli.AccentCli</mainClass>
-                        <arguments>
-                            <argument>compile</argument>
-                            <argument>src/main/accent</argument>
-                            <argument>-d</argument>
-                            <argument>${project.build.directory}/classes</argument>
-                            <argument>--save-java</argument>
-                            <argument>${project.build.directory}/generated-sources/accent</argument>
-                        </arguments>
-                    </configuration>
-                </execution>
-            </executions>
-        </plugin>
-    </plugins>
-</build>
-```
+Run `./gradlew classes` to compile the component and controller below. In an existing Spring Boot application, keep your normal Boot plugin and application entry point.
 
 ### 4. Create and Use HTML Components in Spring Boot
 
@@ -1182,14 +1106,16 @@ import accent.html.Component;
 @Controller
 public class UserController {
 
-    @GetMapping("/user")
+    @GetMapping(value = "/user", produces = "text/html")
     public Component getUser() {
         return new UserCard("Alice", "alice@example.com");
     }
 }
 ```
 
-The `accent-spring-boot-starter` intercepts returned `Component` and `Html` values in both `@Controller` and `@RestController` methods, renders them, and streams `text/html;charset=UTF-8` to the browser. Other response types retain Spring's normal response handling, including JSON.
+The `accent-spring-boot-starter` intercepts returned `Component` and `Html` values in both `@Controller` and `@RestController` methods, renders them, and streams `text/html;charset=UTF-8` to the browser. Declare `produces = "text/html"` on HTML endpoints. Requests that accept only incompatible content types receive HTTP 406. Other response types retain Spring's normal response handling, including JSON.
+
+`ResponseEntity<Component>` and `ResponseEntity<Html>` also render HTML through Spring's message converters, preserving the response status and headers. HTML defaults to UTF-8; an explicitly configured response charset is respected.
 
 Accent preserves parameter annotations such as `@RequestParam`, `@PathVariable`, `@RequestBody`, and constructor `@Qualifier`, along with reflection-visible parameter names. This also works with classes compiled directly by Accent, without recompiling the generated Java.
 
