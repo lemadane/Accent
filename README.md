@@ -89,7 +89,192 @@ final city = customer.address()?.city() ?? "Unknown";
 
 The right-hand expression is evaluated only when the left-hand value is `null`.
 
-### 4. Immutable and mutable locals
+### 4. Virtual Thread concurrency
+
+Ordinary Java and Accent methods remain synchronous. Concurrency is requested at the call site:
+
+```java
+final customerFuture =
+    async this.customerService.findRequired(id);
+
+final ordersFuture =
+    async this.orderService.findForCustomer(id);
+
+final customer = await customerFuture;
+final orders = await ordersFuture;
+```
+
+The intended semantics are:
+
+```text
+async expression  -> start the expression on a Virtual Thread and return a future
+await future      -> wait for completion and produce the result
+```
+
+Accent hides Virtual Thread creation, future management, exception unwrapping, cancellation, structured lifetime, and cleanup.
+
+Immediately awaiting newly started work should be discouraged when no concurrency is gained:
+
+```java
+final customer =
+    await async this.customerService.findRequired(id);
+```
+
+Prefer the ordinary synchronous call in that case:
+
+```java
+final customer =
+    this.customerService.findRequired(id);
+```
+
+### 5. Kotlin-Style Data Class Model Declarations (`model`)
+
+Accent provides native support for data classes via the `model` keyword (`public model User(final String! id, String! name, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
+
+```java
+public model User(
+    final String! id,   // final     -> Immutable (getter id() ONLY, no setter)
+    String! name,       // default   -> Mutable   (getter name(), setter setName)
+    int age             // default   -> Mutable   (getter age(), setter setAge)
+) {}
+```
+
+#### Usage Example
+
+```java
+final user = new User("U101", "Lemuel", 42);
+
+// Access getters
+final id = user.id();
+final name = user.name();
+
+// Setters for mutable fields
+user.setName("Lemuel A.");
+user.setAge(43);
+
+// user.setId("U102"); // Compile-time error: 'id' is final!
+
+// Kotlin-style copy method
+final userCopy = user.copy("U101", "Lemuel A.", 43);
+
+// Formatted toString output
+System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
+```
+
+#### Model Features & Semantics
+
+* **Default Mutability**: Fields without `final` are **mutable** by default, generating getters (`name()`, `age()`) AND setters (`setName(...)`, `setAge(...)`).
+* **Explicit Immutability (`final`)**: Fields prefixed with `final` are **immutable** (`private final String id;`), generating a getter only (`id()`) and NO setter (`setId`). Calling a setter on a `final` field results in a compile-time error.
+* **Kotlin-style `copy(...)` Method**: Automatically generates a `copy(...)` method for convenient object cloning.
+* **Value-based `equals()` and `hashCode()`**: Generates value-based equality and hashing implementations.
+* **Automatic `toString()`**: Emits formatted string representation (`User[id=..., name=..., age=...]`).
+* **Built-in `java.io.Serializable`**: Implements `java.io.Serializable` with `serialVersionUID = 1L` out of the box.
+
+#### `model` vs `record` Comparison
+
+| Feature | Accent `record` | Accent `model` |
+| :--- | :--- | :--- |
+| **Primary Purpose** | 100% Immutable Tuple / Data Holder | Kotlin-style Data Class |
+| **Java Target** | Java `record` | `public final class` |
+| **Field Mutability** | Always 100% Immutable | Mutable by default (or Immutable with `final`) |
+| **Setters Generated** | None | Yes (for non-final fields) |
+| **`copy()` Method** | None | Yes |
+| **Serialization** | `toJson()`, `toXml()` | `toJson()`, `toXml()`, `java.io.Serializable` |
+
+### 6. Native JSON and XML serialization
+
+Accent records and models automatically receive public `toJson()` and `toXml()` methods:
+
+```java
+public record Address(String city) {}
+public model Profile(String name, Address address) {}
+
+final profile = new Profile("Lem", new Address("Manila"));
+final json = profile.toJson();
+// {"name":"Lem","address":{"city":"Manila"}}
+final xml = profile.toXml();
+// <Profile><name>Lem</name><address><city>Manila</city></address></Profile>
+```
+
+Nested records and models, collections, maps, arrays, and scalar values are supported. Null object fields are omitted. JSON uses the existing `accent.json.Json` serializer and its default naming rules. XML uses the type name for the root, field names for child elements, `<item>` elements for collection and array values, and `<entry><key>...</key><value>...</value></entry>` for map entries. XML omits null values and escapes text; invalid XML names or characters produce errors. Circular references produce serialization errors; repeated references without cycles are allowed.
+
+Native collection serialization is restricted to **lists of records/models** and **maps whose values are records/models**. Map keys may use other types. Declare the element/value type explicitly:
+
+```java
+List<Profile> profiles = List.of(new Profile("Lem", new Address("Manila")));
+final json = profiles.toJson();
+final xml = profiles.toXml(); // <List><item>...</item></List>
+
+Map<String, Profile> profilesById = Map.of("U1", new Profile("Ana", new Address("Manila")));
+final profilesJson = profilesById.toJson();
+final profilesXml = profilesById.toXml(); // <Map><entry><key>U1</key><value>...</value></entry></Map>
+
+final optionalJson = nullableProfiles?.toJson(); // null when the list is null
+```
+
+`List<String>`, `List<Integer>`, `Map<String, String>`, raw containers, and containers with unknown or `Object` element/value types do not receive these methods. Typed empty containers are supported. Concrete implementations such as `ArrayList<Profile>` and `LinkedHashMap<String, Profile>` are supported too. XML roots are consistently named `List` and `Map`; empty containers serialize as `[]` / `{}` in JSON and `<List></List>` / `<Map></Map>` in XML. Serialization uses native `toJson()` and `toXml()` methods; the former `Json.stringify()` and `Xml.stringify()` APIs have been removed.
+
+An explicit zero-argument `toJson()` or `toXml()` method takes precedence over the corresponding generated method. These methods require the Accent runtime on the Java classpath.
+
+### 7. Native Singleton Declarations (Kotlin `object` Equivalence)
+
+Use `singleton` before `class`, `record`, or `model` to declare one lazily initialized instance. The previous standalone `singleton Name` syntax is no longer accepted:
+
+```java
+public singleton class CacheManager {
+    private final Map<String, Object> cache = new HashMap<>();
+
+    public void put(String key, Object val) {
+        this.cache.put(key, val);
+    }
+
+    public Object get(String key) {
+        return this.cache.get(key);
+    }
+}
+```
+
+#### Singleton Usage
+
+```java
+final cache = CacheManager.instance();
+cache.put("user_1", "Lemuel");
+
+// Or direct method call:
+final user = CacheManager.instance().get("user_1");
+```
+
+#### Singleton Features & Semantics
+* **Kotlin `object` Equivalent**: Provides direct language-level singleton semantics (`singleton class CacheManager { ... }`).
+* **Zero Boilerplate**: The compiler automatically generates a private constructor (`private CacheManager() {}`) and single static `.instance()` accessor method.
+* **Thread-Safe Lazy Loading**: Emits the **Initialization-on-Demand Holder** JVM idiom, guaranteeing lazy, thread-safe initialization with zero synchronization overhead.
+* **Forbidden `new` Instantiation**: Attempting to call `new CacheManager()` produces a compile-time error.
+* **Accent & Java Interop**: Access the single instance via `CacheManager.instance()` in both Accent and Java codebase.
+
+#### Singleton records and models
+
+```java
+public singleton record Defaults(
+    String! theme = "light",
+    int retryLimit = 3
+) {}
+
+public singleton model AppState(
+    final String! id = "app",
+    String! theme = "light",
+    int attempts = 0
+) {}
+
+final defaults = Defaults.instance(); // immutable component bindings
+final state = AppState.instance();
+state.setTheme("dark");              // shared mutable state
+```
+
+Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Classes may declare a private parameterless constructor; record/model constructors are generated and private. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `__accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
+
+A singleton record compiles to a final immutable class rather than a JVM record, so its constructor can be private. It retains component accessors, value methods, native `toJson()`/`toXml()`, and typed List/Map serialization support. Its runtime `Class.isRecord()` is false, and it is not a subtype of `java.lang.Record`. Singleton model/record Java serialization resolves back to the shared instance; JSON/XML typed parsing rejects singleton targets to avoid constructing duplicates. Untyped parsing of their serialized data remains available.
+
+### 8. Immutable and mutable locals
 
 Use `final var` or the `final` shorthand for immutable local bindings (not reassignable):
 
@@ -106,7 +291,7 @@ attempts++; // Reassignable
 ```
 
 
-### 5. Immutable parameters
+### 9. Immutable parameters
 
 Method and constructor parameters are implicitly immutable bindings:
 
@@ -119,24 +304,199 @@ public void rename(String! name) {
 
 Reassigning `name` is a compile-time error. The referenced object may still be mutable.
 
-### 6. Explicit `this.`
+### 10. Named Arguments & Parameter Default Values
 
-Instance field access and instance method calls inside a class must use `this.`:
+Method and constructor parameters can define default values, which can then be invoked optionally or using named arguments.
 
+#### Parameter Default Values:
 ```java
-this.repository.save(order);
-this.status = "SAVED";
-this.logStatus();
+public int calculate(int base, int multiplier = 2, int offset = 1) {
+    return base * multiplier + offset;
+}
 ```
 
-Calls on other objects remain normal Java-style calls:
-
+#### Named Arguments:
 ```java
-customer.name();
-order.calculateTotal();
+// 1. Relying on default parameters
+final res1 = calculate(10); // 10 * 2 + 1 = 21
+
+// 2. Named arguments out-of-order
+final res2 = calculate(offset: 5, base: 10); // 10 * 2 + 5 = 25
+
+// 3. Mixed positional and named arguments
+final res3 = calculate(10, multiplier: 3); // 10 * 3 + 1 = 31
 ```
 
-### 7. Textual boolean operators
+### 11. Interpolated Strings
+
+Accent includes native support for type-safe, evaluated string interpolation expressions (C#-style `{expr}`) using the leading `$` prefix (`$"..."`, `$``...``$`, or `$"""..."""`).
+
+#### Four Important Cases
+
+1. **Normal Java String** (no interpolation):
+   ```java
+   String ordinary = "Hello, {name}";
+   // Evaluates literally to: Hello, {name}
+   ```
+2. **Normal Java Text Block** (no interpolation):
+   ```java
+   String ordinaryBlock = """
+           Hello, {name}
+           """;
+   // Evaluates literally to: Hello, {name}
+   ```
+3. **Accent Interpolated String**:
+   ```accent
+   String interpolated = $"Hello, {name}";
+   // Evaluates at runtime to: Hello, Lemuel
+   ```
+4. **Accent Multiline Interpolated Text Block**:
+   ```accent
+   String interpolatedBlock = $"""
+           Hello, {name}!
+           Next year your age will be {age + 1}.
+           """;
+   // Evaluates at runtime with evaluated expressions inside multiline text block
+   ```
+
+#### Syntax Rules and Behavior
+* **Activation**: Prefixing a string with `$` (using `$"..."`, `$``...``$`, or `$"""..."""`) enables runtime interpolation.
+* **Single & Multiline Support**: Both `$"..."` and triple-quote text blocks `$"""..."""` support multiline string interpolation.
+* **Compatibility**: Normal Java strings (`"..."`) and Java text blocks (`"""..."""`) do not interpolate. Braces inside them are treated as literal characters.
+* **C#-style Brace Interpolation**: An interpolation expression is marked with `{` and ends with the matching `}` inside an interpolated string.
+* **Literal Braces**: Use doubled braces `{{` to produce a literal `{`, and `}}` to produce a literal `}` inside an interpolated string.
+* **Evaluation Order**: Expressions inside an interpolated string are evaluated strictly from left to right exactly once.
+* **Null Handling**: If an evaluated expression resolves to `null`, it renders as the string `"null"` (equivalent to `String.valueOf(value)`). No `NullPointerException` is thrown from the string mapping itself.
+* **Type Behavior**: The entire interpolated string expression resolves to type `java.lang.String`. Void-returning expressions are rejected at compile-time.
+
+
+### 12. `if` expression
+
+```java
+final status = if (order.isPaid()) {
+    yield "PAID";
+} else {
+    yield "PENDING";
+};
+```
+
+Every reachable branch must yield a compatible result.
+
+### 13. `try` expression
+
+```java
+final port = try {
+    yield Integer.parseInt(portText);
+} catch (NumberFormatException exception) {
+    yield 8080;
+};
+```
+
+### 14. `for` statements and expressions with `else`
+
+Accent uses Java's existing `for` keyword for both enhanced and traditional loops in statement and expression positions. Accent supports an optional `else` branch on `for` loops (`for/else`).
+
+#### `for/else` Semantics
+- **Falsy/Empty Iterable**: If the loop iterable is falsy (`null`, empty `List`, empty `Map`, empty array, etc.) or a traditional loop condition starts `false`, the loop body is skipped and the `else` branch executes immediately.
+- **Normal Loop Completion**: If the loop executes to completion without encountering a `break` statement, the `else` branch executes.
+- **Early Exit via `break`**: If a `break` statement is encountered, the `else` branch is skipped.
+
+#### Enhanced `for/else` Statement
+
+```java
+// Executes else branch when list is empty, null, or completed without break
+for (var customer : customers) {
+    if (customer.id().equals(targetId)) {
+        this.process(customer);
+        break; // Skips else branch
+    }
+} else {
+    this.logNotFound();
+}
+```
+
+#### Traditional `for/else` Statement
+
+```java
+for (var i = 0; i < maxAttempts; i++) {
+    if (this.tryConnect()) {
+        break; // Skips else branch on successful connection
+    }
+} else {
+    throw new ConnectionException("All connection attempts failed");
+}
+```
+
+#### `for/else` Expression
+
+Each executed `yield` contributes an element to the resulting collection. When combined with `else`, if the iterable is empty/falsy, the `else` branch evaluates and yields fallback elements:
+
+```java
+final names = for (Customer! customer : customers) {
+    yield customer.name();
+} else {
+    yield "Guest";
+};
+```
+
+### 15. `while` and `do-while` expressions
+
+```java
+final values = while (iterator.hasNext()) {
+    yield iterator.next();
+};
+```
+
+```java
+final values = do {
+    yield this.readValue();
+} while (this.hasMore());
+```
+
+### 16. Class extensions
+
+Accent can extend an existing Java or Accent class without changing the original class or creating a subclass:
+
+```java
+extension String! {
+    String! normalized() {
+        return this.trim().toUpperCase();
+    }
+}
+```
+
+Usage:
+
+```java
+final normalizedName = name.normalized();
+```
+
+Class extensions are expected to lower to ordinary static Java helper methods. Real instance members take precedence over extension members.
+
+### 17. Generator functions
+
+Accent supports generator functions to produce lazy, streamable sequences of values.
+* Declare the method with the `generator` modifier.
+* The method return type must be `Iterable<Type>` (or primitive/boxed types which lower to `Iterable`).
+* Inside the method, use `emit <value>` to yield items to the sequence.
+
+```java
+public generator int numbers(int limit) {
+    for (var i = 0; i < limit; i++) {
+        emit i;
+    }
+}
+```
+
+Usage:
+```java
+for (int val : numbers(5)) {
+    System.out.println(val); // prints 0, 1, 2, 3, 4
+}
+```
+
+
+### 18. Textual boolean operators
 
 Accent supports three textual boolean operators.
 
@@ -247,7 +607,7 @@ public boolean haveSameStatus(
 final val = condition ? "Zack" : "Guest";
 ```
 
-### 8. Truthy and falsy conditions
+### 19. Truthy and falsy conditions
 
 Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`not`, `and`, `or`).
 
@@ -289,318 +649,43 @@ if (not count) {
 }
 ```
 
-### 9. `if` expression
+### 20. Explicit `this.`
+
+Instance field access and instance method calls inside a class must use `this.`:
 
 ```java
-final status = if (order.isPaid()) {
-    yield "PAID";
-} else {
-    yield "PENDING";
-};
+this.repository.save(order);
+this.status = "SAVED";
+this.logStatus();
 ```
 
-Every reachable branch must yield a compatible result.
-
-### 10. `try` expression
+Calls on other objects remain normal Java-style calls:
 
 ```java
-final port = try {
-    yield Integer.parseInt(portText);
-} catch (NumberFormatException exception) {
-    yield 8080;
-};
+customer.name();
+order.calculateTotal();
 ```
 
-### 11. `for` statements and expressions with `else`
+### 21. Native Annotations and 3rd Party Annotation Support
 
-Accent uses Java's existing `for` keyword for both enhanced and traditional loops in statement and expression positions. Accent supports an optional `else` branch on `for` loops (`for/else`).
-
-#### `for/else` Semantics
-- **Falsy/Empty Iterable**: If the loop iterable is falsy (`null`, empty `List`, empty `Map`, empty array, etc.) or a traditional loop condition starts `false`, the loop body is skipped and the `else` branch executes immediately.
-- **Normal Loop Completion**: If the loop executes to completion without encountering a `break` statement, the `else` branch executes.
-- **Early Exit via `break`**: If a `break` statement is encountered, the `else` branch is skipped.
-
-#### Enhanced `for/else` Statement
+Accent fully supports standard Java and framework annotations (such as Spring Boot's `@RestController`, `@Autowired`, etc.) on classes, fields, methods, constructors, and method parameters:
 
 ```java
-// Executes else branch when list is empty, null, or completed without break
-for (var customer : customers) {
-    if (customer.id().equals(targetId)) {
-        this.process(customer);
-        break; // Skips else branch
-    }
-} else {
-    this.logNotFound();
-}
-```
+@RestController
+@RequestMapping("/api")
+public class ProductController {
 
-#### Traditional `for/else` Statement
+    @Autowired
+    private ProductService! productService;
 
-```java
-for (var i = 0; i < maxAttempts; i++) {
-    if (this.tryConnect()) {
-        break; // Skips else branch on successful connection
-    }
-} else {
-    throw new ConnectionException("All connection attempts failed");
-}
-```
-
-#### `for/else` Expression
-
-Each executed `yield` contributes an element to the resulting collection. When combined with `else`, if the iterable is empty/falsy, the `else` branch evaluates and yields fallback elements:
-
-```java
-final names = for (Customer! customer : customers) {
-    yield customer.name();
-} else {
-    yield "Guest";
-};
-```
-
-### 12. `while` and `do-while` expressions
-
-```java
-final values = while (iterator.hasNext()) {
-    yield iterator.next();
-};
-```
-
-```java
-final values = do {
-    yield this.readValue();
-} while (this.hasMore());
-```
-
-### 13. Class extensions
-
-Accent can extend an existing Java or Accent class without changing the original class or creating a subclass:
-
-```java
-extension String! {
-    String! normalized() {
-        return this.trim().toUpperCase();
+    @GetMapping("/{id}")
+    public Product! getProduct(@PathVariable String! id) {
+        return this.productService.findById(id);
     }
 }
 ```
 
-Usage:
-
-```java
-final normalizedName = name.normalized();
-```
-
-Class extensions are expected to lower to ordinary static Java helper methods. Real instance members take precedence over extension members.
-
-### 14. Native Singleton Declarations (Kotlin `object` Equivalence)
-
-Use `singleton` before `class`, `record`, or `model` to declare one lazily initialized instance. The previous standalone `singleton Name` syntax is no longer accepted:
-
-```java
-public singleton class CacheManager {
-    private final Map<String, Object> cache = new HashMap<>();
-
-    public void put(String key, Object val) {
-        this.cache.put(key, val);
-    }
-
-    public Object get(String key) {
-        return this.cache.get(key);
-    }
-}
-```
-
-#### Singleton Usage
-
-```java
-final cache = CacheManager.instance();
-cache.put("user_1", "Lemuel");
-
-// Or direct method call:
-final user = CacheManager.instance().get("user_1");
-```
-
-#### Singleton Features & Semantics
-* **Kotlin `object` Equivalent**: Provides direct language-level singleton semantics (`singleton class CacheManager { ... }`).
-* **Zero Boilerplate**: The compiler automatically generates a private constructor (`private CacheManager() {}`) and single static `.instance()` accessor method.
-* **Thread-Safe Lazy Loading**: Emits the **Initialization-on-Demand Holder** JVM idiom, guaranteeing lazy, thread-safe initialization with zero synchronization overhead.
-* **Forbidden `new` Instantiation**: Attempting to call `new CacheManager()` produces a compile-time error.
-* **Accent & Java Interop**: Access the single instance via `CacheManager.instance()` in both Accent and Java codebase.
-
-#### Singleton records and models
-
-```java
-public singleton record Defaults(
-    String! theme = "light",
-    int retryLimit = 3
-) {}
-
-public singleton model AppState(
-    final String! id = "app",
-    String! theme = "light",
-    int attempts = 0
-) {}
-
-final defaults = Defaults.instance(); // immutable component bindings
-final state = AppState.instance();
-state.setTheme("dark");              // shared mutable state
-```
-
-Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Classes may declare a private parameterless constructor; record/model constructors are generated and private. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `__accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
-
-A singleton record compiles to a final immutable class rather than a JVM record, so its constructor can be private. It retains component accessors, value methods, native `toJson()`/`toXml()`, and typed List/Map serialization support. Its runtime `Class.isRecord()` is false, and it is not a subtype of `java.lang.Record`. Singleton model/record Java serialization resolves back to the shared instance; JSON/XML typed parsing rejects singleton targets to avoid constructing duplicates. Untyped parsing of their serialized data remains available.
-
-### 15. Kotlin-Style Data Class Model Declarations (`model`)
-
-Accent provides native support for data classes via the `model` keyword (`public model User(final String! id, String! name, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
-
-```java
-public model User(
-    final String! id,   // final     -> Immutable (getter id() ONLY, no setter)
-    String! name,       // default   -> Mutable   (getter name(), setter setName)
-    int age             // default   -> Mutable   (getter age(), setter setAge)
-) {}
-```
-
-#### Usage Example
-
-```java
-final user = new User("U101", "Lemuel", 42);
-
-// Access getters
-final id = user.id();
-final name = user.name();
-
-// Setters for mutable fields
-user.setName("Lemuel A.");
-user.setAge(43);
-
-// user.setId("U102"); // Compile-time error: 'id' is final!
-
-// Kotlin-style copy method
-final userCopy = user.copy("U101", "Lemuel A.", 43);
-
-// Formatted toString output
-System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
-```
-
-#### Model Features & Semantics
-
-* **Default Mutability**: Fields without `final` are **mutable** by default, generating getters (`name()`, `age()`) AND setters (`setName(...)`, `setAge(...)`).
-* **Explicit Immutability (`final`)**: Fields prefixed with `final` are **immutable** (`private final String id;`), generating a getter only (`id()`) and NO setter (`setId`). Calling a setter on a `final` field results in a compile-time error.
-* **Kotlin-style `copy(...)` Method**: Automatically generates a `copy(...)` method for convenient object cloning.
-* **Value-based `equals()` and `hashCode()`**: Generates value-based equality and hashing implementations.
-* **Automatic `toString()`**: Emits formatted string representation (`User[id=..., name=..., age=...]`).
-* **Built-in `java.io.Serializable`**: Implements `java.io.Serializable` with `serialVersionUID = 1L` out of the box.
-
-#### `model` vs `record` Comparison
-
-| Feature | Accent `record` | Accent `model` |
-| :--- | :--- | :--- |
-| **Primary Purpose** | 100% Immutable Tuple / Data Holder | Kotlin-style Data Class |
-| **Java Target** | Java `record` | `public final class` |
-| **Field Mutability** | Always 100% Immutable | Mutable by default (or Immutable with `final`) |
-| **Setters Generated** | None | Yes (for non-final fields) |
-| **`copy()` Method** | None | Yes |
-| **Serialization** | `toJson()`, `toXml()` | `toJson()`, `toXml()`, `java.io.Serializable` |
-
-#### Native JSON and XML serialization
-
-Accent records and models automatically receive public `toJson()` and `toXml()` methods:
-
-```java
-public record Address(String city) {}
-public model Profile(String name, Address address) {}
-
-final profile = new Profile("Lem", new Address("Manila"));
-final json = profile.toJson();
-// {"name":"Lem","address":{"city":"Manila"}}
-final xml = profile.toXml();
-// <Profile><name>Lem</name><address><city>Manila</city></address></Profile>
-```
-
-Nested records and models, collections, maps, arrays, and scalar values are supported. Null object fields are omitted. JSON uses the existing `accent.json.Json` serializer and its default naming rules. XML uses the type name for the root, field names for child elements, `<item>` elements for collection and array values, and `<entry><key>...</key><value>...</value></entry>` for map entries. XML omits null values and escapes text; invalid XML names or characters produce errors. Circular references produce serialization errors; repeated references without cycles are allowed.
-
-Native collection serialization is restricted to **lists of records/models** and **maps whose values are records/models**. Map keys may use other types. Declare the element/value type explicitly:
-
-```java
-List<Profile> profiles = List.of(new Profile("Lem", new Address("Manila")));
-final json = profiles.toJson();
-final xml = profiles.toXml(); // <List><item>...</item></List>
-
-Map<String, Profile> profilesById = Map.of("U1", new Profile("Ana", new Address("Manila")));
-final profilesJson = profilesById.toJson();
-final profilesXml = profilesById.toXml(); // <Map><entry><key>U1</key><value>...</value></entry></Map>
-
-final optionalJson = nullableProfiles?.toJson(); // null when the list is null
-```
-
-`List<String>`, `List<Integer>`, `Map<String, String>`, raw containers, and containers with unknown or `Object` element/value types do not receive these methods. Typed empty containers are supported. Concrete implementations such as `ArrayList<Profile>` and `LinkedHashMap<String, Profile>` are supported too. XML roots are consistently named `List` and `Map`; empty containers serialize as `[]` / `{}` in JSON and `<List></List>` / `<Map></Map>` in XML. Serialization uses native `toJson()` and `toXml()` methods; the former `Json.stringify()` and `Xml.stringify()` APIs have been removed.
-
-An explicit zero-argument `toJson()` or `toXml()` method takes precedence over the corresponding generated method. These methods require the Accent runtime on the Java classpath.
-
-### 14. Virtual Thread concurrency
-
-Ordinary Java and Accent methods remain synchronous. Concurrency is requested at the call site:
-
-```java
-final customerFuture =
-    async this.customerService.findRequired(id);
-
-final ordersFuture =
-    async this.orderService.findForCustomer(id);
-
-final customer = await customerFuture;
-final orders = await ordersFuture;
-```
-
-The intended semantics are:
-
-```text
-async expression  -> start the expression on a Virtual Thread and return a future
-await future      -> wait for completion and produce the result
-```
-
-Accent hides Virtual Thread creation, future management, exception unwrapping, cancellation, structured lifetime, and cleanup.
-
-Immediately awaiting newly started work should be discouraged when no concurrency is gained:
-
-```java
-final customer =
-    await async this.customerService.findRequired(id);
-```
-
-Prefer the ordinary synchronous call in that case:
-
-```java
-final customer =
-    this.customerService.findRequired(id);
-```
-
-### 15. Generator functions
-
-Accent supports generator functions to produce lazy, streamable sequences of values.
-* Declare the method with the `generator` modifier.
-* The method return type must be `Iterable<Type>` (or primitive/boxed types which lower to `Iterable`).
-* Inside the method, use `emit <value>` to yield items to the sequence.
-
-```java
-public generator int numbers(int limit) {
-    for (var i = 0; i < limit; i++) {
-        emit i;
-    }
-}
-```
-
-Usage:
-```java
-for (int val : numbers(5)) {
-    System.out.println(val); // prints 0, 1, 2, 3, 4
-}
-```
-
-
-### 16. Direct SQL Query Templating
+### 22. Direct SQL Query Templating
 
 Accent includes native support for SQL template query expressions (using backticks) that automatically parameterize dynamic variables to prevent SQL injection and map results directly to Java record types:
 
@@ -620,7 +705,7 @@ Accent includes native support for SQL template query expressions (using backtic
 Dynamic interpolation expressions (like `{name}`) are parsed and validated by the compiler, translating the template query directly into standard prepared statement execution at runtime.
 
 
-### 17. Compile-Time SQL Query Syntax Checking
+### 23. Compile-Time SQL Query Syntax Checking
 
 The compiler automatically parses and validates the SQL syntax of all query literals at compile-time:
 * **Mismatched delimiters**: Detects unclosed quotes or mismatched parentheses in the SQL text.
@@ -629,7 +714,7 @@ The compiler automatically parses and validates the SQL syntax of all query lite
 Any syntax mistakes will immediately halt compilation and raise detailed compiler errors before code is deployed.
 
 
-### 18. Zero-Boilerplate S  SQL to Record Mapping (ORM)
+### 24. Zero-Boilerplate S  SQL to Record Mapping (ORM)
 
 The runtime automatically maps database result set columns to Java records using constructor reflection:
 * **Name-Based Matching**: Maps columns directly to record constructor parameters with matching names (case-insensitive).
@@ -637,7 +722,7 @@ The runtime automatically maps database result set columns to Java records using
 * **Recursive Nested Mapping**: If a record constructor contains a nested record type (e.g., `User(String name, Contact contact)` where `Contact` is `record Contact(String email)`), the mapper recursively instantiates the nested record matching the query columns.
 
 
-### 19. Synchronous SQL Query Execution for Virtual Threads
+### 25. Synchronous SQL Query Execution for Virtual Threads
 
 Because Accent has native compiler-level support for **Virtual Threads (`async`/`await`)**, database query literals can be executed synchronously in lightweight thread contexts without blocking carrier system threads:
 
@@ -650,50 +735,7 @@ final users = await usersFuture;
 When a query blocks on database I/O, the JVM automatically unmounts the virtual thread, enabling high-performance concurrent database operations with standard, simple synchronous code.
 
 
-### 20. Interpolated Strings
-
-Accent includes native support for type-safe, evaluated string interpolation expressions (C#-style `{expr}`) using the leading `$` prefix (`$"..."`, `$``...``$`, or `$"""..."""`).
-
-#### Four Important Cases
-
-1. **Normal Java String** (no interpolation):
-   ```java
-   String ordinary = "Hello, {name}";
-   // Evaluates literally to: Hello, {name}
-   ```
-2. **Normal Java Text Block** (no interpolation):
-   ```java
-   String ordinaryBlock = """
-           Hello, {name}
-           """;
-   // Evaluates literally to: Hello, {name}
-   ```
-3. **Accent Interpolated String**:
-   ```accent
-   String interpolated = $"Hello, {name}";
-   // Evaluates at runtime to: Hello, Lemuel
-   ```
-4. **Accent Multiline Interpolated Text Block**:
-   ```accent
-   String interpolatedBlock = $"""
-           Hello, {name}!
-           Next year your age will be {age + 1}.
-           """;
-   // Evaluates at runtime with evaluated expressions inside multiline text block
-   ```
-
-#### Syntax Rules and Behavior
-* **Activation**: Prefixing a string with `$` (using `$"..."`, `$``...``$`, or `$"""..."""`) enables runtime interpolation.
-* **Single & Multiline Support**: Both `$"..."` and triple-quote text blocks `$"""..."""` support multiline string interpolation.
-* **Compatibility**: Normal Java strings (`"..."`) and Java text blocks (`"""..."""`) do not interpolate. Braces inside them are treated as literal characters.
-* **C#-style Brace Interpolation**: An interpolation expression is marked with `{` and ends with the matching `}` inside an interpolated string.
-* **Literal Braces**: Use doubled braces `{{` to produce a literal `{`, and `}}` to produce a literal `}` inside an interpolated string.
-* **Evaluation Order**: Expressions inside an interpolated string are evaluated strictly from left to right exactly once.
-* **Null Handling**: If an evaluated expression resolves to `null`, it renders as the string `"null"` (equivalent to `String.valueOf(value)`). No `NullPointerException` is thrown from the string mapping itself.
-* **Type Behavior**: The entire interpolated string expression resolves to type `java.lang.String`. Void-returning expressions are rejected at compile-time.
-
-
-### 21. Native Server-Side HTML Components
+### 26. Native Server-Side HTML Components
 
 Accent includes native support for server-side HTML templating via JSX-like markup tags directly integrated into the language.
 
@@ -732,49 +774,49 @@ Accent supports standard Java ternary expressions (`{condition ? thenExpr : else
 
 
 
-### 22. Native Annotations and 3rd Party Annotation Support
+### 27. @Logging Annotation
 
-Accent fully supports standard Java and framework annotations (such as Spring Boot's `@RestController`, `@Autowired`, etc.) on classes, fields, methods, constructors, and method parameters:
+Accent provides a native logging system integrated directly into the language via the `@Logging` annotation, without requiring Lombok, SLF4J, or any external bytecode manipulation.
 
-```java
-@RestController
-@RequestMapping("/api")
-public class ProductController {
+When you annotate a class, record, or enum with `@Logging`, the compiler automatically injects a static, immutable `log` field bound to that specific type.
 
-    @Autowired
-    private ProductService! productService;
+```accent
+import accent.logging.Logging;
 
-    @GetMapping("/{id}")
-    public Product! getProduct(@PathVariable String! id) {
-        return this.productService.findById(id);
+@Logging
+public class BookingService {
+    public Booking create(BookingRequest request) {
+        log.debug($"Creating booking for {request.customerName()}");
+
+        try {
+            Booking booking = save(request);
+            log.info($"Booking {booking.id()} was created");
+            return booking;
+        } catch (Exception exception) {
+            log.error($"Failed to create booking", exception);
+            throw exception;
+        }
     }
 }
 ```
 
-### 23. Named Arguments & Parameter Default Values
-
-Method and constructor parameters can define default values, which can then be invoked optionally or using named arguments.
-
-#### Parameter Default Values:
+The underlying injected field is equivalent to:
 ```java
-public int calculate(int base, int multiplier = 2, int offset = 1) {
-    return base * multiplier + offset;
-}
+private static final accent.logging.Logger log = accent.logging.LogManager.getLogger(BookingService.class);
 ```
 
-#### Named Arguments:
-```java
-// 1. Relying on default parameters
-final res1 = calculate(10); // 10 * 2 + 1 = 21
+#### Logging Spring Boot Integration
 
-// 2. Named arguments out-of-order
-final res2 = calculate(offset: 5, base: 10); // 10 * 2 + 5 = 25
+A Spring Boot starter module is available to seamlessly integrate Accent logging with your Spring environment:
 
-// 3. Mixed positional and named arguments
-final res3 = calculate(10, multiplier: 3); // 10 * 3 + 1 = 31
+```groovy
+implementation 'accent:accent-logging-spring-boot-starter:1.0.0'
 ```
 
-### 24. JS-like Symbols
+It maps Spring Boot profiles and active environments so that `accent.logging` levels automatically align with your `application.yml` properties. In environments without Spring Boot, it seamlessly falls back to reading `accent-logging.properties`.
+
+
+### 28. JS-like Symbols
 
 Accent provides a JavaScript-like `Symbol` type in the standard library (`accent.lang.Symbol<T>`) to serve as unique, identity-based keys for metadata, component contexts, and registries without the risk of collisions.
 
@@ -828,49 +870,7 @@ UUID currentTenantId = context.get(TENANT_ID);
 * The `symbol` word is not a reserved keyword and remains valid as an ordinary variable name.
 
 
-### 25. @Logging Annotation
-
-Accent provides a native logging system integrated directly into the language via the `@Logging` annotation, without requiring Lombok, SLF4J, or any external bytecode manipulation.
-
-When you annotate a class, record, or enum with `@Logging`, the compiler automatically injects a static, immutable `log` field bound to that specific type.
-
-```accent
-import accent.logging.Logging;
-
-@Logging
-public class BookingService {
-    public Booking create(BookingRequest request) {
-        log.debug($"Creating booking for {request.customerName()}");
-
-        try {
-            Booking booking = save(request);
-            log.info($"Booking {booking.id()} was created");
-            return booking;
-        } catch (Exception exception) {
-            log.error($"Failed to create booking", exception);
-            throw exception;
-        }
-    }
-}
-```
-
-The underlying injected field is equivalent to:
-```java
-private static final accent.logging.Logger log = accent.logging.LogManager.getLogger(BookingService.class);
-```
-
-#### Logging Spring Boot Integration
-
-A Spring Boot starter module is available to seamlessly integrate Accent logging with your Spring environment:
-
-```groovy
-implementation 'accent:accent-logging-spring-boot-starter:1.0.0'
-```
-
-It maps Spring Boot profiles and active environments so that `accent.logging` levels automatically align with your `application.yml` properties. In environments without Spring Boot, it seamlessly falls back to reading `accent-logging.properties`.
-
-
-### 26. Slugs (`accent.web`)
+### 29. Slugs (`accent.web`)
 
 Java does not provide a built-in slug type or standard slugification utility. Developers often have to use third-party libraries or build custom logic combining `Normalizer`, regular expressions, and locales. Accent fills this gap by providing a standardized, immutable value type: `accent.web.Slug`.
 
