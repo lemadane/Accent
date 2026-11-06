@@ -55,7 +55,7 @@ public class JsonParser {
 
         while (pos < json.length()) {
             skipWhitespace();
-            if (json.charAt(pos) != '"') throw new JsonParseException("Expected string key in object at pos " + pos);
+            if (pos >= json.length() || json.charAt(pos) != '"') throw new JsonParseException("Expected string key in object at pos " + pos);
             String key = parseString();
 
             skipWhitespace();
@@ -129,12 +129,17 @@ public class JsonParser {
                     case 'u':
                         if (pos + 4 > json.length()) throw new JsonParseException("Unterminated unicode escape");
                         String hex = json.substring(pos, pos + 4);
-                        sb.append((char) Integer.parseInt(hex, 16));
+                        try {
+                            sb.append((char) Integer.parseInt(hex, 16));
+                        } catch (NumberFormatException invalidEscape) {
+                            throw new JsonParseException("Invalid unicode escape", invalidEscape);
+                        }
                         pos += 4;
                         break;
                     default: throw new JsonParseException("Invalid escape sequence \\" + e);
                 }
             } else {
+                if (c < 0x20) throw new JsonParseException("Unescaped control character in string");
                 sb.append(c);
             }
         }
@@ -152,9 +157,14 @@ public class JsonParser {
             }
         }
         String numStr = json.substring(start, pos);
+        if (!numStr.matches("-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?")) {
+            throw new JsonParseException("Invalid number format: " + numStr);
+        }
         try {
             if (numStr.contains(".") || numStr.contains("e") || numStr.contains("E")) {
-                return Double.parseDouble(numStr);
+                double number = Double.parseDouble(numStr);
+                if (!Double.isFinite(number)) throw new JsonParseException("Non-finite JSON number");
+                return number;
             } else {
                 long l = Long.parseLong(numStr);
                 if (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) {

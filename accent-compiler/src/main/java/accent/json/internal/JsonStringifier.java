@@ -17,30 +17,65 @@ public class JsonStringifier {
 
     public String stringify(Object obj) {
         StringBuilder sb = new StringBuilder();
-        stringifyInternal(obj, sb, 0);
+        stringifyInternal(obj, sb, 0, Collections.newSetFromMap(new IdentityHashMap<>()));
         return sb.toString();
     }
 
-    private void stringifyInternal(Object obj, StringBuilder sb, int depth) {
+    private void stringifyInternal(Object obj, StringBuilder sb, int depth, Set<Object> active) {
+        boolean tracked = obj != null && (obj instanceof Collection<?> || obj instanceof Map<?, ?>
+                || obj.getClass().isArray() || obj.getClass().isRecord() || obj instanceof accent.runtime.AccentModel);
+        if (tracked && !active.add(obj)) throw new IllegalArgumentException("Circular reference during JSON serialization");
+        try {
+            stringifyValue(obj, sb, depth, active);
+        } finally {
+            if (tracked) active.remove(obj);
+        }
+    }
+
+    private void stringifyValue(Object obj, StringBuilder sb, int depth, Set<Object> active) {
         if (obj == null) {
             sb.append("null");
             return;
         }
 
         if (obj instanceof Optional<?> opt) {
-            stringifyInternal(opt.orElse(null), sb, depth);
+            stringifyInternal(opt.orElse(null), sb, depth, active);
             return;
         }
 
-        if (obj instanceof String || obj instanceof UUID || obj instanceof Enum || obj instanceof TemporalAccessor) {
+        if (obj instanceof String || obj instanceof Character || obj instanceof UUID || obj instanceof Enum || obj instanceof TemporalAccessor) {
             sb.append('"');
             escapeString(obj.toString(), sb);
             sb.append('"');
             return;
         }
 
+        if (obj instanceof Double d && !Double.isFinite(d) || obj instanceof Float f && !Float.isFinite(f)) {
+            throw new IllegalArgumentException("Non-finite numbers cannot be serialized as JSON");
+        }
+
         if (obj instanceof Number || obj instanceof Boolean) {
             sb.append(obj.toString());
+            return;
+        }
+
+        if (obj.getClass().isArray()) {
+            List<Object> elements = new ArrayList<>();
+            for (int i = 0; i < java.lang.reflect.Array.getLength(obj); i++) {
+                elements.add(java.lang.reflect.Array.get(obj, i));
+            }
+            stringifyInternal(elements, sb, depth, active);
+            return;
+        }
+
+        if (obj instanceof accent.runtime.AccentModel) {
+            Map<String, Object> properties = new LinkedHashMap<>();
+            for (var entry : accent.runtime.DataProperties.read(obj).entrySet()) {
+                if (entry.getValue() != null) {
+                    properties.put(options.namingPolicy().translateName(entry.getKey()), entry.getValue());
+                }
+            }
+            stringifyInternal(properties, sb, depth, active);
             return;
         }
 
@@ -54,7 +89,7 @@ public class JsonStringifier {
                     sb.append("\n");
                     indent(sb, depth + 1);
                 }
-                stringifyInternal(item, sb, depth + 1);
+                stringifyInternal(item, sb, depth + 1, active);
             }
             if (options.prettyPrint() && !coll.isEmpty()) {
                 sb.append("\n");
@@ -78,7 +113,7 @@ public class JsonStringifier {
                 escapeString(String.valueOf(entry.getKey()), sb);
                 sb.append("\":");
                 if (options.prettyPrint()) sb.append(" ");
-                stringifyInternal(entry.getValue(), sb, depth + 1);
+                stringifyInternal(entry.getValue(), sb, depth + 1, active);
             }
             if (options.prettyPrint() && !map.isEmpty()) {
                 sb.append("\n");
@@ -95,7 +130,9 @@ public class JsonStringifier {
                 for (RecordComponent comp : obj.getClass().getRecordComponents()) {
                     if (comp.isAnnotationPresent(JsonIgnore.class)) continue;
                     
-                    Object val = comp.getAccessor().invoke(obj);
+                    var accessor = comp.getAccessor();
+                    if (!accessor.trySetAccessible()) throw new IllegalArgumentException("Inaccessible record component");
+                    Object val = accessor.invoke(obj);
                     if (val == null) continue; // Skip nulls or keep? Usually skip or explicit. Let's keep for simplicity.
                     
                     if (!first) sb.append(',');
@@ -117,7 +154,7 @@ public class JsonStringifier {
                     escapeString(key, sb);
                     sb.append("\":");
                     if (options.prettyPrint()) sb.append(" ");
-                    stringifyInternal(val, sb, depth + 1);
+                    stringifyInternal(val, sb, depth + 1, active);
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to stringify record", e);

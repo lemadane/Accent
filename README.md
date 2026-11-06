@@ -479,7 +479,42 @@ System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
 | **Field Mutability** | Always 100% Immutable | Mutable by default (or Immutable with `final`) |
 | **Setters Generated** | None | Yes (for non-final fields) |
 | **`copy()` Method** | None | Yes |
-| **Serialization** | Standard Record Serialization | Implements `java.io.Serializable` |
+| **Serialization** | `toJson()`, `toXml()` | `toJson()`, `toXml()`, `java.io.Serializable` |
+
+#### Native JSON and XML serialization
+
+Accent records and models automatically receive public `toJson()` and `toXml()` methods:
+
+```java
+public record Address(String city) {}
+public model Profile(String name, Address address) {}
+
+final profile = new Profile("Lem", new Address("Manila"));
+final json = profile.toJson();
+// {"name":"Lem","address":{"city":"Manila"}}
+final xml = profile.toXml();
+// <Profile><name>Lem</name><address><city>Manila</city></address></Profile>
+```
+
+Nested records and models, collections, maps, arrays, and scalar values are supported. Null object fields are omitted. JSON uses the existing `accent.json.Json` serializer and its default naming rules. XML uses the type name for the root, field names for child elements, `<item>` elements for collection and array values, and `<entry><key>...</key><value>...</value></entry>` for map entries. XML omits null values and escapes text; invalid XML names or characters produce errors. Circular references produce serialization errors; repeated references without cycles are allowed.
+
+Native collection serialization is restricted to **lists of records/models** and **maps whose values are records/models**. Map keys may use other types. Declare the element/value type explicitly:
+
+```java
+List<Profile> profiles = List.of(new Profile("Lem", new Address("Manila")));
+final json = profiles.toJson();
+final xml = profiles.toXml(); // <List><item>...</item></List>
+
+Map<String, Profile> profilesById = Map.of("U1", new Profile("Ana", new Address("Manila")));
+final profilesJson = profilesById.toJson();
+final profilesXml = profilesById.toXml(); // <Map><entry><key>U1</key><value>...</value></entry></Map>
+
+final optionalJson = nullableProfiles?.toJson(); // null when the list is null
+```
+
+`List<String>`, `List<Integer>`, `Map<String, String>`, raw containers, and containers with unknown or `Object` element/value types do not receive these methods. Typed empty containers are supported. Concrete implementations such as `ArrayList<Profile>` and `LinkedHashMap<String, Profile>` are supported too. XML roots are consistently named `List` and `Map`; empty containers serialize as `[]` / `{}` in JSON and `<List></List>` / `<Map></Map>` in XML. Serialization uses native `toJson()` and `toXml()` methods; the former `Json.stringify()` and `Xml.stringify()` APIs have been removed.
+
+An explicit zero-argument `toJson()` or `toXml()` method takes precedence over the corresponding generated method. These methods require the Accent runtime on the Java classpath.
 
 ### 14. Virtual Thread concurrency
 
@@ -1389,15 +1424,37 @@ public class Main {
 
 ## JSON Standard Library (`accent.json`)
 
-Accent provides a native, zero-dependency JSON parser and stringifier through the `accent-json` standard library module. This API brings JavaScript-like convenience but strictly enforces Java Record type safety, preventing common pitfalls with mutable JavaBeans and silent coercions.
+Accent provides JSON parsing through `accent.json.Json` and native serialization through `toJson()` on records, models, and supported typed containers.
 
 ### Key Features
-- **Strictly Record-Oriented**: `Json.parse(...)` will *only* deserialize into Java Records, ensuring deterministic, immutable structures. It strictly rejects ordinary Java classes.
-- **Constructor Validation**: During deserialization, the record's canonical constructor is always invoked. Any assertions or data validations placed within the constructor run automatically on the parsed JSON!
+- **Untyped or typed parsing**: `Json.parse(text)` returns Maps, Lists, and JSON scalar values. `Json.parse(text, Type.class)` maps objects into records or Accent models and rejects ordinary Java classes.
+- **Constructor Validation**: Typed parsing invokes the record canonical constructor or the model constructor.
 - **Zero-Dependency**: No Jackson, no Gson. It is built natively into Accent, perfectly avoiding large shaded JAR issues.
 - **Deep Compatibility**: Supports primitives, `java.time.*` (ISO-8601), `java.util.UUID`, Enums, `Optional<T>`, generic lists/maps, and deeply nested generic records.
 - **Customizable**: Control serialization with `JsonOptions` and override property names via `@JsonName`.
 
+
+### Parsing objects, Lists, and Maps
+
+```java
+import accent.json.Json;
+import accent.xml.Xml;
+
+Object jsonTree = Json.parse(text); // JSON object -> Map; array -> List
+Object xmlTree = Xml.parse(xmlText); // XML data object -> Map; <List> -> List; <Map> -> Map
+
+Profile profile = Json.parse(profileJson, Profile.class);
+List<Profile> profiles = Json.parseList(profilesJson, Profile.class);
+Map<String, Profile> indexed = Json.parseMap(indexedJson, Profile.class);
+
+Profile xmlProfile = Xml.parse(profileXml, Profile.class);
+List<Profile> xmlProfiles = Xml.parseList(profilesXml, Profile.class);
+Map<String, Profile> xmlIndexed = Xml.parseMap(indexedXml, Profile.class);
+```
+
+Both parsers also accept `Object.class`, `List.class`, and `Map.class` targets. A List or Map target must match the input shape. Typed objects and container values may be records or Accent models; nested records/models, lists, maps, arrays, and primitive values are mapped recursively. Use native `toJson()` / `toXml()` to serialize again.
+
+Untyped JSON preserves boolean, numeric, string, and null values. Untyped XML preserves scalar text as strings, because the XML format carries no scalar type metadata; typed XML parsing converts text using the target field types. XML parsing follows the serializer's `<item>` and `<entry><key>...</key><value>...</value></entry>` conventions. XML attributes, mixed text and elements, duplicate fields/keys, DTDs, and external entities are rejected. Null properties omitted during XML serialization cannot be distinguished from missing properties on parsing. Empty nested XML elements are ambiguous without a target type; typed parsing distinguishes empty strings, containers, and data objects using their declared fields.
 
 ## Native JSON Literals
 
@@ -1441,7 +1498,7 @@ public record User(
 ) {
     public User {
         // Will be executed when parsed from JSON!
-        if (firstName == null || firstName.isBlank()) {
+        if (firstName == null or firstName.isBlank()) {
             throw new IllegalArgumentException("firstName cannot be blank");
         }
     }
@@ -1452,7 +1509,7 @@ public class Main {
         User user = new User(UUID.randomUUID(), "Lemuel", "Adane", LocalDate.of(2000, 1, 1));
         
         // Serialize
-        String json = Json.stringify(user);
+        String json = user.toJson();
         
         // Parse directly into a strongly-typed record!
         User parsedUser = Json.parse(json, User.class);

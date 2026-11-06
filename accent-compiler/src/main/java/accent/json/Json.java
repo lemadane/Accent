@@ -1,14 +1,13 @@
 package accent.json;
 
 import java.util.List;
-
 import accent.json.internal.JsonMapper;
 import accent.json.internal.JsonParser;
-import accent.json.internal.JsonStringifier;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 public class Json {
     private final JsonMapper mapper;
-    private final JsonStringifier stringifier;
 
     public Json() {
         this(JsonOptions.DEFAULT);
@@ -16,19 +15,30 @@ public class Json {
 
     public Json(JsonOptions options) {
         this.mapper = new JsonMapper(options);
-        this.stringifier = new JsonStringifier(options);
     }
 
-    public static <T extends Record> T parse(String json, Class<T> clazz) {
+    public static <T> T parse(String json, Class<T> clazz) {
         return new Json().parseInternal(json, clazz);
     }
 
-    public static <T extends Record> List<T> parseList(String json, Class<T> clazz) {
+    public static <T> List<T> parseList(String json, Class<T> clazz) {
         return new Json().parseListInternal(json, clazz);
     }
 
-    public static String stringify(Object obj) {
-        return new Json().stringifyInternal(obj);
+    /** Untyped JSON objects become Maps, arrays become Lists, and scalars retain their JSON type. */
+    public static Object parse(String text) {
+        return JsonParser.parse(text);
+    }
+
+    public static <T> Map<String, T> parseMap(String text, Class<T> valueType) {
+        return new Json().mapParsedMap(parse(text), valueType);
+    }
+
+    private <T> Map<String, T> mapParsedMap(Object parsed, Class<T> valueType) {
+        if (!(parsed instanceof Map<?, ?> map)) throw new JsonMappingException("Expected JSON object for map");
+        Map<String, T> result = new LinkedHashMap<>();
+        for (var entry : map.entrySet()) result.put((String) entry.getKey(), mapper.mapToRecord(entry.getValue(), valueType));
+        return result;
     }
 
     public static boolean isValid(String json) {
@@ -40,26 +50,20 @@ public class Json {
         }
     }
 
-    public <T extends Record> T parseInternal(String json, Class<T> clazz) {
-        if (!clazz.isRecord()) {
-            throw new JsonMappingException("Only Java Records are supported for parsing.");
-        }
+    public <T> T parseInternal(String json, Class<T> clazz) {
         Object parsed = JsonParser.parse(json);
+        if (clazz == Object.class || clazz == List.class || clazz == Map.class) {
+            if (parsed != null && !clazz.isInstance(parsed)) throw new JsonMappingException("Parsed value is not a " + clazz.getSimpleName());
+            return clazz.cast(parsed);
+        }
         return mapper.mapToRecord(parsed, clazz);
     }
 
-    public <T extends Record> List<T> parseListInternal(String json, Class<T> clazz) {
-        if (!clazz.isRecord()) {
-            throw new JsonMappingException("Only Java Records are supported for parsing.");
-        }
+    public <T> List<T> parseListInternal(String json, Class<T> clazz) {
         Object parsed = JsonParser.parse(json);
         if (!(parsed instanceof List)) {
             throw new JsonMappingException("Expected JSON array");
         }
         return mapper.mapToList((List<?>) parsed, clazz);
-    }
-
-    public String stringifyInternal(Object obj) {
-        return stringifier.stringify(obj);
     }
 }

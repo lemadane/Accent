@@ -114,7 +114,7 @@ public final class JavaEmitter {
             }
             sb.append("class ").append(md.name());
             emitTypeParameters(md.typeParameters());
-            sb.append(" implements java.io.Serializable");
+            sb.append(" implements java.io.Serializable, accent.runtime.AccentModel");
             for (TypeNode itf : md.interfaces()) {
                 sb.append(", ").append(emitType(itf));
             }
@@ -320,6 +320,20 @@ public final class JavaEmitter {
             indentLevel--;
             printIndent();
             sb.append("}\n\n");
+        }
+
+        if (decl instanceof ModelDecl || decl instanceof RecordDecl) {
+            for (String format : List.of("Json", "Xml")) {
+                String methodName = "to" + format;
+                boolean custom = decl.members().stream().anyMatch(m -> m instanceof MethodDecl method
+                        && method.name().equals(methodName) && method.parameters().isEmpty());
+                if (!custom) {
+                    printIndent();
+                    sb.append("public String ").append(methodName).append("() { return accent.runtime.DataSerialization.")
+                            .append(methodName)
+                            .append("(this); }\n\n");
+                }
+            }
         }
 
         if (decl instanceof EnumDecl ed) {

@@ -427,6 +427,12 @@ public final class AccentLowerer implements ImportResolver {
                     if (mInfo != null) {
                         params = mInfo.parameters();
                     } else {
+                        if (mc.typeArguments().isEmpty()
+                                && symbolTable.isContainerSerializationMethod(recType, mc.methodName(), mc.arguments().size())) {
+                            String serializer = "accent.runtime.DataSerialization";
+                            return new MethodCallExpr(new IdentifierExpr(serializer, null), mc.methodName(),
+                                    List.of(), List.of(rec), false, mc.token());
+                        }
                         // Check extension
                         for (ExtensionDecl ext : symbolTable.extensions()) {
                             ResolvedType extTarget = symbolTable.resolveTypeNode(ext.targetType(), this);
@@ -716,6 +722,11 @@ public final class AccentLowerer implements ImportResolver {
             if (rec != null) {
                 SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), symbolTable);
                 if (mInfo != null) return symbolTable.resolveTypeNode(mInfo.returnType(), this);
+
+                if (mc.typeArguments().isEmpty()
+                        && symbolTable.isContainerSerializationMethod(rec, mc.methodName(), mc.arguments().size())) {
+                    return new ResolvedType(symbolTable.getType("java.lang.String"), !mc.isOptional(), List.of(), 0);
+                }
 
                 // Extension methods
                 for (ExtensionDecl ext : symbolTable.extensions()) {

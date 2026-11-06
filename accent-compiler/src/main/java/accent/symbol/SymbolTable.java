@@ -105,6 +105,19 @@ public final class SymbolTable {
         }
     }
 
+    /** Native container methods require record/model element or value types. */
+    public boolean isContainerSerializationMethod(ResolvedType receiver, String name, int argumentCount) {
+        if (receiver == null || receiver.info() == null || receiver.arrayDimensions() != 0
+                || argumentCount != 0 || !(name.equals("toJson") || name.equals("toXml"))) return false;
+        boolean map = receiver.isSubtypeOf(receiver.info(), "java.util.Map", this);
+        if (!map && !receiver.isSubtypeOf(receiver.info(), "java.util.List", this)) return false;
+        int index = map ? 1 : 0;
+        if (receiver.typeArguments().size() <= index) return false;
+        ResolvedType value = receiver.typeArguments().get(index);
+        return value.arrayDimensions() == 0 && (value.info().isRecord()
+                || value.isSubtypeOf(value.info(), "accent.runtime.AccentModel", this));
+    }
+
     public ResolvedType resolveTypeNode(TypeNode node, ImportResolver resolver) {
         if (node instanceof PrimitiveTypeNode prim) {
             return new ResolvedType(getType(prim.name()), true, List.of(), 0);
@@ -155,6 +168,7 @@ public final class SymbolTable {
                 interfaces.add(resolveTypeName(getTypeName(itf), unit));
             }
         } else if (decl instanceof ModelDecl md) {
+            interfaces.add("accent.runtime.AccentModel");
             if (!interfaces.contains("java.io.Serializable")) {
                 interfaces.add("java.io.Serializable");
             }
@@ -264,6 +278,15 @@ public final class SymbolTable {
         if (decl instanceof ClassDecl cd && cd.isSingleton()) {
             BaseTypeNode selfType = new BaseTypeNode(fullName, List.of(), true);
             methods.add(new MethodInfo("instance", List.of("public", "static"), selfType, List.of()));
+        }
+
+        if (isRecord || decl instanceof ModelDecl) {
+            for (String name : List.of("toJson", "toXml")) {
+                if (methods.stream().noneMatch(m -> m.name().equals(name) && m.parameters().isEmpty())) {
+                    methods.add(new MethodInfo(name, List.of("public"),
+                            new BaseTypeNode("java.lang.String", List.of(), true), List.of()));
+                }
+            }
         }
 
         return new TypeInfo(fullName, isInterface, isRecord, isEnum, false, superclass, interfaces, methods, fields, constructors);

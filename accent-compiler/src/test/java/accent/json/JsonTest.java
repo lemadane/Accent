@@ -67,7 +67,7 @@ public class JsonTest {
         assertEquals("Wonderland", user.address().city());
         assertEquals(Instant.parse("2023-10-01T12:00:00Z"), user.createdAt());
 
-        String stringified = Json.stringify(user);
+        String stringified = accent.runtime.DataSerialization.toJson(user);
         assertTrue(stringified.contains("\"user_id\":\"123e4567-e89b-12d3-a456-426614174000\""));
         assertTrue(stringified.contains("\"name\":\"Alice\""));
         assertFalse(stringified.contains("secret"));
@@ -91,7 +91,7 @@ public class JsonTest {
         assertEquals("Bob", obj.myName());
         assertEquals(25, obj.myAge());
         
-        String s = json.stringifyInternal(obj);
+        String s = new accent.json.internal.JsonStringifier(new JsonOptions(JsonNamingPolicy.SNAKE_CASE, true, false)).stringify(obj);
         assertTrue(s.contains("\"my_name\":\"Bob\""));
         assertTrue(s.contains("\"my_age\":25"));
     }

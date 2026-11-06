@@ -44,7 +44,7 @@ public class JsonDemo {
             new Address("Rizal Street", "Quezon City")
         );
 
-        String json = Json.stringify(originalUser);
+        String json = accent.runtime.DataSerialization.toJson(originalUser);
         System.out.println("\n--- Serialized JSON ---");
         System.out.println(json);
 
@@ -55,7 +55,7 @@ public class JsonDemo {
 
         // 3. Array Parsing
         System.out.println("\n--- Array Parsing ---");
-        String arrayJson = Json.stringify(List.of(originalUser, parsedUser));
+        String arrayJson = accent.runtime.DataSerialization.toJson(List.of(originalUser, parsedUser));
         List<User> users = Json.parseList(arrayJson, User.class);
         System.out.printf("Parsed %d users from array.\n", users.size());
 

@@ -17,8 +17,12 @@ public class JsonMapper {
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends Record> T mapToRecord(Object jsonObj, Class<T> clazz) {
+    public <T> T mapToRecord(Object jsonObj, Class<T> clazz) {
+        if (!clazz.isRecord() && !accent.runtime.AccentModel.class.isAssignableFrom(clazz)) {
+            throw new JsonMappingException("Only records and Accent models are supported for typed parsing.");
+        }
         if (jsonObj == null) return null;
+        if (!clazz.isRecord()) return mapToModel(jsonObj, clazz);
         if (!(jsonObj instanceof Map)) {
             throw new JsonMappingException("Expected JSON object to map to " + clazz.getName());
         }
@@ -75,8 +79,36 @@ public class JsonMapper {
         }
     }
 
+    private <T> T mapToModel(Object jsonObj, Class<T> clazz) {
+        if (!(jsonObj instanceof Map<?, ?> map)) throw new JsonMappingException("Expected object for " + clazz.getName());
+        Field[] fields = Arrays.stream(clazz.getDeclaredFields())
+                .filter(f -> !Modifier.isStatic(f.getModifiers()) && !f.isSynthetic()).toArray(Field[]::new);
+        Object[] args = new Object[fields.length];
+        Class<?>[] types = new Class<?>[fields.length];
+        Set<String> known = new HashSet<>();
+        for (int i = 0; i < fields.length; i++) {
+            Field field = fields[i];
+            types[i] = field.getType();
+            String key = field.isAnnotationPresent(JsonName.class) ? field.getAnnotation(JsonName.class).value()
+                    : options.namingPolicy().translateName(field.getName());
+            known.add(key);
+            args[i] = !field.isAnnotationPresent(JsonIgnore.class) && map.containsKey(key)
+                    ? mapValue(map.get(key), field.getType(), field.getGenericType()) : defaultValue(field.getType());
+        }
+        if (!options.ignoreUnknownProperties()) {
+            for (Object key : map.keySet()) if (!known.contains(key)) throw new JsonMappingException("Unknown property: " + key);
+        }
+        try {
+            Constructor<T> ctor = clazz.getDeclaredConstructor(types);
+            if (!ctor.trySetAccessible()) throw new JsonMappingException("Inaccessible model constructor");
+            return ctor.newInstance(args);
+        } catch (ReflectiveOperationException e) {
+            throw new JsonMappingException("Failed to instantiate model " + clazz.getName(), e);
+        }
+    }
+
     @SuppressWarnings("unchecked")
-    public <T extends Record> List<T> mapToList(List<?> list, Class<T> clazz) {
+    public <T> List<T> mapToList(List<?> list, Class<T> clazz) {
         List<T> result = new ArrayList<>();
         for (Object item : list) {
             result.add(mapToRecord(item, clazz));
@@ -96,8 +128,20 @@ public class JsonMapper {
             return Optional.of(val);
         }
 
-        if (type.isRecord()) {
-            return mapToRecord(val, (Class<? extends Record>) type);
+        if (type.isRecord() || accent.runtime.AccentModel.class.isAssignableFrom(type)) {
+            return mapToRecord(val, type);
+        }
+
+        if (type.isArray()) {
+            if (!(val instanceof List<?> values)) throw new JsonMappingException("Expected array");
+            Object array = Array.newInstance(type.getComponentType(), values.size());
+            for (int i = 0; i < values.size(); i++) Array.set(array, i, mapValue(values.get(i), type.getComponentType(), type.getComponentType()));
+            return array;
+        }
+        if (type == char.class || type == Character.class) {
+            String text = String.valueOf(val);
+            if (text.length() != 1) throw new JsonMappingException("Expected one character");
+            return text.charAt(0);
         }
 
         if (type == String.class) {
@@ -194,9 +238,13 @@ public class JsonMapper {
 
     private Object defaultValue(Class<?> type) {
         if (type == boolean.class) return false;
-        if (type == int.class || type == short.class || type == byte.class) return 0;
+        if (type == int.class) return 0;
+        if (type == short.class) return (short) 0;
+        if (type == byte.class) return (byte) 0;
+        if (type == char.class) return (char) 0;
         if (type == long.class) return 0L;
-        if (type == double.class || type == float.class) return 0.0;
+        if (type == double.class) return 0.0;
+        if (type == float.class) return 0.0f;
         if (type == Optional.class) return Optional.empty();
         return null;
     }

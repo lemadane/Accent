@@ -680,6 +680,11 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
 
             if (rec != null) {
+                if (rec.arrayDimensions() > 0 && (mc.methodName().equals("toJson") || mc.methodName().equals("toXml"))) {
+                    error(mc.token(), "Cannot resolve method '" + mc.methodName() + "' on array type " + rec);
+                    return null;
+                }
+
                 // 1. Resolve normal instance/static methods
                 SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), argTypes, symbolTable);
 
@@ -689,6 +694,11 @@ public final class SemanticAnalyzer implements ImportResolver {
                         retType = retType.withNonNull(false);
                     }
                     return retType;
+                }
+
+                if (mc.typeArguments().isEmpty()
+                        && symbolTable.isContainerSerializationMethod(rec, mc.methodName(), mc.arguments().size())) {
+                    return new ResolvedType(symbolTable.getType("java.lang.String"), !mc.isOptional(), List.of(), 0);
                 }
 
                 // 2. Resolve extension methods
