@@ -9,12 +9,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Runtime value produced by a future Accent {@code async expression} lowering.
+ * Runtime value produced by an Accent {@code async expression} lowering.
  */
-public final class AccentFuture<T> {
+public final class Async<T> {
     private final Future<T> delegate;
 
-    AccentFuture(Future<T> delegate) {
+    Async(Future<T> delegate) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 

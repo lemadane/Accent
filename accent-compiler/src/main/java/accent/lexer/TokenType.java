@@ -30,7 +30,6 @@ public enum TokenType {
     DO,
     YIELD,
     ASYNC,
-    AWAIT,
     RETURN,
     NEW,
     PUBLIC,

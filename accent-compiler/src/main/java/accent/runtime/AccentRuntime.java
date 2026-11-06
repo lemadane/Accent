@@ -5,14 +5,14 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Prototype runtime support for Accent async/await lowering. */
+/** Runtime support for Accent async expressions. */
 public final class AccentRuntime {
     private static final AtomicLong TASK_SEQUENCE = new AtomicLong();
 
     private AccentRuntime() {
     }
 
-    public static <T> AccentFuture<T> async(Callable<T> operation) {
+    public static <T> Async<T> async(Callable<T> operation) {
         Objects.requireNonNull(operation, "operation");
 
         FutureTask<T> task = new FutureTask<>(operation);
@@ -20,10 +20,10 @@ public final class AccentRuntime {
                 .name("accent-task-", TASK_SEQUENCE.incrementAndGet())
                 .start(task);
 
-        return new AccentFuture<>(task);
+        return new Async<>(task);
     }
 
-    public static AccentFuture<Void> async(Runnable operation) {
+    public static Async<Void> async(Runnable operation) {
         Objects.requireNonNull(operation, "operation");
         return async(() -> {
             operation.run();

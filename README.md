@@ -19,14 +19,14 @@ public record DashboardService(
         OrderService! orderService) {
 
     public Dashboard! load(UUID! customerId) {
-        final customerFuture =
+        final customerAsync =
             async this.customerService.findRequired(customerId);
 
-        final ordersFuture =
+        final ordersAsync =
             async this.orderService.findForCustomer(customerId);
 
-        final customer = await customerFuture;
-        final orders = await ordersFuture;
+        final customer = customerAsync.await();
+        final orders = ordersAsync.await();
 
         final status = if (customer.isActive()) {
             yield "ACTIVE";
@@ -94,30 +94,41 @@ The right-hand expression is evaluated only when the left-hand value is `null`.
 Ordinary Java and Accent methods remain synchronous. Concurrency is requested at the call site:
 
 ```java
-final customerFuture =
+final customerAsync =
     async this.customerService.findRequired(id);
 
-final ordersFuture =
+final ordersAsync =
     async this.orderService.findForCustomer(id);
 
-final customer = await customerFuture;
-final orders = await ordersFuture;
+final customer = customerAsync.await();
+final orders = ordersAsync.await();
 ```
 
-The intended semantics are:
+`async expression` returns `accent.runtime.Async<T>`, where `T` is the expression's result type. You can let Accent infer it or declare it explicitly:
+
+```accent
+import accent.runtime.Async;
+
+final Async<Customer> customerAsync = async this.customerService.findRequired(id);
+final Customer customer = customerAsync.await();
+```
+
+The semantics are:
 
 ```text
-async expression  -> start the expression on a Virtual Thread and return a future
-await future      -> wait for completion and produce the result
+async expression  -> start the expression on a Virtual Thread and return an Async<T>
+asyncValue.await() -> wait for completion and produce the result
 ```
 
-Accent hides Virtual Thread creation, future management, exception unwrapping, cancellation, structured lifetime, and cleanup.
+Accent starts each `async` operation on a virtual thread and returns `Async<T>`. Call `.await()` to wait for its result. Runtime failures are rethrown; checked failures are wrapped in `AccentExecutionException`.
 
-Immediately awaiting newly started work should be discouraged when no concurrency is gained:
+`Async<T>` also provides `.await(Duration timeout)`, `.cancel()`, `.isDone()`, and `.isCancelled()`. A timeout does not cancel the operation. Cancellation requests interruption. Tasks are independent: leaving a method or observing one task fail does not automatically await or cancel other tasks. Shared mutable objects still require coordination.
+
+Start independent operations before awaiting them to allow overlap. Immediately awaiting a single newly started operation gains no concurrency:
 
 ```java
 final customer =
-    await async this.customerService.findRequired(id);
+    (async this.customerService.findRequired(id)).await();
 ```
 
 Prefer the ordinary synchronous call in that case:
@@ -724,12 +735,12 @@ The runtime automatically maps database result set columns to Java records using
 
 ### 25. Synchronous SQL Query Execution for Virtual Threads
 
-Because Accent has native compiler-level support for **Virtual Threads (`async`/`await`)**, database query literals can be executed synchronously in lightweight thread contexts without blocking carrier system threads:
+Because Accent has native compiler-level support for **Virtual Threads (`async` and `Async.await()`)**, database query literals can be executed synchronously in lightweight thread contexts without blocking carrier system threads:
 
 ```java
-final usersFuture = async sql<User>`SELECT * FROM users`;
+final usersAsync = async sql<User>`SELECT * FROM users`;
 // ... concurrent operations ...
-final users = await usersFuture;
+final users = usersAsync.await();
 ```
 
 When a query blocks on database I/O, the JVM automatically unmounts the virtual thread, enabling high-performance concurrent database operations with standard, simple synchronous code.
@@ -1504,7 +1515,7 @@ The repository already contains:
 - a **Java source emitter** for transpilation output
 - source-file and diagnostic abstractions
 - a CLI with `check`, `tokens`, and `checkAccent` commands
-- a Virtual Thread runtime prototype for `async`/`await` lowering
+- a virtual-thread runtime for `async` expressions and `Async.await()` calls
 - JUnit 5 tests (including end-to-end compiler tests)
 - an example `.accent` source file
 
@@ -1532,7 +1543,7 @@ An LSP-compliant server built with LSP4J communicating via `stdin`/`stdout`.
 
 ### 3. `accent-vscode` (VS Code Extension)
 Provides out-of-the-box support for VS Code:
-* **Syntax Highlighting**: Custom TextMate grammar (`.accent` language mode) highlighting interpolated strings, JSX HTML tags, and async/await blocks.
+* **Syntax Highlighting**: Custom TextMate grammar (`.accent` language mode) highlighting interpolated strings, JSX HTML tags, and `async` expressions and `.await()` calls.
 * **LSP Client**: Boots the Language Server from local Gradle build automatically.
 * **Commands**: Run command `Accent: Show Generated Java` to transpile on-the-fly and display raw Java side-by-side.
 

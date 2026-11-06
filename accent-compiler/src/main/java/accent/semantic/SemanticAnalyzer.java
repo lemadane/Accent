@@ -511,8 +511,8 @@ public final class SemanticAnalyzer implements ImportResolver {
         } else if (stmt instanceof ExprStmt es) {
             ResolvedType type = checkExpression(es.expression());
             // Warning for ignored future
-            if (type != null && type.info().fullName().equals("accent.runtime.AccentFuture")) {
-                warning(es.expression().token(), "ACCENT-W001", "Unobserved or ignored async future. Consider assigning it to a variable or using 'await'.");
+            if (type != null && type.info().fullName().equals("accent.runtime.Async")) {
+                warning(es.expression().token(), "ACCENT-W001", "Unobserved or ignored Async result. Consider assigning it to a variable or calling .await().");
             }
         }
     }
@@ -732,7 +732,10 @@ public final class SemanticAnalyzer implements ImportResolver {
                 SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), argTypes, symbolTable);
 
                 if (mInfo != null) {
-                    ResolvedType retType = symbolTable.resolveTypeNode(mInfo.returnType(), this);
+                    ResolvedType retType = rec.info().fullName().equals("accent.runtime.Async")
+                            && mc.methodName().equals("await") && !rec.typeArguments().isEmpty()
+                            ? rec.typeArguments().getFirst()
+                            : symbolTable.resolveTypeNode(mInfo.returnType(), this);
                     if (mc.isOptional()) {
                         retType = retType.withNonNull(false);
                     }
@@ -824,25 +827,11 @@ public final class SemanticAnalyzer implements ImportResolver {
             return new ResolvedType(funcItf, true, List.of(), 0);
         } else if (expr instanceof AsyncExpr ae) {
             ResolvedType type = checkExpression(ae.expression());
-            TypeInfo fut = symbolTable.getType("accent.runtime.AccentFuture");
-            return new ResolvedType(fut, true, List.of(type), 0);
-        } else if (expr instanceof AwaitExpr awe) {
-            ResolvedType type = checkExpression(awe.expression());
-            
-            // Warnings check
-            if (awe.expression() instanceof AsyncExpr) {
-                warning(awe.token(), "ACCENT-W002", "Immediate 'await async' pattern detected. Concurrency is not gained. Prefer synchronous calls.");
+            if (type != null && type.info().fullName().equals("void")) {
+                type = new ResolvedType(symbolTable.getType("java.lang.Void"), false, List.of(), 0);
             }
-
-            if (type != null && type.info().fullName().equals("accent.runtime.AccentFuture")) {
-                if (!type.typeArguments().isEmpty()) {
-                    return type.typeArguments().get(0);
-                }
-                TypeInfo obj = symbolTable.getType("java.lang.Object");
-                return new ResolvedType(obj, false, List.of(), 0);
-            } else {
-                error(awe.token(), "Awaiting a non-future value of type: " + type);
-            }
+            TypeInfo asyncType = symbolTable.getType("accent.runtime.Async");
+            return new ResolvedType(asyncType, true, List.of(type), 0);
         } else if (expr instanceof IfExpr ie) {
             checkExpression(ie.condition());
             

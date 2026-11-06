@@ -205,7 +205,7 @@ public final class AccentCli {
         List<String> cpList = new ArrayList<>(classpath);
         cpList.add(outputDir.toString());
         // Also add runtime classes if any are needed
-        cpList.add(Path.of("build/classes/java/main").toString()); // Main project runtime (for AccentFuture etc)
+        cpList.add(Path.of("build/classes/java/main").toString()); // Main project runtime (for Async etc)
 
         cmd.add("-cp");
         cmd.add(String.join(System.getProperty("path.separator"), cpList));

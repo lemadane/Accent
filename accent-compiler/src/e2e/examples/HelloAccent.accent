@@ -18,14 +18,14 @@ public class DashboardService {
     }
 
     public Dashboard! load(UUID! customerId) {
-        final customerFuture =
+        final customerAsync =
             async this.customerService.findRequired(customerId);
 
-        final ordersFuture =
+        final ordersAsync =
             async this.orderService.findForCustomer(customerId);
 
-        final customer = await customerFuture;
-        final orders = await ordersFuture;
+        final customer = customerAsync.await();
+        final orders = ordersAsync.await();
 
         final status = if (customer.isActive()) {
             yield "ACTIVE";

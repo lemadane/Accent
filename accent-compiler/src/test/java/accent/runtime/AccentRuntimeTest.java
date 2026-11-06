@@ -11,10 +11,10 @@ import org.junit.jupiter.api.Test;
 class AccentRuntimeTest {
     @Test
     void runsOperationOnVirtualThread() {
-        AccentFuture<Boolean> future = AccentRuntime.async(() ->
+        Async<Boolean> valueAsync = AccentRuntime.async(() ->
                 Thread.currentThread().isVirtual());
 
-        assertTrue(future.await());
+        assertTrue(valueAsync.await());
     }
 
     @Test
@@ -22,13 +22,13 @@ class AccentRuntimeTest {
         CountDownLatch bothStarted = new CountDownLatch(2);
         CountDownLatch release = new CountDownLatch(1);
 
-        AccentFuture<String> first = AccentRuntime.async(() -> {
+        Async<String> first = AccentRuntime.async(() -> {
             bothStarted.countDown();
             release.await();
             return "first";
         });
 
-        AccentFuture<String> second = AccentRuntime.async(() -> {
+        Async<String> second = AccentRuntime.async(() -> {
             bothStarted.countDown();
             release.await();
             return "second";
@@ -43,12 +43,12 @@ class AccentRuntimeTest {
 
     @Test
     void rethrowsRuntimeFailureAtAwait() {
-        AccentFuture<String> future = AccentRuntime.async(() -> {
+        Async<String> failureAsync = AccentRuntime.async(() -> {
             throw new IllegalStateException("failure");
         });
 
         IllegalStateException exception =
-                assertThrows(IllegalStateException.class, future::await);
+                assertThrows(IllegalStateException.class, failureAsync::await);
 
         assertEquals("failure", exception.getMessage());
     }

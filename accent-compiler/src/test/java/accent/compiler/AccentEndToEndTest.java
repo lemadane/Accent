@@ -214,13 +214,38 @@ class AccentEndToEndTest {
     }
 
     @Test
+    void testExplicitAsyncTypeAcrossMethodBoundaries() throws Exception {
+        String code = """
+                package test;
+                import accent.runtime.Async;
+                public class TypedAsyncMain {
+                    public static Async<String> start() { return async "hello"; }
+                    public static String finish(Async<String> task) { return task.await(); }
+                    public static void main(String[] args) {
+                        final Async<String> task = start();
+                        final inferred = async "world";
+                        if (finish(task) != "hello") throw new RuntimeException("Typed Async failed");
+                        if (finish(inferred) != "world") throw new RuntimeException("Inferred Async failed");
+                    }
+                }
+                """;
+        Path tempDir = createTempDir();
+        Path sources = Files.createDirectories(tempDir.resolve("src"));
+        Path output = tempDir.resolve("bin");
+        Files.writeString(sources.resolve("TypedAsyncMain.accent"), code);
+        CompilationResult result = compile(sources, output, tempDir.resolve("gen"));
+        assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
+        runClass(output, "test.TypedAsyncMain");
+    }
+
+    @Test
     void testAsyncAwaitConcurrency() throws Exception {
         String code = 
             "package test;\n" +
             "public class AsyncMain {\n" +
             "    public static void main(String[] args) {\n" +
-            "        final fut1 = async 42;\n" +
-            "        final val = await fut1;\n" +
+            "        final valueAsync = async 42;\n" +
+            "        final val = valueAsync.await();\n" +
             "        if (val != 42) { throw new RuntimeException(\"Async/await failed\"); }\n" +
             "    }\n" +
             "}\n";
@@ -380,8 +405,8 @@ class AccentEndToEndTest {
             "public class AsyncSqlMain {\n" +
             "    public static void main(String[] args) {\n" +
             "        final id = 42;\n" +
-            "        final queryFuture = async sql`SELECT * FROM users WHERE id = {id}`;\n" +
-            "        final query = await queryFuture;\n" +
+            "        final queryAsync = async sql`SELECT * FROM users WHERE id = {id}`;\n" +
+            "        final query = queryAsync.await();\n" +
             "    }\n" +
             "}\n";
 

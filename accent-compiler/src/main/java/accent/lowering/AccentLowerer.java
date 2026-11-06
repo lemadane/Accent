@@ -515,13 +515,12 @@ public final class AccentLowerer implements ImportResolver {
             Expression inner = lowerExpression(ae.expression());
             ResolvedType type = getTypeOf(inner);
             
-            // Build lambda () -> inner
-            LambdaExpr lambda = new LambdaExpr(List.of(), inner, null);
+            // Void operations need Callable<Void> too, so checked exceptions reach Async.await().
+            Node body = type != null && type.info().fullName().equals("void")
+                    ? new BlockStmt(List.of(new ExprStmt(inner), new ReturnStmt(Optional.of(new LiteralExpr(null, null)))))
+                    : inner;
+            LambdaExpr lambda = new LambdaExpr(List.of(), body, null);
             return new MethodCallExpr(new IdentifierExpr("accent.runtime.AccentRuntime", null), "async", List.of(), List.of(lambda), false, ae.token());
-        } else if (expr instanceof AwaitExpr awe) {
-            // Lower: await expr -> expr.await()
-            Expression inner = lowerExpression(awe.expression());
-            return new MethodCallExpr(inner, "await", List.of(), List.of(), false, awe.token());
         } else if (expr instanceof IfExpr ie) {
             // Lower block expression: if (cond) { yield X; } else { yield Y; }
             ResolvedType type = getTypeOf(ie);
@@ -741,7 +740,13 @@ public final class AccentLowerer implements ImportResolver {
             }
             if (rec != null) {
                 SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), symbolTable);
-                if (mInfo != null) return symbolTable.resolveTypeNode(mInfo.returnType(), this);
+                if (mInfo != null) {
+                    if (rec.info().fullName().equals("accent.runtime.Async")
+                            && mc.methodName().equals("await") && !rec.typeArguments().isEmpty()) {
+                        return rec.typeArguments().getFirst();
+                    }
+                    return symbolTable.resolveTypeNode(mInfo.returnType(), this);
+                }
 
                 if (mc.typeArguments().isEmpty()
                         && symbolTable.isContainerSerializationMethod(rec, mc.methodName(), mc.arguments().size())) {
@@ -772,12 +777,10 @@ public final class AccentLowerer implements ImportResolver {
             }
         } else if (expr instanceof AsyncExpr ae) {
             ResolvedType type = getTypeOf(ae.expression());
-            return new ResolvedType(symbolTable.getType("accent.runtime.AccentFuture"), true, List.of(type), 0);
-        } else if (expr instanceof AwaitExpr awe) {
-            ResolvedType type = getTypeOf(awe.expression());
-            if (type != null && type.info().fullName().equals("accent.runtime.AccentFuture")) {
-                if (!type.typeArguments().isEmpty()) return type.typeArguments().get(0);
+            if (type != null && type.info().fullName().equals("void")) {
+                type = new ResolvedType(symbolTable.getType("java.lang.Void"), false, List.of(), 0);
             }
+            return new ResolvedType(symbolTable.getType("accent.runtime.Async"), true, List.of(type), 0);
         } else if (expr instanceof IfExpr ie) {
             ResolvedType t1 = getTypeOf(ie.thenBranch().statements().get(0) instanceof YieldStmt ? ((YieldStmt) ie.thenBranch().statements().get(0)).expression() : new LiteralExpr(null, null));
             return t1;

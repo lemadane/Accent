@@ -85,7 +85,7 @@ public final class CompletionProvider {
             "public", "private", "protected", "static", "final",
             "void", "return", "if", "else", "for", "while", "do",
             "try", "catch", "finally", "throw", "yield", "break",
-            "continue", "async", "await", "generator", "emit"
+            "continue", "async", "generator", "emit"
         };
         for (String kw : keywords) {
             items.add(new CompletionItem(kw, "Keyword", "Accent keyword"));
