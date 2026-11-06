@@ -1249,55 +1249,8 @@ public final class AccentParser {
             
             int prevEnd = tokens.get(current - 1).endOffset();
             
-            if (check(TokenType.LEFT_BRACE)) {
-                advance(); // {
-                
-                if (check(TokenType.IF)) {
-                    Token ifToken = advance();
-                    Expression condition = parseExpression(Precedence.NONE);
-                    consume(TokenType.LEFT_BRACE, "Expected '{' for 'if' block.");
-                    List<MarkupNode> trueBranch = parseMarkupChildrenInBlock();
-                    List<MarkupNode> falseBranch = List.of();
-                    if (match(TokenType.ELSE)) {
-                        if (check(TokenType.IF)) {
-                            MarkupNode nestedIf = parseMarkupNodeInsideIfChain();
-                            falseBranch = List.of(nestedIf);
-                        } else {
-                            consume(TokenType.LEFT_BRACE, "Expected '{' for 'else' block.");
-                            falseBranch = parseMarkupChildrenInBlock();
-                        }
-                    }
-                    consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
-                    children.add(new IfMarkupNode(condition, trueBranch, falseBranch, ifToken));
-                } else if (check(TokenType.FOR)) {
-                    Token forToken = advance();
-                    boolean hasParen = match(TokenType.LEFT_PAREN);
-                    Parameter loopVar = parseParameter();
-                    if (!match(TokenType.COLON) && !check(TokenType.IDENTIFIER) && !peek().lexeme().equals("in")) {
-                        throw error(peek(), "Expected ':' or 'in' in for loop.");
-                    }
-                    if (check(TokenType.IDENTIFIER) && peek().lexeme().equals("in")) {
-                        advance();
-                    }
-                    Expression iterable = parseExpression(Precedence.NONE);
-                    if (hasParen) {
-                        consume(TokenType.RIGHT_PAREN, "Expected ')' after for loop expression.");
-                    }
-                    consume(TokenType.LEFT_BRACE, "Expected '{' for loop block.");
-                    List<MarkupNode> body = parseMarkupChildrenInBlock();
-                    consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
-                    List<MarkupNode> elseBranch = List.of();
-                    if (match(TokenType.ELSE)) {
-                        consume(TokenType.LEFT_BRACE, "Expected '{' for 'else' block.");
-                        elseBranch = parseMarkupChildrenInBlock();
-                        consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
-                    }
-                    children.add(new ForMarkupNode(loopVar, iterable, body, elseBranch, forToken));
-                } else {
-                    Expression expr = parseExpression(Precedence.NONE);
-                    consume(TokenType.RIGHT_BRACE, "Expected '}' after expression.");
-                    children.add(new ExpressionNode(expr));
-                }
+            if (match(TokenType.LEFT_BRACE)) {
+                children.add(parseMarkupInterpolation());
             } else if (check(TokenType.LESS)) {
                 Token lessToken = advance();
                 children.add(parseMarkupNode(lessToken));
@@ -1320,54 +1273,8 @@ public final class AccentParser {
     private List<MarkupNode> parseMarkupChildrenInBlock() {
         List<MarkupNode> children = new ArrayList<>();
         while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()) {
-            if (check(TokenType.LEFT_BRACE)) {
-                advance(); // {
-                if (check(TokenType.IF)) {
-                    Token ifToken = advance();
-                    Expression condition = parseExpression(Precedence.NONE);
-                    consume(TokenType.LEFT_BRACE, "Expected '{' for 'if' block.");
-                    List<MarkupNode> trueBranch = parseMarkupChildrenInBlock();
-                    List<MarkupNode> falseBranch = List.of();
-                    if (match(TokenType.ELSE)) {
-                        if (check(TokenType.IF)) {
-                            MarkupNode nestedIf = parseMarkupNodeInsideIfChain();
-                            falseBranch = List.of(nestedIf);
-                        } else {
-                            consume(TokenType.LEFT_BRACE, "Expected '{' for 'else' block.");
-                            falseBranch = parseMarkupChildrenInBlock();
-                        }
-                    }
-                    consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
-                    children.add(new IfMarkupNode(condition, trueBranch, falseBranch, ifToken));
-                } else if (check(TokenType.FOR)) {
-                    Token forToken = advance();
-                    boolean hasParen = match(TokenType.LEFT_PAREN);
-                    Parameter loopVar = parseParameter();
-                    if (!match(TokenType.COLON) && !check(TokenType.IDENTIFIER) && !peek().lexeme().equals("in")) {
-                        throw error(peek(), "Expected ':' or 'in' in for loop.");
-                    }
-                    if (check(TokenType.IDENTIFIER) && peek().lexeme().equals("in")) {
-                        advance();
-                    }
-                    Expression iterable = parseExpression(Precedence.NONE);
-                    if (hasParen) {
-                        consume(TokenType.RIGHT_PAREN, "Expected ')' after for loop expression.");
-                    }
-                    consume(TokenType.LEFT_BRACE, "Expected '{' loop block.");
-                    List<MarkupNode> body = parseMarkupChildrenInBlock();
-                    consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
-                    List<MarkupNode> elseBranch = List.of();
-                    if (match(TokenType.ELSE)) {
-                        consume(TokenType.LEFT_BRACE, "Expected '{' for 'else' block.");
-                        elseBranch = parseMarkupChildrenInBlock();
-                        consume(TokenType.RIGHT_BRACE, "Expected '}' to close expression block.");
-                    }
-                    children.add(new ForMarkupNode(loopVar, iterable, body, elseBranch, forToken));
-                } else {
-                    Expression expr = parseExpression(Precedence.NONE);
-                    consume(TokenType.RIGHT_BRACE, "Expected '}' after expression.");
-                    children.add(new ExpressionNode(expr));
-                }
+            if (match(TokenType.LEFT_BRACE)) {
+                children.add(parseMarkupInterpolation());
             } else if (check(TokenType.LESS)) {
                 Token lessToken = advance();
                 children.add(parseMarkupNode(lessToken));
@@ -1386,19 +1293,52 @@ public final class AccentParser {
         return children;
     }
 
+    // The outer interpolation braces are distinct from control-flow body braces.
+    private MarkupNode parseMarkupInterpolation() {
+        MarkupNode node;
+        if (check(TokenType.IF)) {
+            node = parseMarkupNodeInsideIfChain();
+        } else if (match(TokenType.FOR)) {
+            Token forToken = previous();
+            boolean hasParen = match(TokenType.LEFT_PAREN);
+            Parameter loopVar = parseParameter();
+            if (!match(TokenType.COLON)) {
+                Token in = consume(TokenType.IDENTIFIER, "Expected ':' or 'in' in for loop.");
+                if (!in.lexeme().equals("in")) throw error(in, "Expected ':' or 'in' in for loop.");
+            }
+            Expression iterable = parseExpression(Precedence.NONE);
+            if (hasParen) consume(TokenType.RIGHT_PAREN, "Expected ')' after for loop expression.");
+            consume(TokenType.LEFT_BRACE, "Expected '{' for loop body.");
+            List<MarkupNode> body = parseMarkupChildrenInBlock();
+            consume(TokenType.RIGHT_BRACE, "Expected '}' after for loop body.");
+            List<MarkupNode> elseBranch = List.of();
+            if (match(TokenType.ELSE)) {
+                consume(TokenType.LEFT_BRACE, "Expected '{' for 'else' block.");
+                elseBranch = parseMarkupChildrenInBlock();
+                consume(TokenType.RIGHT_BRACE, "Expected '}' after 'else' block.");
+            }
+            node = new ForMarkupNode(loopVar, iterable, body, elseBranch, forToken);
+        } else {
+            node = new ExpressionNode(parseExpression(Precedence.NONE));
+        }
+        consume(TokenType.RIGHT_BRACE, "Expected '}' to close markup expression.");
+        return node;
+    }
+
     private MarkupNode parseMarkupNodeInsideIfChain() {
         Token ifToken = consume(TokenType.IF, "Expected 'if' in else if.");
         Expression condition = parseExpression(Precedence.NONE);
         consume(TokenType.LEFT_BRACE, "Expected '{' for 'if' block.");
         List<MarkupNode> trueBranch = parseMarkupChildrenInBlock();
+        consume(TokenType.RIGHT_BRACE, "Expected '}' after 'if' block.");
         List<MarkupNode> falseBranch = List.of();
         if (match(TokenType.ELSE)) {
             if (check(TokenType.IF)) {
-                MarkupNode nestedIf = parseMarkupNodeInsideIfChain();
-                falseBranch = List.of(nestedIf);
+                falseBranch = List.of(parseMarkupNodeInsideIfChain());
             } else {
                 consume(TokenType.LEFT_BRACE, "Expected '{' for 'else' block.");
                 falseBranch = parseMarkupChildrenInBlock();
+                consume(TokenType.RIGHT_BRACE, "Expected '}' after 'else' block.");
             }
         }
         return new IfMarkupNode(condition, trueBranch, falseBranch, ifToken);

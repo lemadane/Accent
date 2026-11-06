@@ -30,6 +30,11 @@ public final class HtmlWriter {
         }
     }
 
+    /** Gives nested markup lambdas a functional-interface target type. */
+    public void text(Html value) throws IOException {
+        html(value);
+    }
+
     public void attribute(Object value) throws IOException {
         if (value != null) {
             output.append(escapeHtml(value.toString()));
@@ -40,8 +45,9 @@ public final class HtmlWriter {
         if (value == null) {
             return;
         }
-        String url = value.toString().trim();
-        String lower = url.toLowerCase();
+        // Browser URL parsing removes ASCII tabs and newlines before interpreting schemes.
+        String url = value.toString().replace("\t", "").replace("\r", "").replace("\n", "").trim();
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
         if (lower.startsWith("javascript:") || lower.startsWith("vbscript:") || lower.startsWith("data:")) {
             throw new HtmlRenderingException("Unsafe URL scheme in dynamic URL attribute: " + url);
         }

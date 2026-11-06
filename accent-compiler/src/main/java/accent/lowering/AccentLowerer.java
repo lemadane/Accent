@@ -24,6 +24,7 @@ public final class AccentLowerer implements ImportResolver {
     // Generated statements to insert before the current statement
     private final List<Statement> pendingStatements = new ArrayList<>();
     private int tempVarCounter = 0;
+    private final Set<LambdaExpr> markupLambdas = Collections.newSetFromMap(new IdentityHashMap<>());
 
     public AccentLowerer(SymbolTable symbolTable) {
         this.symbolTable = symbolTable;
@@ -501,7 +502,14 @@ public final class AccentLowerer implements ImportResolver {
         } else if (expr instanceof ArrayAccessExpr aa) {
             return new ArrayAccessExpr(lowerExpression(aa.receiver()), lowerExpression(aa.index()), aa.token());
         } else if (expr instanceof LambdaExpr le) {
-            return new LambdaExpr(le.parameters(), le.body(), le.token()); // keep lambdas unchanged
+            if (!markupLambdas.contains(le)) return le;
+            pushScope();
+            for (Parameter parameter : le.parameters()) {
+                scopes.getFirst().put(parameter.name(), symbolTable.resolveTypeNode(parameter.type(), this));
+            }
+            BlockStmt body = lowerBlock((BlockStmt) le.body());
+            popScope();
+            return new LambdaExpr(le.parameters(), body, le.token());
         } else if (expr instanceof AsyncExpr ae) {
             // Lower: async expr -> AccentRuntime.async(() -> expr)
             Expression inner = lowerExpression(ae.expression());
@@ -958,10 +966,15 @@ public final class AccentLowerer implements ImportResolver {
     }
 
     private Expression lowerMarkupExpression(MarkupExpr me) {
-        String writerName = "__writer";
+        return lowerExpression(createMarkupLambda(List.of(me.node()), me.token()));
+    }
+
+    private LambdaExpr createMarkupLambda(List<MarkupNode> nodes, Token token) {
+        String writerName = "__accentWriter$" + tempVarCounter++;
         Parameter writerParam = new Parameter(new BaseTypeNode("accent.html.HtmlWriter", List.of(), true), writerName, false, Optional.empty());
-        List<Statement> stmts = compileMarkupNodes(List.of(me.node()), writerName);
-        return new LambdaExpr(List.of(writerParam), new BlockStmt(stmts), me.token());
+        LambdaExpr lambda = new LambdaExpr(List.of(writerParam), new BlockStmt(compileMarkupNodes(nodes, writerName)), token);
+        markupLambdas.add(lambda);
+        return lambda;
     }
 
     private List<Statement> compileMarkupNodes(List<MarkupNode> nodes, String writerName) {
@@ -994,14 +1007,14 @@ public final class AccentLowerer implements ImportResolver {
             if (act instanceof StaticAction sa) {
                 stmts.add(new ExprStmt(new MethodCallExpr(writerExpr, "literal", List.of(), List.of(new LiteralExpr(sa.value(), null)), false, null)));
             } else if (act instanceof DynamicTextAction dta) {
-                stmts.add(new ExprStmt(new MethodCallExpr(writerExpr, "text", List.of(), List.of(lowerExpression(dta.expression())), false, null)));
+                stmts.add(new ExprStmt(new MethodCallExpr(writerExpr, "text", List.of(), List.of(dta.expression()), false, null)));
             } else if (act instanceof DynamicAttrAction daa) {
                 stmts.add(new ExprStmt(new MethodCallExpr(writerExpr, "literal", List.of(), List.of(new LiteralExpr(" " + daa.name() + "=\"", null)), false, null)));
                 String method = daa.isUrl() ? "urlAttribute" : "attribute";
-                stmts.add(new ExprStmt(new MethodCallExpr(writerExpr, method, List.of(), List.of(lowerExpression(daa.expression())), false, null)));
+                stmts.add(new ExprStmt(new MethodCallExpr(writerExpr, method, List.of(), List.of(daa.expression()), false, null)));
                 stmts.add(new ExprStmt(new MethodCallExpr(writerExpr, "literal", List.of(), List.of(new LiteralExpr("\"", null)), false, null)));
             } else if (act instanceof DynamicBoolAttrAction dba) {
-                Expression cond = lowerExpression(dba.expression());
+                Expression cond = dba.expression();
                 Statement write = new ExprStmt(new MethodCallExpr(writerExpr, "literal", List.of(), List.of(new LiteralExpr(" " + dba.name(), null)), false, null));
                 stmts.add(new IfStmt(cond, write, Optional.empty()));
             } else if (act instanceof ComponentAction ca) {
@@ -1021,10 +1034,7 @@ public final class AccentLowerer implements ImportResolver {
                     for (Parameter param : matched.parameters()) {
                         ResolvedType paramType = symbolTable.resolveTypeNode(param.type(), this);
                         if (paramType != null && paramType.info().fullName().equals("accent.html.HtmlChildren")) {
-                            String childWriterName = "__childWriter";
-                            Parameter childWriterParam = new Parameter(new BaseTypeNode("accent.html.HtmlWriter", List.of(), true), childWriterName, false, Optional.empty());
-                            List<Statement> childStmts = compileMarkupNodes(comp.children(), childWriterName);
-                            constructorArgs.add(new LambdaExpr(List.of(childWriterParam), new BlockStmt(childStmts), null));
+                            constructorArgs.add(createMarkupLambda(comp.children(), null));
                         } else {
                             ComponentArgumentNode argNode = null;
                             for (ComponentArgumentNode arg : comp.arguments()) {
@@ -1034,10 +1044,10 @@ public final class AccentLowerer implements ImportResolver {
                                 }
                             }
                             if (argNode != null) {
-                                constructorArgs.add(lowerExpression(argNode.value()));
+                                constructorArgs.add(argNode.value());
                             } else {
                                 if (param.defaultValue().isPresent()) {
-                                    constructorArgs.add(lowerExpression(param.defaultValue().get()));
+                                    constructorArgs.add(param.defaultValue().get());
                                 } else {
                                     constructorArgs.add(new LiteralExpr(null, null));
                                 }
@@ -1053,12 +1063,12 @@ public final class AccentLowerer implements ImportResolver {
                 IfMarkupNode imn = ia.node();
                 Statement trueB = new BlockStmt(compileMarkupNodes(imn.trueBranch(), writerName));
                 Statement falseB = new BlockStmt(compileMarkupNodes(imn.falseBranch(), writerName));
-                stmts.add(new IfStmt(lowerExpression(imn.condition()), trueB, Optional.of(falseB)));
+                stmts.add(new IfStmt(imn.condition(), trueB, Optional.of(falseB)));
             } else if (act instanceof ForAction fa) {
                 ForMarkupNode fmn = fa.node();
                 Statement body = new BlockStmt(compileMarkupNodes(fmn.body(), writerName));
                 Optional<Statement> elseBranch = fmn.elseBranch().isEmpty() ? Optional.empty() : Optional.of(new BlockStmt(compileMarkupNodes(fmn.elseBranch(), writerName)));
-                stmts.add(new ForEachStmt(fmn.parameter(), lowerExpression(fmn.iterable()), body, elseBranch));
+                stmts.add(new ForEachStmt(fmn.parameter(), fmn.iterable(), body, elseBranch));
             }
         }
         return stmts;
@@ -1068,19 +1078,19 @@ public final class AccentLowerer implements ImportResolver {
         if (node instanceof ElementNode el) {
             actions.add(new StaticAction("<" + el.tagName()));
             for (AttributeNode attr : el.attributes()) {
+                boolean booleanAttribute = isBooleanAttribute(attr.name());
                 if (attr.value() instanceof LiteralExpr lit) {
-                    if (lit.value() instanceof Boolean && (Boolean) lit.value()) {
+                    if (booleanAttribute && (lit.value() == null || Boolean.FALSE.equals(lit.value()))) continue;
+                    if (booleanAttribute && Boolean.TRUE.equals(lit.value())) {
                         actions.add(new StaticAction(" " + attr.name()));
                     } else {
                         String val = String.valueOf(lit.value());
                         actions.add(new StaticAction(" " + attr.name() + "=\"" + escapeHtml(val) + "\""));
                     }
+                } else if (booleanAttribute) {
+                    actions.add(new DynamicBoolAttrAction(attr.name(), attr.value()));
                 } else {
-                    if (isBooleanAttribute(attr.name())) {
-                        actions.add(new DynamicBoolAttrAction(attr.name(), attr.value()));
-                    } else {
-                        actions.add(new DynamicAttrAction(attr.name(), attr.value(), isUrlAttribute(attr.name())));
-                    }
+                    actions.add(new DynamicAttrAction(attr.name(), attr.value(), isUrlAttribute(attr.name())));
                 }
             }
             if (isVoidElement(el.tagName())) {
@@ -1127,12 +1137,12 @@ public final class AccentLowerer implements ImportResolver {
     }
 
     private static boolean isUrlAttribute(String name) {
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         return lower.equals("href") || lower.equals("src") || lower.equals("action") || lower.equals("formaction") || lower.equals("data");
     }
 
     private static boolean isBooleanAttribute(String name) {
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         return lower.equals("disabled") || lower.equals("checked") || lower.equals("selected") || lower.equals("readonly") ||
                lower.equals("required") || lower.equals("multiple") || lower.equals("autofocus") || lower.equals("novalidate") ||
                lower.equals("hidden") || lower.equals("open") || lower.equals("async") || lower.equals("defer") ||
@@ -1140,7 +1150,7 @@ public final class AccentLowerer implements ImportResolver {
     }
 
     private static boolean isVoidElement(String name) {
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         return lower.equals("img") || lower.equals("br") || lower.equals("hr") ||
                lower.equals("input") || lower.equals("meta") || lower.equals("link") ||
                lower.equals("col") || lower.equals("embed") || lower.equals("source") ||
