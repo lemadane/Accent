@@ -134,9 +134,16 @@ public interface Ast {
 
     record EnumConstant(String name, List<Expression> arguments) implements Node {}
 
-    record Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue, boolean isMutable) implements Node {
+    record Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue,
+                     boolean isMutable, List<String> annotations) implements Node {
+        public Parameter {
+            annotations = List.copyOf(annotations);
+        }
+        public Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue, boolean isMutable) {
+            this(type, name, isVarargs, defaultValue, isMutable, List.of());
+        }
         public Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue) {
-            this(type, name, isVarargs, defaultValue, false);
+            this(type, name, isVarargs, defaultValue, false, List.of());
         }
     }
 

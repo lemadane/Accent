@@ -1187,7 +1187,11 @@ public class UserController {
 }
 ```
 
-The `accent-html-spring` library will automatically intercept the returned `Component` (or raw `Html`), render it, and stream the HTML back to the browser.
+The `accent-spring-boot-starter` intercepts returned `Component` and `Html` values in both `@Controller` and `@RestController` methods, renders them, and streams `text/html;charset=UTF-8` to the browser. Other response types retain Spring's normal response handling, including JSON.
+
+Accent preserves parameter annotations such as `@RequestParam`, `@PathVariable`, `@RequestBody`, and constructor `@Qualifier`, along with reflection-visible parameter names. This also works with classes compiled directly by Accent, without recompiling the generated Java.
+
+HTML auto-configuration activates only in servlet MVC applications, so the starter can also be used in non-web applications. JDBC integration activates separately when Spring JDBC and a single candidate `DataSource` are available. Accent SQL then uses transaction-aware connections, so statements participate in Spring-managed commit and rollback; JDBC remains optional for applications that do not use a database.
 
 ### 5. File-Based Routing
 

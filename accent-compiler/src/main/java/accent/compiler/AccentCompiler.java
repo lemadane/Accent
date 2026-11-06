@@ -208,6 +208,7 @@ public final class AccentCompiler {
 
         // Invoke javac
         List<String> javacArgs = new ArrayList<>();
+        javacArgs.add("-parameters");
         javacArgs.add("-d");
         javacArgs.add(outputDir.toString());
 

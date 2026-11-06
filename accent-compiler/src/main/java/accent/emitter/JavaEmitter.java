@@ -130,7 +130,7 @@ public final class JavaEmitter {
             for (int i = 0; i < rd.components().size(); i++) {
                 if (i > 0) sb.append(", ");
                 Parameter p = rd.components().get(i);
-                sb.append(emitType(p.type())).append(p.isVarargs() ? "... " : " ").append(p.name());
+                emitParameter(p);
             }
             sb.append(")");
             if (!rd.interfaces().isEmpty()) {
@@ -197,7 +197,7 @@ public final class JavaEmitter {
             for (int i = 0; i < md.components().size(); i++) {
                 if (i > 0) sb.append(", ");
                 Parameter p = md.components().get(i);
-                sb.append(emitType(p.type())).append(p.isVarargs() ? "... " : " ").append(p.name());
+                emitParameter(p);
             }
             sb.append(") {\n");
             indentLevel++;
@@ -552,11 +552,16 @@ public final class JavaEmitter {
         return type instanceof PrimitiveTypeNode;
     }
 
+    private void emitParameter(Parameter parameter) {
+        for (String annotation : parameter.annotations()) sb.append(annotation).append(" ");
+        sb.append(emitType(parameter.type())).append(parameter.isVarargs() ? "... " : " ").append(parameter.name());
+    }
+
     private void emitParameters(List<Parameter> parameters) {
         for (int i = 0; i < parameters.size(); i++) {
             if (i > 0) sb.append(", ");
             Parameter p = parameters.get(i);
-            sb.append(emitType(p.type())).append(p.isVarargs() ? "... " : " ").append(p.name());
+            emitParameter(p);
         }
     }
 

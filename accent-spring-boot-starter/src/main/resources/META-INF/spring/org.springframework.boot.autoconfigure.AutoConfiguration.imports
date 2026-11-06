@@ -1,2 +1,3 @@
 accent.logging.spring.boot.AccentLoggingAutoConfiguration
 accent.html.spring.AccentHtmlAutoConfiguration
+accent.sql.spring.AccentSqlAutoConfiguration

@@ -582,8 +582,9 @@ public final class AccentParser {
     }
 
     private Parameter parseParameter(boolean defaultMutable) {
+        List<String> annotations = new ArrayList<>();
         while (check(TokenType.AT)) {
-            parseAnnotationAsString();
+            annotations.add(parseAnnotationAsString());
         }
         boolean isExplicitFinal = match(TokenType.FINAL);
         boolean isMutable = defaultMutable && !isExplicitFinal;
@@ -609,7 +610,7 @@ public final class AccentParser {
         if (match(TokenType.ASSIGN)) {
             defaultValue = Optional.of(parseExpression(Precedence.NONE));
         }
-        return new Parameter(type, name, isVarargs, defaultValue, isMutable);
+        return new Parameter(type, name, isVarargs, defaultValue, isMutable, annotations);
     }
 
     private List<TypeNode> parseThrows() {
