@@ -31,10 +31,10 @@ class HttpLoggingEndToEndTest {
                 import accent.logging.Logging;
 
                 @Logging
-                public class HttpLogServer {
-                    public static void background() { log.warn("async marker"); }
-                    public static String failAsync() { throw new RuntimeException("async secret"); }
-                    public static void main(String[] args) {
+                class HttpLogServer {
+                    static void background() { log.warn("async marker"); }
+                    static String failAsync() { throw new RuntimeException("async secret"); }
+                    static void main(String[] args) {
                         final app = new App();
                         app.use((req, next) -> {
                             final id = req.header("X-Request-Id");

@@ -6,23 +6,23 @@ extension String! {
     }
 }
 
-public class DashboardService {
-    private final CustomerService! customerService;
-    private final OrderService! orderService;
+class DashboardService {
+    final CustomerService! _customerService;
+    final OrderService! _orderService;
 
-    public DashboardService(
-            CustomerService! customerService,
-            OrderService! orderService) {
-        this.customerService = customerService;
-        this.orderService = orderService;
+    DashboardService(
+            CustomerService! _customerService,
+            OrderService! _orderService) {
+        this._customerService = _customerService;
+        this._orderService = _orderService;
     }
 
-    public Dashboard! load(UUID! customerId) {
+    Dashboard! load(UUID! customerId) {
         final customerAsync =
-            async this.customerService.findRequired(customerId);
+            async this._customerService.findRequired(customerId);
 
         final ordersAsync =
-            async this.orderService.findForCustomer(customerId);
+            async this._orderService.findForCustomer(customerId);
 
         final customer = await customerAsync;
         final orders = await ordersAsync;

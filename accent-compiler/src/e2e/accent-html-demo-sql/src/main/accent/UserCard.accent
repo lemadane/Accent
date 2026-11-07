@@ -3,10 +3,10 @@ package accent.html.demo;
 import accent.html.Component;
 import accent.html.Html;
 
-public record UserCard(User user) implements Component {
+record UserCard(User user) implements Component {
 
     @Override
-    public Html render() {
+    Html render() {
         return (
             <article class="user-card">
                 <h2>{this.user.name()}</h2>

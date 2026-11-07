@@ -534,9 +534,6 @@ public final class AccentLexer {
         keywords.put("await", TokenType.AWAIT);
         keywords.put("return", TokenType.RETURN);
         keywords.put("new", TokenType.NEW);
-        keywords.put("public", TokenType.PUBLIC);
-        keywords.put("protected", TokenType.PROTECTED);
-        keywords.put("private", TokenType.PRIVATE);
         keywords.put("static", TokenType.STATIC);
         keywords.put("void", TokenType.VOID);
         keywords.put("true", TokenType.TRUE);

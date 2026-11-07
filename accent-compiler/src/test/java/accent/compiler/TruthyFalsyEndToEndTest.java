@@ -53,8 +53,8 @@ class TruthyFalsyEndToEndTest {
             "import java.util.List;\n" +
             "import java.util.Map;\n" +
             "import java.util.Optional;\n" +
-            "public class IfMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class IfMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        // Strings\n" +
             "        final strVal = \"hello\";\n" +
             "        final emptyStr = \"\";\n" +
@@ -130,8 +130,8 @@ class TruthyFalsyEndToEndTest {
     void testLoopsAndTernaryTruthyFalsy() throws Exception {
         String code =
             "package test;\n" +
-            "public class LoopsTernaryMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class LoopsTernaryMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        // While loop\n" +
             "        var count = 3;\n" +
             "        var iterations = 0;\n" +
@@ -175,8 +175,8 @@ class TruthyFalsyEndToEndTest {
     void testLogicalOperatorsTruthyFalsy() throws Exception {
         String code =
             "package test;\n" +
-            "public class LogicalOpsMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class LogicalOpsMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        // not\n" +
             "        if (not \"hello\") throw new RuntimeException(\"not 'hello' should be false\");\n" +
             "        if (not \"world\")   throw new RuntimeException(\"not  'world' should be false\");\n" +
@@ -212,8 +212,8 @@ class TruthyFalsyEndToEndTest {
         String code =
             "package test;\n" +
             "import java.util.HashMap;\n" +
-            "public class CustomMapMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class CustomMapMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final emptyCustomMap = new CustomMap();\n" +
             "        if (emptyCustomMap) { throw new RuntimeException(\"empty custom map should be falsy\"); }\n" +
             "\n" +
@@ -229,14 +229,14 @@ class TruthyFalsyEndToEndTest {
             "    }\n" +
             "}\n" +
             "class CustomMap extends HashMap {\n" +
-            "    public Object put(Object key, Object value) {\n" +
+            "    Object put(Object key, Object value) {\n" +
             "        return super.put(key, value);\n" +
             "    }\n" +
             "}\n" +
             "class CustomContainer {\n" +
-            "    private final boolean empty;\n" +
-            "    public CustomContainer(boolean empty) { this.empty = empty; }\n" +
-            "    public boolean isEmpty() { return this.empty; }\n" +
+            "    final boolean _empty;\n" +
+            "    CustomContainer(boolean _empty) { this._empty = _empty; }\n" +
+            "    boolean isEmpty() { return this._empty; }\n" +
             "}\n";
 
         Path tempDir = createTempDir();
@@ -244,7 +244,7 @@ class TruthyFalsyEndToEndTest {
         Path binDir = tempDir.resolve("bin");
         Path genDir = tempDir.resolve("gen");
         Files.createDirectories(srcDir);
-        Files.writeString(srcDir.resolve("CustomMapMain.accent"), code, StandardCharsets.UTF_8);
+        TestSources.writeSplit(srcDir, code);
 
         CompilationResult result = compile(srcDir, binDir, genDir);
         assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
@@ -259,8 +259,8 @@ class TruthyFalsyEndToEndTest {
             "import java.util.LinkedList;\n" +
             "import java.util.Queue;\n" +
             "import java.util.Stack;\n" +
-            "public class QueueStackListMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class QueueStackListMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        // List\n" +
             "        final emptyList = new ArrayList<String>();\n" +
             "        if (emptyList) { throw new RuntimeException(\"empty List should be falsy\"); }\n" +
@@ -305,8 +305,8 @@ class TruthyFalsyEndToEndTest {
             "package test;\n" +
             "import java.util.*;\n" +
             "import java.util.concurrent.*;\n" +
-            "public class ExhaustiveMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class ExhaustiveMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        // 1. All Java Lists\n" +
             "        final emptyArrayList = new ArrayList<String>();\n" +
             "        if (emptyArrayList) throw new RuntimeException(\"empty ArrayList should be falsy\");\n" +
@@ -440,8 +440,8 @@ class TruthyFalsyEndToEndTest {
             "import java.util.HashMap;\n" +
             "import java.util.List;\n" +
             "import java.util.Map;\n" +
-            "public class IfElseForMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class IfElseForMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final emptyList = List.of();\n" +
             "        final nonEmptyList = List.of(\"item1\", \"item2\");\n" +
             "        final emptyMap = Map.of();\n" +
@@ -522,8 +522,8 @@ class TruthyFalsyEndToEndTest {
             "package test;\n" +
             "import java.util.List;\n" +
             "import java.util.Map;\n" +
-            "public class ForElseMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class ForElseMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        // 1. Enhanced for/else with non-empty list (no break)\n" +
             "        final list1 = List.of(\"a\", \"b\");\n" +
             "        boolean else1Ran = false;\n" +

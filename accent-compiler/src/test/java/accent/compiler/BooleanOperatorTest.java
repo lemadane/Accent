@@ -91,7 +91,7 @@ class BooleanOperatorTest {
         };
         for (String[] testCase : cases) {
             var source = new SourceFile(Path.of("Test.accent"),
-                    "public class Test { public boolean run() { return " + testCase[0] + "; } }");
+                    "class Test { boolean run() { return " + testCase[0] + "; } }");
             var result = new AccentCompiler().check(source);
             assertFalse(result.successful(), testCase[0]);
             assertTrue(result.diagnostics().stream()
@@ -103,8 +103,8 @@ class BooleanOperatorTest {
     @Test
     void preservesNonNullTypesInequalityAndLiteralSymbols() {
         var source = new SourceFile(Path.of("Test.accent"), """
-                public class Test {
-                    public boolean run(String! value, String[]! values) {
+                class Test {
+                    boolean run(String! value, String[]! values) {
                         final symbols = "! && ||";
                         // ! && || in comments are harmless.
                         return value != null and not false or true;
@@ -120,11 +120,11 @@ class BooleanOperatorTest {
         Path tempDir = createTempDir();
         Path source = tempDir.resolve("ShortCircuit.accent");
         Files.writeString(source, """
-                public class ShortCircuit {
-                    public static boolean fail() {
+                class ShortCircuit {
+                    static boolean fail() {
                         throw new RuntimeException("Right operand must not run");
                     }
-                    public static void main(String[] args) {
+                    static void main(String[] args) {
                         if (false and fail()) throw new RuntimeException("and failed");
                         if (not (true or fail())) throw new RuntimeException("or failed");
                     }
@@ -141,15 +141,15 @@ class BooleanOperatorTest {
         for (String name : List.of("nand", "nor", "xor", "xnor")) {
             assertEquals(TokenType.IDENTIFIER, lex(name).tokens().get(0).type());
             SourceFile source = new SourceFile(Path.of("Test.accent"),
-                    "public class Test { public boolean run() { return true " + name + " false; } }");
+                    "class Test { boolean run() { return true " + name + " false; } }");
             assertFalse(new AccentCompiler().check(source).successful(),
                     name + " must not be accepted as an operator");
         }
         Path tempDir = createTempDir();
         Path source = tempDir.resolve("Identifiers.accent");
         Files.writeString(source, """
-                public class Identifiers {
-                    public static void main(String[] args) {
+                class Identifiers {
+                    static void main(String[] args) {
                         boolean nand = true;
                         boolean nor = false;
                         boolean xor = true;
@@ -199,8 +199,8 @@ class BooleanOperatorTest {
         // Tests AND, OR, NOT truth tables via transpiled Java
         String code =
             "package test;\n" +
-            "public class TruthTableMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class TruthTableMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        var ff = false;\n" +
             "        var ft = false;\n" +
             "        var tf = false;\n" +
@@ -240,8 +240,8 @@ class BooleanOperatorTest {
     void testCombinedTextualOperators() throws Exception {
         String code =
             "package test;\n" +
-            "public class MixedMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class MixedMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        boolean active = true;\n" +
             "        boolean suspended = false;\n" +
             "        boolean hidden = false;\n" +
@@ -273,8 +273,8 @@ class BooleanOperatorTest {
         // false or (true and false)  =>  false or false  =>  false
         String code =
             "package test;\n" +
-            "public class PrecedenceMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class PrecedenceMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final r1 = false or true and false;\n" +
             "        if (r1 != false) throw new RuntimeException(\"or-and precedence\");\n" +
             "        // not a and b  =>  (not a) and b\n" +
@@ -300,18 +300,18 @@ class BooleanOperatorTest {
     void testRealisticExamples() throws Exception {
         String code =
             "package test;\n" +
-            "public class RealisticMain {\n" +
-            "    public static boolean canAccess(\n" +
+            "class RealisticMain {\n" +
+            "    static boolean canAccess(\n" +
             "            boolean authenticated, boolean suspended, boolean administrator) {\n" +
             "        return authenticated and not suspended or administrator;\n" +
             "    }\n" +
-            "    public static boolean exactlyOneSelected(boolean emailSelected, boolean smsSelected) {\n" +
+            "    static boolean exactlyOneSelected(boolean emailSelected, boolean smsSelected) {\n" +
             "        return emailSelected != smsSelected;\n" +
             "    }\n" +
-            "    public static boolean haveSameStatus(boolean firstActive, boolean secondActive) {\n" +
+            "    static boolean haveSameStatus(boolean firstActive, boolean secondActive) {\n" +
             "        return firstActive == secondActive;\n" +
             "    }\n" +
-            "    public static void main(String[] args) {\n" +
+            "    static void main(String[] args) {\n" +
             "        if (not canAccess(true, false, false)) throw new RuntimeException(\"canAccess 1\");\n" +
             "        if (canAccess(true, true, false))   throw new RuntimeException(\"canAccess 2\");\n" +
             "        if (not canAccess(false, true, true))  throw new RuntimeException(\"canAccess 3\");\n" +
@@ -342,8 +342,8 @@ class BooleanOperatorTest {
     void testTruthyIntAnd() throws Exception {
         String code =
             "package test;\n" +
-            "public class TruthyIntAndMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class TruthyIntAndMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        boolean r = 1 and 2;\n" +
             "        if (not r) throw new RuntimeException(\"1 and 2 should be true\");\n" +
             "        boolean r2 = 0 and 2;\n" +
@@ -367,8 +367,8 @@ class BooleanOperatorTest {
     void testTruthyNotOnInt() throws Exception {
         String code =
             "package test;\n" +
-            "public class TruthyNotMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class TruthyNotMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        boolean r1 = not 42;\n" +
             "        if (r1) throw new RuntimeException(\"not 42 should be false\");\n" +
             "        boolean r2 = not 0;\n" +

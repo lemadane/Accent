@@ -2,8 +2,8 @@ import accent.http.App;
 import accent.http.Response;
 import java.util.Map;
 
-public class Main {
-    public static void main(String[] args) {
+class Main {
+    static void main(String[] args) {
         final app = new App();
         app.get("/health", req -> Response.text("ok"));
         app.get("/users/:id", (req) -> Response.json(Map.of("id", req.path("id"))));

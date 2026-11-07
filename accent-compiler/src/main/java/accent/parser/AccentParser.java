@@ -58,9 +58,20 @@ public final class AccentParser {
             }
 
             // Type Declarations
+            String firstTypeName = null;
             while (!isAtEnd()) {
                 try {
-                    declarations.add(parseTypeDeclaration());
+                    Token startToken = peek();
+                    TypeDeclaration decl = parseTypeDeclaration();
+                    declarations.add(decl);
+                    if (!isJava && !(decl instanceof ExtensionDecl)) {
+                        if (firstTypeName == null) {
+                            firstTypeName = decl.name();
+                        } else {
+                            report(startToken, "Only one top-level type is allowed per file (found '" + firstTypeName
+                                    + "' and '" + decl.name() + "'); move '" + decl.name() + "' to " + decl.name() + ".accent");
+                        }
+                    }
                 } catch (ParseError error) {
                     synchronize();
                 }
@@ -130,6 +141,104 @@ public final class AccentParser {
         private static final long serialVersionUID = 1L;
     }
 
+    /** Reports an error diagnostic without aborting the parse. */
+    private void report(Token token, String message) {
+        if (!isSpeculative) {
+            diagnostics.add(new Diagnostic(
+                    DiagnosticSeverity.ERROR,
+                    "ACCENT-P001",
+                    message,
+                    token.line(),
+                    token.column()
+            ));
+        }
+    }
+
+    private static final java.util.Set<String> VISIBILITY_WORDS = java.util.Set.of("public", "protected", "private");
+
+    /**
+     * The words public/protected/private are no longer Accent keywords. They are still recognized in modifier
+     * position (so .java sources parse and Accent sources get a helpful error).
+     */
+    private boolean checkVisibilityWord() {
+        if (!check(TokenType.IDENTIFIER) || !VISIBILITY_WORDS.contains(peek().lexeme())) return false;
+        TokenType next = lookAhead(1).type();
+        return next != TokenType.ASSIGN && next != TokenType.SEMICOLON && next != TokenType.LEFT_PAREN
+                && next != TokenType.DOT && next != TokenType.COMMA && next != TokenType.RIGHT_PAREN;
+    }
+
+    /** Parses static/final and (legacy) visibility words. Returns the legacy visibility tokens found. */
+    private List<Token> parseKeywordModifiers(List<String> modifiers) {
+        List<Token> removed = new ArrayList<>();
+        while (true) {
+            if (match(TokenType.STATIC, TokenType.FINAL)) {
+                modifiers.add(previous().lexeme());
+            } else if (checkVisibilityWord()) {
+                Token t = advance();
+                if (isJava) modifiers.add(t.lexeme());
+                else removed.add(t);
+            } else {
+                break;
+            }
+        }
+        return removed;
+    }
+
+    private static int annotationCount(List<String> modifiers) {
+        int i = 0;
+        while (i < modifiers.size() && modifiers.get(i).startsWith("@")) i++;
+        return i;
+    }
+
+    private static boolean isOnlyUnderscores(String name) {
+        return !name.isEmpty() && name.chars().allMatch(c -> c == '_');
+    }
+
+    /** Java modifier derived from an Accent member name, or null for package-private. */
+    public static String visibilityModifierFor(String name) {
+        if (name.startsWith("__")) return "protected";
+        if (name.startsWith("_")) return null;
+        return "public";
+    }
+
+    private static String withPrefix(String name, String prefix) {
+        String bare = name;
+        while (bare.startsWith("_")) bare = bare.substring(1);
+        return prefix + bare;
+    }
+
+    private String currentTypeKind = "";
+
+    /**
+     * Validates an Accent field/method name and inserts the Java visibility derived from it:
+     * {@code x} → public, {@code _x} → package-private, {@code __x} → protected.
+     */
+    private void applyMemberVisibility(List<String> modifiers, List<Token> removed, String name, Token nameToken) {
+        for (Token t : removed) {
+            String hint = switch (t.lexeme()) {
+                case "private" -> "rename '" + name + "' to '" + withPrefix(name, "_") + "' for package-private";
+                case "protected" -> "rename '" + name + "' to '" + withPrefix(name, "__") + "'";
+                default -> "members are public by default";
+            };
+            if (currentTypeKind.equals("interface")) hint = "interface members are always public";
+            report(t, "'" + t.lexeme() + "' was removed; " + hint);
+        }
+        if (isOnlyUnderscores(name)) {
+            report(nameToken, "'" + name + "' is not a valid member name");
+            return;
+        }
+        if (currentTypeKind.equals("interface")) {
+            if (name.startsWith("_")) {
+                report(nameToken, "Interface members are always public; rename '" + name + "' to '"
+                        + withPrefix(name, "") + "'");
+            }
+            return;
+        }
+        if (currentTypeKind.equals("extension")) return;
+        String visibility = visibilityModifierFor(name);
+        if (visibility != null) modifiers.add(annotationCount(modifiers), visibility);
+    }
+
     private ParseError error(Token token, String message) {
         if (!isSpeculative) {
             diagnostics.add(new Diagnostic(
@@ -163,9 +272,6 @@ public final class AccentParser {
                 case RECORD:
                 case ENUM:
                 case EXTENSION:
-                case PUBLIC:
-                case PROTECTED:
-                case PRIVATE:
                 case STATIC:
                 case FINAL:
                 case VOID:
@@ -198,9 +304,23 @@ public final class AccentParser {
             modifiers.add(parseAnnotationAsString());
         }
         
-        while (match(TokenType.PUBLIC, TokenType.PROTECTED, TokenType.PRIVATE, TokenType.STATIC, TokenType.FINAL)) {
-            modifiers.add(previous().lexeme());
+        List<Token> removed = parseKeywordModifiers(modifiers);
+        for (Token t : removed) {
+            report(t, "'" + t.lexeme() + "' was removed; types are always public");
         }
+        if (!isJava && !check(TokenType.EXTENSION)) {
+            modifiers.add(annotationCount(modifiers), "public");
+            Token nameToken = lookAhead(check(TokenType.SINGLETON) ? 2 : 1);
+            if (nameToken.type() == TokenType.IDENTIFIER && nameToken.lexeme().startsWith("_")) {
+                report(nameToken, "Type names cannot start with '_' (types are always public); rename '"
+                        + nameToken.lexeme() + "' to '" + withPrefix(nameToken.lexeme(), "") + "'");
+            }
+        }
+        if (check(TokenType.INTERFACE)) currentTypeKind = "interface";
+        else if (check(TokenType.ENUM)) currentTypeKind = "enum";
+        else if (check(TokenType.EXTENSION)) currentTypeKind = "extension";
+        else if (check(TokenType.RECORD)) currentTypeKind = "record";
+        else currentTypeKind = "class";
 
         if (match(TokenType.CLASS)) {
             return parseClassDecl(modifiers, false);
@@ -418,15 +538,19 @@ public final class AccentParser {
         while (check(TokenType.AT)) {
             modifiers.add(parseAnnotationAsString());
         }
-        while (match(TokenType.PUBLIC, TokenType.PROTECTED, TokenType.PRIVATE, TokenType.STATIC, TokenType.FINAL)) {
-            modifiers.add(previous().lexeme());
-        }
+        List<Token> removed = parseKeywordModifiers(modifiers);
 
         List<TypeParameter> typeParams = parseTypeParameters();
 
         // Check if it's a constructor: name matches enclosingClassName, followed by '('
         if (check(TokenType.IDENTIFIER) && peek().lexeme().equals(enclosingClassName) && lookAhead(1).type() == TokenType.LEFT_PAREN) {
             String name = advance().lexeme();
+            for (Token t : removed) {
+                report(t, "'" + t.lexeme() + "' was removed; constructors are always public");
+            }
+            if (!isJava && (currentTypeKind.equals("class") || currentTypeKind.equals("record"))) {
+                modifiers.add(annotationCount(modifiers), "public");
+            }
             consume(TokenType.LEFT_PAREN, "Expected '(' for constructor parameters.");
             List<Parameter> parameters = new ArrayList<>();
             if (!check(TokenType.RIGHT_PAREN)) {
@@ -459,6 +583,9 @@ public final class AccentParser {
             type = parseType();
             name = match(TokenType.AWAIT) ? previous().lexeme()
                     : consume(TokenType.IDENTIFIER, "Expected member name.").lexeme();
+        }
+        if (!isJava) {
+            applyMemberVisibility(modifiers, removed, name, previous());
         }
 
         if (match(TokenType.LEFT_PAREN)) {

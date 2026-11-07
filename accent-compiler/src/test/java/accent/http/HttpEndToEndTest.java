@@ -32,13 +32,13 @@ class HttpEndToEndTest {
     static void compileAccentServer() throws Exception {
         client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
         Path source = Files.createDirectories(directory.resolve("source"));
-        Files.writeString(source.resolve("User.accent"), "package httpfixture; public record User(String id, String name) {}");
+        Files.writeString(source.resolve("User.accent"), "package httpfixture; record User(String id, String name) {}");
         Files.writeString(source.resolve("Card.accent"), """
                 package httpfixture;
                 import accent.html.Component;
                 import accent.html.Html;
-                public record Card(String name) implements Component {
-                    public Html render() { return (<p>{this.name}</p>); }
+                record Card(String name) implements Component {
+                    Html render() { return (<p>{this.name}</p>); }
                 }
                 """);
         Files.writeString(source.resolve("ServerFixture.accent"), """
@@ -47,8 +47,8 @@ class HttpEndToEndTest {
                 import accent.http.Response;
                 import accent.http.Request;
                 import java.util.Map;
-                public class ServerFixture {
-                    public static App create() {
+                class ServerFixture {
+                    static App create() {
                         final app = new App();
                         app.use((req, next) -> next.handle(req).header("X-Accent", "standalone"));
                         app.get("/users/:id", (req) -> Response.json(new User(req.path("id"), req.query("name"))));
@@ -310,8 +310,8 @@ class HttpEndToEndTest {
         Files.writeString(source, """
                 import accent.http.App;
                 import accent.http.Response;
-                public class CliHttp {
-                    public static void main(String[] args) {
+                class CliHttp {
+                    static void main(String[] args) {
                         final app = new App();
                         app.get("/", (req) -> Response.text("cli"));
                         app.listen("127.0.0.1", 0);

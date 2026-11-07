@@ -3,9 +3,9 @@ package demo;
 import accent.lang.Symbol;
 import accent.lang.SymbolMap;
 
-public class SymbolDemo {
+class SymbolDemo {
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         System.out.println("=== Accent Symbol Demo ===\n");
 
         // 1. Unique Identity

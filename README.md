@@ -21,8 +21,8 @@ import accent.http.App;
 import accent.http.Response;
 import java.util.Map;
 
-public class Main {
-    public static void main(String[] args) {
+class Main {
+    static void main(String[] args) {
         final app = new App();
         app.get("/health", req -> Response.text("ok"));
         app.get("/users/:id", (req) -> Response.json(Map.of("id", req.path("id"))));
@@ -76,11 +76,11 @@ Spring Boot remains an optional integration for applications that need it; stand
 
 ```accent
 @Service
-public record DashboardService(
+record DashboardService(
         CustomerService! customerService,
         OrderService! orderService) {
 
-    public Dashboard! load(UUID! customerId) {
+    Dashboard! load(UUID! customerId) {
         final customerAsync =
             async this.customerService.findRequired(customerId);
 
@@ -107,6 +107,34 @@ public record DashboardService(
     }
 }
 ```
+
+## Visibility
+
+Accent has no `public`, `private` or `protected` keywords. A member's visibility comes from its name:
+
+| Accent name | Java visibility |
+|---|---|
+| `count`, `load()` | `public` (default) |
+| `_count`, `_load()` | package-private |
+| `__count`, `__load()` | `protected` |
+
+```accent
+class Counter {
+    int total;            // public
+    int _cache;           // package-private: visible to tests in the same package
+    int __step = 1;       // protected: visible to subclasses
+
+    void inc() { this.total = this.total + this.__step; }
+    void _reset() { this.total = 0; }
+}
+```
+
+* The prefix is kept in the generated Java name (`_cache` stays `_cache`).
+* It applies to fields and methods only; parameters and locals are unaffected. Bare `_` / `__` are not valid member names.
+* Constructors and interface members are always public; a `_` prefix on an interface member is an error.
+* Every file declares **exactly one** top-level type (`class`, `interface`, `record`, `enum`, `model`, or a `singleton` variant), which is always public. Extensions may accompany it. Type names may not start with `_`.
+* Singletons may not declare constructors; the compiler generates a private one.
+* Using a removed keyword is a compile error with a fix hint, e.g. `'private' was removed; rename 'count' to '_count' for package-private`.
 
 ## Confirmed language features (that Java lacks)
 
@@ -268,10 +296,10 @@ final customer =
 
 ### 5. Kotlin-Style Data Class Model Declarations (`model`)
 
-Accent provides native support for data classes via the `model` keyword (`public model User(final String! id, String! name, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
+Accent provides native support for data classes via the `model` keyword (`model User(final String! id, String! name, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
 
 ```java
-public model User(
+model User(
     final String! id,   // final     -> Immutable (getter id() ONLY, no setter)
     String! name,       // default   -> Mutable   (getter name(), setter name(...))
     int age             // default   -> Mutable   (getter age(), setter age(...))
@@ -327,8 +355,8 @@ Getters and setters share the field name: `user.name()` reads it, and `user.name
 Accent records and models automatically receive public `toJson()` and `toXml()` methods:
 
 ```java
-public record Address(String city) {}
-public model Profile(String name, Address address) {}
+record Address(String city) {}
+model Profile(String name, Address address) {}
 
 final profile = new Profile("Lem", new Address("Manila"));
 final json = profile.toJson();
@@ -362,15 +390,15 @@ An explicit zero-argument `toJson()` or `toXml()` method takes precedence over t
 Use `singleton` before `class`, `record`, or `model` to declare one lazily initialized instance. The previous standalone `singleton Name` syntax is no longer accepted:
 
 ```java
-public singleton class CacheManager {
-    private final Map<String, Object> cache = new HashMap<>();
+singleton class CacheManager {
+    final Map<String, Object> _cache = new HashMap<>();
 
-    public void put(String key, Object val) {
-        this.cache.put(key, val);
+    void put(String key, Object val) {
+        this._cache.put(key, val);
     }
 
-    public Object get(String key) {
-        return this.cache.get(key);
+    Object get(String key) {
+        return this._cache.get(key);
     }
 }
 ```
@@ -395,12 +423,12 @@ final user = CacheManager.instance().get("user_1");
 #### Singleton records and models
 
 ```java
-public singleton record Defaults(
+singleton record Defaults(
     String! theme = "light",
     int retryLimit = 3
 ) {}
 
-public singleton model AppState(
+singleton model AppState(
     final String! id = "app",
     String! theme = "light",
     int attempts = 0
@@ -411,7 +439,7 @@ final state = AppState.instance();
 state.theme("dark");                 // shared mutable state
 ```
 
-Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Classes may declare a private parameterless constructor; record/model constructors are generated and private. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `__accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
+Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Singletons may not declare constructors: the compiler generates a private one for every variant, so initialize state with field initializers. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `$accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
 
 A singleton record compiles to a final immutable class rather than a JVM record, so its constructor can be private. It retains component accessors, value methods, native `toJson()`/`toXml()`, and typed List/Map serialization support. Its runtime `Class.isRecord()` is false, and it is not a subtype of `java.lang.Record`. Singleton model/record Java serialization resolves back to the shared instance; JSON/XML typed parsing rejects singleton targets to avoid constructing duplicates. Untyped parsing of their serialized data remains available.
 
@@ -437,7 +465,7 @@ attempts++; // Reassignable
 Method and constructor parameters are implicitly immutable bindings:
 
 ```java
-public void rename(String! name) {
+void rename(String! name) {
     final normalizedName = name.trim();
     this.name = normalizedName;
 }
@@ -451,7 +479,7 @@ Method and constructor parameters can define default values, which can then be i
 
 #### Parameter Default Values:
 ```java
-public int calculate(int base, int multiplier = 2, int offset = 1) {
+int calculate(int base, int multiplier = 2, int offset = 1) {
     return base * multiplier + offset;
 }
 ```
@@ -622,7 +650,7 @@ Accent supports generator functions to produce lazy, streamable sequences of val
 * Inside the method, use `emit <value>` to yield items to the sequence.
 
 ```java
-public generator int numbers(int limit) {
+generator int numbers(int limit) {
     for (var i = 0; i < limit; i++) {
         emit i;
     }
@@ -716,7 +744,7 @@ Note: `notification`, `android`, `ordinary`, `xorValue`, etc. remain valid ident
 #### Realistic examples
 
 ```java
-public boolean canAccess(
+boolean canAccess(
         boolean authenticated,
         boolean suspended,
         boolean administrator) {
@@ -726,7 +754,7 @@ public boolean canAccess(
 ```
 
 ```java
-public boolean exactlyOneSelected(
+boolean exactlyOneSelected(
         boolean emailSelected,
         boolean smsSelected) {
 
@@ -735,7 +763,7 @@ public boolean exactlyOneSelected(
 ```
 
 ```java
-public boolean haveSameStatus(
+boolean haveSameStatus(
         boolean firstActive,
         boolean secondActive) {
 
@@ -814,14 +842,14 @@ Accent fully supports standard Java and framework annotations (such as Spring Bo
 ```java
 @RestController
 @RequestMapping("/api")
-public class ProductController {
+class ProductController {
 
     @Autowired
-    private ProductService! productService;
+    ProductService! _productService;
 
     @GetMapping("/{id}")
-    public Product! getProduct(@PathVariable String! id) {
-        return this.productService.findById(id);
+    Product! getProduct(@PathVariable String! id) {
+        return this._productService.findById(id);
     }
 }
 ```
@@ -900,9 +928,9 @@ package accent.html.demo;
 import accent.html.Component;
 import accent.html.Html;
 
-public record UserCard(User user) implements Component {
+record UserCard(User user) implements Component {
     @Override
-    public Html render() {
+    Html render() {
         return (
             <article class="user-card">
                 <h2>{this.user.name()}</h2>
@@ -929,8 +957,8 @@ When you annotate a class, record, or enum with `@Logging`, the compiler automat
 import accent.logging.Logging;
 
 @Logging
-public class BookingService {
-    public Booking create(BookingRequest request) {
+class BookingService {
+    Booking create(BookingRequest request) {
         log.debug($"Creating booking for {request.customerName()}");
 
         try {
@@ -959,8 +987,8 @@ import accent.logging.Logging;
 import java.util.Map;
 
 @Logging
-public class CustomerService {
-    public void process(String requestId) {
+class CustomerService {
+    void process(String requestId) {
         log.withContext(Map.of("requestId", requestId), () -> {
             log.info("Processing customer");
             // Output ends with: Processing customer {requestId=...}
@@ -998,8 +1026,8 @@ import accent.http.Response;
 import accent.logging.Logging;
 
 @Logging
-public class Main {
-    public static void main(String[] args) {
+class Main {
+    static void main(String[] args) {
         final app = new App();
         app.use((req, next) -> {
             log.put("requestId", req.header("X-Request-Id") ?? "unknown");
@@ -1303,9 +1331,9 @@ package com.example.demo;
 import accent.html.Component;
 import accent.html.Html;
 
-public record UserCard(String name, String email) implements Component {
+record UserCard(String name, String email) implements Component {
     @Override
-    public Html render() {
+    Html render() {
         return (
             <div class="card">
                 <h3>{this.name}</h3>
@@ -1369,9 +1397,9 @@ import accent.html.Component;
 import accent.html.Html;
 import com.example.demo.User;
 
-public record Page(User user) implements Component {
+record Page(User user) implements Component {
     @Override
-    public Html render() {
+    Html render() {
         return (
             <h1>Hello, {this.user.name()}!</h1>
         );
@@ -1392,9 +1420,9 @@ import accent.html.Component;
 import accent.html.Html;
 import accent.html.HtmlChildren;
 
-public record Layout(HtmlChildren children) implements Component {
+record Layout(HtmlChildren children) implements Component {
     @Override
-    public Html render() {
+    Html render() {
         return (
             <!DOCTYPE html>
             <html lang="en">
@@ -1421,9 +1449,9 @@ package com.example.demo.routes.users._name;
 
 import com.example.demo.User;
 
-public class Loader {
+class Loader {
     // Dynamic path/query variables are injected into method arguments automatically
-    public User load(String name) {
+    User load(String name) {
         return new User(name, name.toLowerCase() + "@example.com");
     }
 }
@@ -1442,9 +1470,9 @@ import accent.html.Html;
 import accent.html.spring.Prerender;
 
 @Prerender
-public record Page() implements Component {
+record Page() implements Component {
     @Override
-    public Html render() {
+    Html render() {
         return (
             <h1>Static Landing Page</h1>
         );
@@ -1569,8 +1597,8 @@ At this stage, `check` performs lexical validation only.
 The first visible Accent feature will be local mutability declarations:
 
 ```java
-public class Main {
-    public static void main(String[] args) {
+class Main {
+    static void main(String[] args) {
         final message = "Hello from Accent"; // 'final' (or 'final var') for immutable variable
 
         var count = 1;  // 'var' for mutable variable
@@ -1640,7 +1668,7 @@ This leverages Accent's template string syntax (`json<Target>"""..."""`) and low
 
 ```accent
 // 1. Define your strict target Record
-public record User(
+record User(
     String id,
     String firstName,
     String lastName
@@ -1662,17 +1690,17 @@ User parsedUser = json<User>"""
 ### Quick Start
 
 ```java
-import accent.json.Json;
+// User.accent
 import java.util.UUID;
 import java.time.LocalDate;
 
-public record User(
+record User(
     UUID id, 
     String firstName, 
     String lastName,
     LocalDate birthDate
 ) {
-    public User {
+    User {
         // Will be executed when parsed from JSON!
         if (firstName == null or firstName.isBlank()) {
             throw new IllegalArgumentException("firstName cannot be blank");
@@ -1680,8 +1708,13 @@ public record User(
     }
 }
 
-public class Main {
-    public static void main(String[] args) {
+// Main.accent (one top-level type per file)
+import accent.json.Json;
+import java.util.UUID;
+import java.time.LocalDate;
+
+class Main {
+    static void main(String[] args) {
         User user = new User(UUID.randomUUID(), "Lemuel", "Adane", LocalDate.of(2000, 1, 1));
         
         // Serialize

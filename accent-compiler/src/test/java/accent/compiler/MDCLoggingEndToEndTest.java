@@ -32,12 +32,12 @@ class MDCLoggingEndToEndTest {
                 import accent.runtime.Async;
 
                 @Logging
-                public class Server {
-                    public static String work() {
+                class Server {
+                    static String work() {
                         log.info("async work");
                         return log.get("requestId");
                     }
-                    public static App start() {
+                    static App start() {
                         final app = new App();
                         app.use((req, next) -> {
                             log.put("requestId", req.path("id"));

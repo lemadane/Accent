@@ -85,6 +85,39 @@ public final class AccentCompiler {
                 diagnostics);
     }
 
+    /**
+     * Checks several in-memory sources together (one top-level type per file), so that
+     * they can reference each other.
+     */
+    public CompilationResult check(List<SourceFile> sourceFiles) {
+        Objects.requireNonNull(sourceFiles, "sourceFiles");
+        List<Diagnostic> diagnostics = new ArrayList<>();
+        List<CompilationUnit> units = new ArrayList<>();
+        for (SourceFile sourceFile : sourceFiles) {
+            LexResult lexResult = new AccentLexer(sourceFile).lex();
+            diagnostics.addAll(lexResult.diagnostics());
+            if (!lexResult.successful()) continue;
+            AccentParser parser = new AccentParser(sourceFile, lexResult.tokens());
+            units.add(parser.parse());
+            diagnostics.addAll(parser.diagnostics());
+        }
+        if (diagnostics.stream().anyMatch(d -> d.severity() == DiagnosticSeverity.ERROR)) {
+            return new CompilationResult(Optional.empty(), diagnostics);
+        }
+        SymbolTable table = new SymbolTable();
+        units.forEach(table::addCompilationUnit);
+        for (CompilationUnit unit : units) {
+            SemanticAnalyzer analyzer = new SemanticAnalyzer(table);
+            analyzer.analyze(unit);
+            diagnostics.addAll(analyzer.diagnostics());
+        }
+        if (diagnostics.stream().anyMatch(d -> d.severity() == DiagnosticSeverity.ERROR)) {
+            return new CompilationResult(Optional.empty(), diagnostics);
+        }
+        return new CompilationResult(units.isEmpty() ? Optional.empty() : Optional.of(units.get(units.size() - 1)),
+                diagnostics);
+    }
+
     public CompilationResult compile(List<Path> sourcePaths, Path outputDir, List<String> classpath, Path generatedSourceDir, boolean saveJava) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         List<Path> allSourceFiles = new ArrayList<>();
@@ -192,8 +225,12 @@ public final class AccentCompiler {
                 }
                 Files.createDirectories(packagePath);
 
-                // Assuming first declaration name is the class/filename
-                String filename = unit.declarations().isEmpty() ? "Module" : unit.declarations().get(0).name();
+                // The file is named after its single top-level type (extensions ride along)
+                String filename = unit.declarations().stream()
+                        .filter(d -> !(d instanceof accent.ast.Ast.ExtensionDecl))
+                        .map(accent.ast.Ast.TypeDeclaration::name)
+                        .findFirst()
+                        .orElse(unit.declarations().isEmpty() ? "Module" : unit.declarations().get(0).name());
                 Path genFile = packagePath.resolve(filename + ".java");
                 Files.writeString(genFile, javaSource, StandardCharsets.UTF_8);
 

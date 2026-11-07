@@ -5,10 +5,10 @@ import accent.html.Html;
 import accent.html.spring.Prerender;
 
 @Prerender
-public record Page() implements Component {
+record Page() implements Component {
 
     @Override
-    public Html render() {
+    Html render() {
         return (
             <main>
                 <h1>Welcome to Accent Routing!</h1>

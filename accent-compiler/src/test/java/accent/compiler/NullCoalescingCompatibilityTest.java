@@ -16,8 +16,8 @@ class NullCoalescingCompatibilityTest {
     void preservesObjectValuesAndUsesFallbackOnlyForNull() throws Exception {
         Path source = tempDir.resolve("Coalesce.accent");
         Files.writeString(source, """
-            public class Coalesce {
-                public static Object value(Object x) {
+            class Coalesce {
+                static Object value(Object x) {
                     return x ?? "fallback";
                 }
             }

@@ -196,7 +196,7 @@ public final class SemanticAnalyzer implements ImportResolver {
         boolean savedStatic = isStaticContext;
         isStaticContext = true;
         for (Parameter component : components) {
-            if (Set.of("instance", "copy", "clone", "readResolve", "__accentCreateSingleton").contains(component.name())) {
+            if (Set.of("instance", "copy", "clone", "readResolve", "$accentCreateSingleton").contains(component.name())) {
                 error(null, "Reserved singleton component name: " + component.name());
             }
             if (component.isVarargs()) error(null, "Singleton components cannot be varargs.");
@@ -215,12 +215,11 @@ public final class SemanticAnalyzer implements ImportResolver {
             if (decl instanceof RecordDecl && member instanceof FieldDecl field && !field.modifiers().contains("static")) {
                 error(null, "Singleton records cannot declare additional instance fields.");
             }
-            if (member instanceof ConstructorDecl constructor) {
-                if (!(decl instanceof ClassDecl) || !constructor.modifiers().contains("private") || !constructor.parameters().isEmpty()) {
-                    error(null, "Singleton constructors must be private and parameterless; model/record constructors are generated.");
-                }
+            if (member instanceof ConstructorDecl) {
+                error(null, "Singletons cannot declare constructors; the compiler generates a private one. "
+                        + "Initialize state with field initializers instead.");
             }
-            if (member instanceof MethodDecl method && Set.of("instance", "copy", "clone", "readResolve", "__accentCreateSingleton").contains(method.name())) {
+            if (member instanceof MethodDecl method && Set.of("instance", "copy", "clone", "readResolve", "$accentCreateSingleton").contains(method.name())) {
                 error(null, "Reserved singleton method: " + method.name());
             }
         }

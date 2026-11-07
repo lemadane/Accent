@@ -1,8 +1,8 @@
 import accent.json.Json;
 import accent.json.JsonOptions;
 
-public class JsonLiteralDemo {
-    public static void main(String[] args) {
+class JsonLiteralDemo {
+    static void main(String[] args) {
         String inputId = "123e4567-e89b-12d3-a456-426614174000";
         String firstName = "Lemuel";
         
@@ -27,15 +27,3 @@ public class JsonLiteralDemo {
         System.out.println("City: " + parsedUser.address().city());
     }
 }
-
-record Address(
-    String street,
-    String city
-) {}
-
-record User(
-    String id,
-    String firstName,
-    String lastName,
-    Address address
-) {}

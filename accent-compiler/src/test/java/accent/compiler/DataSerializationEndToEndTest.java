@@ -31,46 +31,46 @@ class DataSerializationEndToEndTest {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
         runtimeClasspath = Path.of(AccentModel.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
         Map<String, String> fixtures = new LinkedHashMap<>();
-        fixtures.put("PersonRecord", "public record PersonRecord(String name) {}");
-        fixtures.put("PersonModel", "public model PersonModel(String name) {}");
+        fixtures.put("PersonRecord", "record PersonRecord(String name) {}");
+        fixtures.put("PersonModel", "model PersonModel(String name) {}");
         fixtures.put("Payload", """
                 import java.util.*;
-                public record Payload(String text, boolean active, int count, double ratio,
+                record Payload(String text, boolean active, int count, double ratio,
                         char initial, int[] numbers, String missing, PersonModel owner,
                         List<PersonRecord> people, Map<String, PersonModel> indexed) {}
                 """);
-        fixtures.put("Node", "public model Node(Object value) {}");
-        fixtures.put("Box", "public record Box(Object value) {}");
-        fixtures.put("EmptyRecord", "public record EmptyRecord() {}");
-        fixtures.put("GenericRecord", "public record GenericRecord<T>(T value) {}");
-        fixtures.put("GenericModel", "public model GenericModel<T>(T value) {}");
+        fixtures.put("Node", "model Node(Object value) {}");
+        fixtures.put("Box", "record Box(Object value) {}");
+        fixtures.put("EmptyRecord", "record EmptyRecord() {}");
+        fixtures.put("GenericRecord", "record GenericRecord<T>(T value) {}");
+        fixtures.put("GenericModel", "model GenericModel<T>(T value) {}");
         fixtures.put("OverloadedModel", """
-                public model OverloadedModel(String name) {
-                    public String toJson(String prefix) { return prefix; }
-                    public String toXml(String prefix) { return prefix; }
+                model OverloadedModel(String name) {
+                    String toJson(String prefix) { return prefix; }
+                    String toXml(String prefix) { return prefix; }
                 }
                 """);
         fixtures.put("CustomRecord", """
-                public record CustomRecord(String name) {
-                    public String toJson() { return "record custom"; }
+                record CustomRecord(String name) {
+                    String toJson() { return "record custom"; }
                 }
                 """);
         fixtures.put("CustomModel", """
-                public model CustomModel(String name) {
-                    public String toXml() { return "model custom"; }
+                model CustomModel(String name) {
+                    String toXml() { return "model custom"; }
                 }
                 """);
-        StringBuilder calls = new StringBuilder("import java.util.*; public class Harness {\n");
+        StringBuilder calls = new StringBuilder("import java.util.*; class Harness {\n");
         for (String kind : List.of("Record", "Model")) {
             for (String format : List.of("Json", "Xml")) {
                 String type = "Person" + kind;
                 String method = "to" + format;
-                calls.append("public static String direct").append(kind).append(format)
+                calls.append("static String direct").append(kind).append(format)
                         .append('(').append(type).append(" value) { return value.").append(method).append("(); }\n");
                 for (String container : List.of("List", "Map")) {
                     String generic = container.equals("List") ? type : "String, " + type;
                     for (String optional : List.of("", "Optional")) {
-                        calls.append("public static String ").append(container.toLowerCase(Locale.ROOT))
+                        calls.append("static String ").append(container.toLowerCase(Locale.ROOT))
                                 .append(kind).append(format).append(optional).append('(')
                                 .append(container).append('<').append(generic).append("> value) { return value")
                                 .append(optional.isEmpty() ? "." : "?.").append(method).append("(); }\n");
@@ -79,28 +79,28 @@ class DataSerializationEndToEndTest {
             }
         }
         calls.append("""
-                public static String arrayList(ArrayList<PersonRecord> value) { return value.toJson(); }
-                public static String linkedList(LinkedList<PersonModel> value) { return value.toXml(); }
-                public static String hashMap(HashMap<String, PersonRecord> value) { return value.toJson(); }
-                public static String treeMap(TreeMap<String, PersonModel> value) { return value.toXml(); }
-                public static String fallback(List<PersonRecord> value) { return value?.toJson() ?? "absent"; }
-                public static int chained(Map<String, PersonModel> value) { return value.toJson().length(); }
-                public static int calls = 0;
-                public static List<PersonRecord> next() {
+                static String arrayList(ArrayList<PersonRecord> value) { return value.toJson(); }
+                static String linkedList(LinkedList<PersonModel> value) { return value.toXml(); }
+                static String hashMap(HashMap<String, PersonRecord> value) { return value.toJson(); }
+                static String treeMap(TreeMap<String, PersonModel> value) { return value.toXml(); }
+                static String fallback(List<PersonRecord> value) { return value?.toJson() ?? "absent"; }
+                static int chained(Map<String, PersonModel> value) { return value.toJson().length(); }
+                static int calls = 0;
+                static List<PersonRecord> next() {
                     Harness.calls++;
                     List<PersonRecord> result = List.of(new PersonRecord("once"));
                     return result;
                 }
-                public static String once() { return Harness.next().toJson(); }
-                public static String payload(Payload value) { return value.toJson(); }
-                public static String payloadXml(Payload value) { return value.toXml(); }
-                public static String nodeJson(Node value) { return value.toJson(); }
-                public static String nodeXml(Node value) { return value.toXml(); }
-                public static String boxJson(Box value) { return value.toJson(); }
-                public static String boxXml(Box value) { return value.toXml(); }
-                public static String nodeList(List<Node> value) { return value.toJson(); }
-                public static String nodeMap(Map<String, Node> value) { return value.toXml(); }
-                public static void main(String[] args) {
+                static String once() { return Harness.next().toJson(); }
+                static String payload(Payload value) { return value.toJson(); }
+                static String payloadXml(Payload value) { return value.toXml(); }
+                static String nodeJson(Node value) { return value.toJson(); }
+                static String nodeXml(Node value) { return value.toXml(); }
+                static String boxJson(Box value) { return value.toJson(); }
+                static String boxXml(Box value) { return value.toXml(); }
+                static String nodeList(List<Node> value) { return value.toJson(); }
+                static String nodeMap(Map<String, Node> value) { return value.toXml(); }
+                static void main(String[] args) {
                     List<PersonRecord> people = List.of(new PersonRecord("Lem"));
                     Map<String, PersonModel> indexed = Map.of("U1", new PersonModel("Ana"));
                     System.out.println(people.toJson());
@@ -297,10 +297,11 @@ class DataSerializationEndToEndTest {
                 "indexed.toJson(1)", "indexed.toXml(1)", "text.toJson()", "text.toXml()", "List.toJson()", "Map.toXml()")
                 .stream().map(expression -> DynamicTest.dynamicTest("reject " + expression, () -> {
                     var source = new SourceFile(Path.of("Invalid.accent"),
-                            "import java.util.*; record Person(String name) {} public class Invalid { "
-                                    + "public String run(List<Person> items, Map<String, Person> indexed, String text) { return "
+                            "import java.util.*; class Invalid { "
+                                    + "String run(List<Person> items, Map<String, Person> indexed, String text) { return "
                                     + expression + "; } }");
-                    var result = new AccentCompiler().check(source);
+                    var result = new AccentCompiler().check(List.of(
+                            new SourceFile(Path.of("Person.accent"), "record Person(String name) {}"), source));
                     assertFalse(result.successful(), expression);
                     assertTrue(result.diagnostics().stream().anyMatch(d -> d.message().contains("Cannot resolve method")),
                             () -> result.diagnostics().toString());
@@ -364,9 +365,13 @@ class DataSerializationEndToEndTest {
                 "Set<PersonRecord>", "PersonRecord[]", "List<PersonRecord[]>")) {
             for (String format : List.of("Json", "Xml")) {
                 tests.add(DynamicTest.dynamicTest("reject " + container + ".to" + format, () -> {
-                    String source = "import java.util.*; record PersonRecord(String name) {} model PersonModel(String name) {} class Plain {} "
-                            + "public class Invalid { public String run(" + container + " value) { return value.to" + format + "(); } }";
-                    var result = new AccentCompiler().check(new SourceFile(Path.of("Invalid.accent"), source));
+                    String source = "import java.util.*; "
+                            + "class Invalid { String run(" + container + " value) { return value.to" + format + "(); } }";
+                    var result = new AccentCompiler().check(List.of(
+                            new SourceFile(Path.of("PersonRecord.accent"), "record PersonRecord(String name) {}"),
+                            new SourceFile(Path.of("PersonModel.accent"), "model PersonModel(String name) {}"),
+                            new SourceFile(Path.of("Plain.accent"), "class Plain {}"),
+                            new SourceFile(Path.of("Invalid.accent"), source)));
                     assertFalse(result.successful());
                     assertTrue(result.diagnostics().stream().anyMatch(d -> d.message().contains("Cannot resolve method 'to" + format + "'")),
                             () -> "Expected a method resolution error, got " + result.diagnostics());
@@ -381,11 +386,11 @@ class DataSerializationEndToEndTest {
         Path source = tempDir.resolve("DependencyCalls.accent");
         Files.writeString(source, """
                 import java.util.*;
-                public class DependencyCalls {
-                    public static String recordValue(PersonRecord value) { return value.toJson(); }
-                    public static String modelValue(PersonModel value) { return value.toXml(); }
-                    public static String records(List<PersonRecord> values) { return values.toJson(); }
-                    public static String models(Map<String, PersonModel> values) { return values.toXml(); }
+                class DependencyCalls {
+                    static String recordValue(PersonRecord value) { return value.toJson(); }
+                    static String modelValue(PersonModel value) { return value.toXml(); }
+                    static String records(List<PersonRecord> values) { return values.toJson(); }
+                    static String models(Map<String, PersonModel> values) { return values.toXml(); }
                 }
                 """);
         Path dependencyOutput = tempDir.resolve("dependency-consumer");

@@ -31,65 +31,65 @@ class AsyncConcurrencyEndToEndTest {
                 import accent.compiler.AsyncConcurrencyProbe;
                 import java.time.Duration;
                 import accent.html.Html;
-                public class Program {
-                    public static Async<String> start(AsyncConcurrencyProbe probe) { return Async.run(() -> probe.run()); }
-                    public static Async<Void> startVoid(AsyncConcurrencyProbe probe) { return Async.run(() -> probe.runVoid()); }
-                    public static Async<String> nested(AsyncConcurrencyProbe probe) { return Async.run(() -> start(probe).await()); }
-                    public static Object finishVoid(Async<Void> valueAsync) { return valueAsync.await(); }
-                    public static String finish(Async<String> valueAsync) { return valueAsync.await(); }
-                    public static String timed(Async<String> valueAsync, Duration timeout) { return valueAsync.await(timeout); }
-                    public static boolean cancel(Async<String> valueAsync) { return valueAsync.cancel(); }
-                    public static boolean done(Async<String> valueAsync) { return valueAsync.isDone(); }
-                    public static boolean cancelled(Async<String> valueAsync) { return valueAsync.isCancelled(); }
-                    public static int stringLength(AsyncConcurrencyProbe probe) {
+                class Program {
+                    static Async<String> start(AsyncConcurrencyProbe probe) { return Async.run(() -> probe.run()); }
+                    static Async<Void> startVoid(AsyncConcurrencyProbe probe) { return Async.run(() -> probe.runVoid()); }
+                    static Async<String> nested(AsyncConcurrencyProbe probe) { return Async.run(() -> start(probe).await()); }
+                    static Object finishVoid(Async<Void> valueAsync) { return valueAsync.await(); }
+                    static String finish(Async<String> valueAsync) { return valueAsync.await(); }
+                    static String timed(Async<String> valueAsync, Duration timeout) { return valueAsync.await(timeout); }
+                    static boolean cancel(Async<String> valueAsync) { return valueAsync.cancel(); }
+                    static boolean done(Async<String> valueAsync) { return valueAsync.isDone(); }
+                    static boolean cancelled(Async<String> valueAsync) { return valueAsync.isCancelled(); }
+                    static int stringLength(AsyncConcurrencyProbe probe) {
                         final valueAsync = Async.run(() -> probe.run());
                         final value = valueAsync.await();
                         return value.length();
                     }
-                    public static int inferred() {
+                    static int inferred() {
                         final numberAsync = Async.run(() -> 42);
                         final number = numberAsync.await();
                         return number;
                     }
-                    public static String typed(AsyncConcurrencyProbe probe) {
+                    static String typed(AsyncConcurrencyProbe probe) {
                         final Async<String> valueAsync = Async.run(() -> probe.run());
                         return valueAsync.await();
                     }
-                    public static String chained(AsyncConcurrencyProbe probe) { return Async.run(() -> probe.run()).await(); }
-                    public static String block(AsyncConcurrencyProbe probe) {
+                    static String chained(AsyncConcurrencyProbe probe) { return Async.run(() -> probe.run()).await(); }
+                    static String block(AsyncConcurrencyProbe probe) {
                         final valueAsync = Async.run(() -> {
                             final value = probe.run();
                             return value.trim();
                         });
                         return valueAsync.await();
                     }
-                    public static int conditional() {
+                    static int conditional() {
                         final valueAsync = Async.run(() -> if (true) { yield 21; } else { yield 0; });
                         return valueAsync.await() * 2;
                     }
-                    public static Html markup() {
+                    static Html markup() {
                         final valueAsync = Async.run(() -> (<p>Async HTML</p>));
                         return valueAsync.await();
                     }
-                    public static Async<String> startShort(AsyncConcurrencyProbe probe) { return async probe.run(); }
-                    public static Async<Void> voidShort(AsyncConcurrencyProbe probe) { return async probe.runVoid(); }
-                    public static String finishShort(Async<String> valueAsync) { return await valueAsync; }
-                    public static Object voidAwaitShort(Async<Void> valueAsync) { return await valueAsync; }
-                    public static int immediateShort() { return await async 42; }
-                    public static int inferShort() {
+                    static Async<String> startShort(AsyncConcurrencyProbe probe) { return async probe.run(); }
+                    static Async<Void> voidShort(AsyncConcurrencyProbe probe) { return async probe.runVoid(); }
+                    static String finishShort(Async<String> valueAsync) { return await valueAsync; }
+                    static Object voidAwaitShort(Async<Void> valueAsync) { return await valueAsync; }
+                    static int immediateShort() { return await async 42; }
+                    static int inferShort() {
                         final valueAsync = async "hello";
                         final value = await valueAsync;
                         return value.length();
                     }
-                    public static int precedence() {
+                    static int precedence() {
                         final valueAsync = async (20 + 1);
                         return (await valueAsync) * 2;
                     }
-                    public static Html markupShort() {
+                    static Html markupShort() {
                         final valueAsync = async (<p>Short HTML</p>);
                         return await valueAsync;
                     }
-                    public static String nestedShort(AsyncConcurrencyProbe probe) {
+                    static String nestedShort(AsyncConcurrencyProbe probe) {
                         final outerAsync = async (async probe.run());
                         return await (await outerAsync);
                     }
@@ -346,8 +346,8 @@ class AsyncConcurrencyEndToEndTest {
             Path source = Files.createTempDirectory(directory, "invalid-");
             Files.writeString(source.resolve("Invalid.accent"), """
                     import accent.runtime.Async;
-                    public class Invalid {
-                        public static void main(String[] args) {
+                    class Invalid {
+                        static void main(String[] args) {
                             final valueAsync = Async.run(() -> 42);
                             final result = %s;
                         }

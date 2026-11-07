@@ -50,8 +50,8 @@ class AccentEndToEndTest {
     void testBlockExpressionsAndYield() throws Exception {
         String code = 
             "package test;\n" +
-            "public class BlockExprMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class BlockExprMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final condition = true;\n" +
             "        final val = if (condition) {\n" +
             "            yield 100;\n" +
@@ -87,8 +87,8 @@ class AccentEndToEndTest {
     void testImmutableLocalsAndReassignment() throws Exception {
         String code = 
             "package test;\n" +
-            "public class ImmutableMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class ImmutableMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final x = 10;\n" +
             "        x = 20;\n" + // Reassignment of final
             "    }\n" +
@@ -111,11 +111,11 @@ class AccentEndToEndTest {
     void testParameterReassignment() throws Exception {
         String code = 
             "package test;\n" +
-            "public class ParamMain {\n" +
-            "    public void run(int val) {\n" +
+            "class ParamMain {\n" +
+            "    void run(int val) {\n" +
             "        val = 20;\n" + // Reassignment of parameter
             "    }\n" +
-            "    public static void main(String[] args) {}\n" +
+            "    static void main(String[] args) {}\n" +
             "}\n";
 
         Path tempDir = createTempDir();
@@ -135,12 +135,12 @@ class AccentEndToEndTest {
     void testMandatoryThisCheck() throws Exception {
         String code = 
             "package test;\n" +
-            "public class ThisCheck {\n" +
-            "    private int count = 0;\n" +
-            "    public void inc() {\n" +
-            "        count = count + 1;\n" + // Missing this.
+            "class ThisCheck {\n" +
+            "    int _count = 0;\n" +
+            "    void inc() {\n" +
+            "        _count = _count + 1;\n" + // Missing this.
             "    }\n" +
-            "    public static void main(String[] args) {}\n" +
+            "    static void main(String[] args) {}\n" +
             "}\n";
 
         Path tempDir = createTempDir();
@@ -160,8 +160,8 @@ class AccentEndToEndTest {
     void testNullCoalescingAndChaining() throws Exception {
         String code = 
             "package test;\n" +
-            "public class NullMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class NullMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final String name = null;\n" +
             "        final fallback = name ?? \"Default\";\n" +
             "        if (not fallback.equals(\"Default\")) { throw new RuntimeException(\"Null coalescing failed\"); }\n" +
@@ -187,12 +187,12 @@ class AccentEndToEndTest {
         String code = 
             "package test;\n" +
             "extension String! {\n" +
-            "    public String! shout() {\n" +
+            "    String! shout() {\n" +
             "        return this.toUpperCase();\n" +
             "    }\n" +
             "}\n" +
             "class ExtMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "    static void main(String[] args) {\n" +
             "        final text = \"hello\";\n" +
             "        final result = text.shout();\n" +
             "        if (not result.equals(\"HELLO\")) { throw new RuntimeException(\"Extension method failed\"); }\n" +
@@ -218,10 +218,10 @@ class AccentEndToEndTest {
         String code = """
                 package test;
                 import accent.runtime.Async;
-                public class TypedAsyncMain {
-                    public static Async<String> start() { return Async.run(() -> "hello"); }
-                    public static String finish(Async<String> task) { return task.await(); }
-                    public static void main(String[] args) {
+                class TypedAsyncMain {
+                    static Async<String> start() { return Async.run(() -> "hello"); }
+                    static String finish(Async<String> task) { return task.await(); }
+                    static void main(String[] args) {
                         final Async<String> task = start();
                         final inferred = Async.run(() -> "world");
                         if (finish(task) != "hello") throw new RuntimeException("Typed Async failed");
@@ -243,8 +243,8 @@ class AccentEndToEndTest {
         String code = 
             "package test;\n" +
             "import accent.runtime.Async;\n" +
-            "public class AsyncMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class AsyncMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final valueAsync = Async.run(() -> 42);\n" +
             "        final val = valueAsync.await();\n" +
             "        if (val != 42) { throw new RuntimeException(\"Async/await failed\"); }\n" +
@@ -270,9 +270,9 @@ class AccentEndToEndTest {
         String code = 
             "package test;\n" +
             "@Deprecated\n" +
-            "public class AnnotationMain {\n" +
+            "class AnnotationMain {\n" +
             "    @SuppressWarnings(\"unchecked\")\n" +
-            "    public static void main(String[] args) {\n" +
+            "    static void main(String[] args) {\n" +
             "        final val = 100;\n" +
             "    }\n" +
             "}\n";
@@ -299,11 +299,11 @@ class AccentEndToEndTest {
     void testDefaultParamsAndNamedArgs() throws Exception {
         String code = 
             "package test;\n" +
-            "public class DefaultParamsMain {\n" +
-            "    public static int calculate(int base, int multiplier = 2, int offset = 1) {\n" +
+            "class DefaultParamsMain {\n" +
+            "    static int calculate(int base, int multiplier = 2, int offset = 1) {\n" +
             "        return base * multiplier + offset;\n" +
             "    }\n" +
-            "    public static void main(String[] args) {\n" +
+            "    static void main(String[] args) {\n" +
             "        // 1. Positional only with defaults\n" +
             "        final res1 = calculate(10);\n" +
             "        if (res1 != 21) { throw new RuntimeException(\"Test 1 failed: \" + res1); }\n" +
@@ -336,8 +336,8 @@ class AccentEndToEndTest {
     void testTernaryExpression() throws Exception {
         String code = 
             "package test;\n" +
-            "public class TernaryMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class TernaryMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final condition = true;\n" +
             "        final val = condition ? \"Zack\" : \"Guest\";\n" +
             "        if (not val.equals(\"Zack\")) { throw new RuntimeException(\"Expected Zack\"); }\n" +
@@ -367,8 +367,8 @@ class AccentEndToEndTest {
             "package test;\n" +
             "import java.util.List;\n" +
             "import java.util.Map;\n" +
-            "public class SqlMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class SqlMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final id = 42;\n" +
             "        final query = sql`SELECT * FROM users WHERE id = {id}`;\n" +
             "    }\n" +
@@ -404,8 +404,8 @@ class AccentEndToEndTest {
             "import accent.runtime.Async;\n" +
             "import java.util.List;\n" +
             "import java.util.Map;\n" +
-            "public class AsyncSqlMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class AsyncSqlMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final id = 42;\n" +
             "        final queryAsync = Async.run(() -> sql`SELECT * FROM users WHERE id = {id}`);\n" +
             "        final query = queryAsync.await();\n" +
@@ -439,8 +439,8 @@ class AccentEndToEndTest {
     void testSqlSyntaxErrors() throws Exception {
         String code = 
             "package test;\n" +
-            "public class SqlErrorMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class SqlErrorMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final bad1 = sql`SELECT FROM users`;\n" +
             "    }\n" +
             "}\n";
@@ -464,8 +464,8 @@ class AccentEndToEndTest {
             "package test;\n" +
             "import java.util.List;\n" +
             "import java.util.ArrayList;\n" +
-            "public class InterpMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class InterpMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        // 1. Basic variables and primitive values\n" +
             "        final name = \"Lemuel\";\n" +
             "        final age = 42;\n" +
@@ -509,7 +509,7 @@ class AccentEndToEndTest {
             "\n" +
             "        // 6. Evaluation order check\n" +
             "        final List<Integer> order = new ArrayList<Integer>();\n" +
-            "        final orderTest = $\"{recordCall(order, 1)}-{recordCall(order, 2)}-{recordCall(order, 3)}\";\n" +
+            "        final orderTest = $\"{_recordCall(order, 1)}-{_recordCall(order, 2)}-{_recordCall(order, 3)}\";\n" +
             "        if (not orderTest.equals(\"10-20-30\")) {\n" +
             "            throw new RuntimeException(\"Fail order value: \" + orderTest);\n" +
             "        }\n" +
@@ -561,14 +561,14 @@ class AccentEndToEndTest {
             "        }\n" +
             "    }\n" +
             "\n" +
-            "    private static int recordCall(List<Integer> list, int id) {\n" +
+            "    static int _recordCall(List<Integer> list, int id) {\n" +
             "        list.add(id);\n" +
             "        return id * 10;\n" +
             "    }\n" +
             "}\n" +
             "\n" +
             "singleton class AppConfig {\n" +
-            "    public String! appName() {\n" +
+            "    String! appName() {\n" +
             "        return \"JatotApp\";\n" +
             "    }\n" +
             "}\n";
@@ -579,7 +579,7 @@ class AccentEndToEndTest {
         Path genDir = tempDir.resolve("gen");
         Files.createDirectories(srcDir);
 
-        Files.writeString(srcDir.resolve("InterpMain.accent"), code, StandardCharsets.UTF_8);
+        TestSources.writeSplit(srcDir, code);
 
         CompilationResult result = compile(srcDir, binDir, genDir);
         assertTrue(result.successful(), "Compilation failed: " + result.diagnostics());
@@ -591,8 +591,8 @@ class AccentEndToEndTest {
         // Empty brace check
         String code1 = 
             "package test;\n" +
-            "public class ErrorMain1 {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class ErrorMain1 {\n" +
+            "    static void main(String[] args) {\n" +
             "        final bad = $\"Hello, {}\";\n" +
             "    }\n" +
             "}\n";
@@ -608,11 +608,11 @@ class AccentEndToEndTest {
         // Void expression check
         String code2 = 
             "package test;\n" +
-            "public class ErrorMain2 {\n" +
-            "    public static void main(String[] args) {\n" +
-            "        final bad = $\"Result: {print()}\";\n" +
+            "class ErrorMain2 {\n" +
+            "    static void main(String[] args) {\n" +
+            "        final bad = $\"Result: {_print()}\";\n" +
             "    }\n" +
-            "    private static void print() {}\n" +
+            "    static void _print() {}\n" +
             "}\n";
 
         Path tempDir2 = createTempDir();
@@ -628,8 +628,8 @@ class AccentEndToEndTest {
     void testSingletonClassDeclaration() throws Exception {
         String code = 
             "package test;\n" +
-            "public class SingletonMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class SingletonMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final s1 = StateTracker.instance();\n" +
             "        final s2 = StateTracker.instance();\n" +
             "        if (s1 != s2) {\n" +
@@ -649,17 +649,17 @@ class AccentEndToEndTest {
             "}\n" +
             "\n" +
             "singleton class StateTracker {\n" +
-            "    private int counter = 0;\n" +
-            "    public void increment() {\n" +
-            "        this.counter = this.counter + 1;\n" +
+            "    int _counter = 0;\n" +
+            "    void increment() {\n" +
+            "        this._counter = this._counter + 1;\n" +
             "    }\n" +
-            "    public int count() {\n" +
-            "        return this.counter;\n" +
+            "    int count() {\n" +
+            "        return this._counter;\n" +
             "    }\n" +
             "}\n" +
             "\n" +
-            "public singleton class CacheManager {\n" +
-            "    public String! getApp() {\n" +
+            "singleton class CacheManager {\n" +
+            "    String! getApp() {\n" +
             "        return \"Jatot\";\n" +
             "    }\n" +
             "}\n";
@@ -669,7 +669,7 @@ class AccentEndToEndTest {
         Path binDir = tempDir.resolve("bin");
         Path genDir = tempDir.resolve("gen");
         Files.createDirectories(srcDir);
-        Files.writeString(srcDir.resolve("SingletonMain.accent"), code, StandardCharsets.UTF_8);
+        TestSources.writeSplit(srcDir, code);
 
         CompilationResult result = compile(srcDir, binDir, genDir);
         assertTrue(result.successful(), "Singleton compilation failed: " + result.diagnostics());
@@ -678,8 +678,8 @@ class AccentEndToEndTest {
         // Negative check: Attempting to call 'new StateTracker()' should fail compilation
         String badCode = 
             "package test;\n" +
-            "public class BadSingleton {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class BadSingleton {\n" +
+            "    static void main(String[] args) {\n" +
             "        final s = new StateTracker();\n" +
             "    }\n" +
             "}\n" +
@@ -687,7 +687,7 @@ class AccentEndToEndTest {
         Path badDir = createTempDir();
         Path badSrc = badDir.resolve("src");
         Files.createDirectories(badSrc);
-        Files.writeString(badSrc.resolve("BadSingleton.accent"), badCode, StandardCharsets.UTF_8);
+        TestSources.writeSplit(badSrc, badCode);
         CompilationResult badResult = compile(badSrc, badDir.resolve("bin"), badDir.resolve("gen"));
         assertFalse(badResult.successful(), "Should fail when attempting to instantiate singleton with 'new'");
     }
@@ -696,8 +696,8 @@ class AccentEndToEndTest {
     void testModelDeclaration() throws Exception {
         String code = 
             "package test;\n" +
-            "public class ModelMain {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class ModelMain {\n" +
+            "    static void main(String[] args) {\n" +
             "        final user = new User(\"U101\", \"Lemuel\", 42);\n" +
             "        if (not user.id().equals(\"U101\") or not user.name().equals(\"Lemuel\") or user.age() != 42) {\n" +
             "            throw new RuntimeException(\"Fail model getter check: \" + user);\n" +
@@ -721,14 +721,14 @@ class AccentEndToEndTest {
             "    }\n" +
             "}\n" +
             "\n" +
-            "public model User(final String! id, String! name, int age) {}\n";
+            "model User(final String! id, String! name, int age) {}\n";
 
         Path tempDir = createTempDir();
         Path srcDir = tempDir.resolve("src");
         Path binDir = tempDir.resolve("bin");
         Path genDir = tempDir.resolve("gen");
         Files.createDirectories(srcDir);
-        Files.writeString(srcDir.resolve("ModelMain.accent"), code, StandardCharsets.UTF_8);
+        TestSources.writeSplit(srcDir, code);
 
         CompilationResult result = compile(srcDir, binDir, genDir);
         assertTrue(result.successful(), "Model compilation failed: " + result.diagnostics());
@@ -739,8 +739,8 @@ class AccentEndToEndTest {
     void testFinalModelFieldCannotHaveSetter() throws Exception {
         String badCode = 
             "package test;\n" +
-            "public class BadModel {\n" +
-            "    public static void main(String[] args) {\n" +
+            "class BadModel {\n" +
+            "    static void main(String[] args) {\n" +
             "        final user = new User(\"U101\", \"Lemuel\");\n" +
             "        user.id(\"U102\");\n" +
             "    }\n" +
@@ -750,7 +750,7 @@ class AccentEndToEndTest {
         Path tempDir = createTempDir();
         Path srcDir = tempDir.resolve("src");
         Files.createDirectories(srcDir);
-        Files.writeString(srcDir.resolve("BadModel.accent"), badCode, StandardCharsets.UTF_8);
+        TestSources.writeSplit(srcDir, badCode);
 
         CompilationResult result = compile(srcDir, tempDir.resolve("bin"), tempDir.resolve("gen"));
         assertFalse(result.successful(), "Compilation should fail when calling setter on final field 'id'");
@@ -765,10 +765,10 @@ class AccentEndToEndTest {
                 "customer.name(31);",
                 "customer.age(\"31\");")) {
             Path tempDir = createTempDir();
-            Path source = tempDir.resolve("Main.accent");
-            Files.writeString(source, """
-                    public class Main {
-                        public static void main(String[] args) {
+            Path source = tempDir.resolve("src");
+            TestSources.writeSplit(source, """
+                    class Main {
+                        static void main(String[] args) {
                             final customer = new Customer("C1", "Ana", 30);
                             %s
                         }

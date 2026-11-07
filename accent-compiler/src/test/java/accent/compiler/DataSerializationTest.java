@@ -22,23 +22,23 @@ class DataSerializationTest {
     void generatesMethodsForRecordsAndModelsAndSupportsDirectCalls() throws Exception {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
         Files.writeString(sources.resolve("Address.accent"), """
-                public record Address(String city) {}
+                record Address(String city) {}
                 """);
         Files.writeString(sources.resolve("User.accent"), """
-                public model User(String name, Address address, String missing, int[] scores) {}
+                model User(String name, Address address, String missing, int[] scores) {}
                 """);
         Files.writeString(sources.resolve("Calls.accent"), """
-                public class Calls {
-                    public static String json(User! user) { return user.toJson(); }
-                    public static String xml(User! user) { return user.toXml(); }
-                    public static String recordJson(Address! address) { return address.toJson(); }
-                    public static String recordXml(Address! address) { return address.toXml(); }
+                class Calls {
+                    static String json(User! user) { return user.toJson(); }
+                    static String xml(User! user) { return user.toXml(); }
+                    static String recordJson(Address! address) { return address.toJson(); }
+                    static String recordXml(Address! address) { return address.toXml(); }
                 }
                 """);
         Files.writeString(sources.resolve("Custom.accent"), """
-                public record Custom(String name) {
-                    public String toJson() { return "custom json"; }
-                    public String toXml() { return "custom xml"; }
+                record Custom(String name) {
+                    String toJson() { return "custom json"; }
+                    String toXml() { return "custom xml"; }
                 }
                 """);
         Path output = tempDir.resolve("classes");
@@ -77,23 +77,23 @@ class DataSerializationTest {
     @Test
     void serializesListsOfRecordsAndMapsOfModels() throws Exception {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
-        Files.writeString(sources.resolve("Item.accent"), "public record Item(String name) {}");
-        Files.writeString(sources.resolve("Entry.accent"), "public model Entry(String name) {}");
+        Files.writeString(sources.resolve("Item.accent"), "record Item(String name) {}");
+        Files.writeString(sources.resolve("Entry.accent"), "model Entry(String name) {}");
         Files.writeString(sources.resolve("Containers.accent"), """
                 import java.util.*;
-                public class Containers {
-                    public static String listJson(List<Item> values) { return values.toJson(); }
-                    public static String listXml(List<Item> values) { return values.toXml(); }
-                    public static String mapJson(Map<String, Entry> values) { return values.toJson(); }
-                    public static String mapXml(Map<String, Entry> values) { return values.toXml(); }
-                    public static String modelList(List<Entry> values) { return values.toJson(); }
-                    public static String recordMap(Map<Integer, Item> values) { return values.toXml(); }
-                    public static String concreteList(ArrayList<Item> values) { return values.toJson(); }
-                    public static String concreteMap(LinkedHashMap<String, Entry> values) { return values.toXml(); }
-                    public static String optionalList(List<Item> values) { return values?.toJson(); }
-                    public static String optionalMap(Map<String, Entry> values) { return values?.toXml(); }
-                    public static int chained(List<Item> values) { return values.toJson().length(); }
-                    public static String fallback(List<Item> values) { return values?.toJson() ?? "absent"; }
+                class Containers {
+                    static String listJson(List<Item> values) { return values.toJson(); }
+                    static String listXml(List<Item> values) { return values.toXml(); }
+                    static String mapJson(Map<String, Entry> values) { return values.toJson(); }
+                    static String mapXml(Map<String, Entry> values) { return values.toXml(); }
+                    static String modelList(List<Entry> values) { return values.toJson(); }
+                    static String recordMap(Map<Integer, Item> values) { return values.toXml(); }
+                    static String concreteList(ArrayList<Item> values) { return values.toJson(); }
+                    static String concreteMap(LinkedHashMap<String, Entry> values) { return values.toXml(); }
+                    static String optionalList(List<Item> values) { return values?.toJson(); }
+                    static String optionalMap(Map<String, Entry> values) { return values?.toXml(); }
+                    static int chained(List<Item> values) { return values.toJson().length(); }
+                    static String fallback(List<Item> values) { return values?.toJson() ?? "absent"; }
                 }
                 """);
         Path output = tempDir.resolve("classes");
@@ -134,9 +134,13 @@ class DataSerializationTest {
                 "List<List<Item>>", "Map<String, List<Item>>")) {
             for (String method : List.of("toJson", "toXml")) {
                 var source = new accent.source.SourceFile(Path.of("Invalid.accent"),
-                        "import java.util.*; record Item(String name) {} public class Invalid { public String run("
+                        "import java.util.*; class Invalid { String run("
                                 + container + " values) { return values." + method + "(); } }");
-                assertFalse(new AccentCompiler().check(source).successful(), container + "." + method);
+                var item = new accent.source.SourceFile(Path.of("Item.accent"), "record Item(String name) {}");
+                var result = new AccentCompiler().check(List.of(item, source));
+                assertFalse(result.successful(), container + "." + method);
+                assertTrue(result.diagnostics().stream().noneMatch(d -> d.message().contains("top-level type")),
+                        () -> result.diagnostics().toString());
             }
         }
     }
@@ -145,7 +149,7 @@ class DataSerializationTest {
     void rejectsSerializationArgumentsAndUnrelatedReceivers() {
         for (String expression : List.of("values.toJson(1)", "values.toXml(1)", "text.toJson()")) {
             var source = new accent.source.SourceFile(Path.of("Invalid.accent"),
-                    "import java.util.List; public class Invalid { public String run(List<String> values, String text) { return "
+                    "import java.util.List; class Invalid { String run(List<String> values, String text) { return "
                             + expression + "; } }");
             assertFalse(new AccentCompiler().check(source).successful(), expression);
         }

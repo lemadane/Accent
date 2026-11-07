@@ -1,13 +1,13 @@
 package accent.html.demo;
 
-public class JavaDemo {
-    private String name;
+class JavaDemo {
+    String _name;
 
-    public JavaDemo(String name) {
-        this.name = name;
+    JavaDemo(String _name) {
+        this._name = _name;
     }
 
-    public String getName() {
-        return this.name;
+    String getName() {
+        return this._name;
     }
 }

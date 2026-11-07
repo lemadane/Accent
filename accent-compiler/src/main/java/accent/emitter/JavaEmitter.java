@@ -38,7 +38,7 @@ public final class JavaEmitter {
             sb.append("\n");
         }
 
-        // Declarations
+        // Declarations: Accent files hold exactly one (always public) top-level type, plus optional extensions.
         String primaryDeclName = null;
         for (TypeDeclaration decl : unit.declarations()) {
             if (!(decl instanceof ExtensionDecl)) {
@@ -51,6 +51,7 @@ public final class JavaEmitter {
                 }
             }
         }
+        extensionsPublic = primaryDeclName == null;
 
         for (TypeDeclaration decl : unit.declarations()) {
             emitTypeDeclaration(decl, primaryDeclName);
@@ -160,7 +161,7 @@ public final class JavaEmitter {
             indentLevel++;
             printIndent();
             sb.append("private static final ").append(decl.name()).append(" INSTANCE = ");
-            if (decl instanceof ModelDecl) sb.append(decl.name()).append(".__accentCreateSingleton();\n");
+            if (decl instanceof ModelDecl) sb.append(decl.name()).append(".$accentCreateSingleton();\n");
             else sb.append("new ").append(decl.name()).append("();\n");
             indentLevel--;
             printIndent();
@@ -368,9 +369,11 @@ public final class JavaEmitter {
         currentClassName = savedClassName;
     }
 
+    private boolean extensionsPublic = true;
+
     private void emitExtensionDeclaration(ExtensionDecl ed) {
         printIndent();
-        sb.append("public class ").append(ed.name()).append(" {\n");
+        sb.append(extensionsPublic ? "public class " : "class ").append(ed.name()).append(" {\n");
         indentLevel++;
 
         isInsideExtension = true;

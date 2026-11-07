@@ -4,10 +4,10 @@ import accent.html.Component;
 import accent.html.Html;
 import accent.html.HtmlChildren;
 
-public record Layout(HtmlChildren children) implements Component {
+record Layout(HtmlChildren children) implements Component {
 
     @Override
-    public Html render() {
+    Html render() {
         return (
             <div class="user-portal">
                 <header>

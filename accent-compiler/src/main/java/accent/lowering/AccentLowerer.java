@@ -151,7 +151,7 @@ public final class AccentLowerer implements ImportResolver {
             TypeNode self = new BaseTypeNode(fullName, List.of(), true);
             List<Expression> defaults = components.stream().map(p -> p.defaultValue().orElseThrow()).toList();
             MethodDecl factory = new MethodDecl(List.of("private", "static"), List.of(), false, self,
-                    "__accentCreateSingleton", List.of(), List.of(), Optional.of(new BlockStmt(List.of(
+                    "$accentCreateSingleton", List.of(), List.of(), Optional.of(new BlockStmt(List.of(
                             new ReturnStmt(Optional.of(new NewObjectExpr(self, defaults, null)))))));
             members.add(lowerMember(factory));
         }
@@ -995,7 +995,7 @@ public final class AccentLowerer implements ImportResolver {
     }
 
     private LambdaExpr createMarkupLambda(List<MarkupNode> nodes, Token token) {
-        String writerName = "__accentWriter$" + tempVarCounter++;
+        String writerName = "$accentWriter$" + tempVarCounter++;
         Parameter writerParam = new Parameter(new BaseTypeNode("accent.html.HtmlWriter", List.of(), true), writerName, false, Optional.empty());
         LambdaExpr lambda = new LambdaExpr(List.of(writerParam), new BlockStmt(compileMarkupNodes(nodes, writerName)), token);
         return lambda;

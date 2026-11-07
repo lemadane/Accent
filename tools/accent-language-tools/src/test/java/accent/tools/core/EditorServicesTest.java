@@ -18,8 +18,8 @@ class EditorServicesTest {
         // Incomplete code ending in a trailing dot
         String code = 
             "package test;\n" +
-            "public class Dummy {\n" +
-            "    public void run() {\n" +
+            "class Dummy {\n" +
+            "    void run() {\n" +
             "        String text = \"hello\";\n" +
             "        text.\n" +
             "    }\n" +
@@ -47,7 +47,7 @@ class EditorServicesTest {
             "package test;\n" +
             "import accent.logging.Logging;\n" +
             "@Logging\n" +
-            "public class LogService {\n" +
+            "class LogService {\n" +
             "    void perform() {\n" +
             "        log.info(\"test\");\n" +
             "    }\n" +
@@ -74,8 +74,8 @@ class EditorServicesTest {
     void asyncMembersAndKeywordCompletionsMatchThePublicApi() {
         String code = """
                 import accent.runtime.Async;
-                public class AsyncEditor {
-                    public void inspect() {
+                class AsyncEditor {
+                    void inspect() {
                         final customerAsync = Async.run(() -> "Alice");
                         final customer = customerAsync.await();
                         customerAsync.

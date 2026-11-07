@@ -1,0 +1,6 @@
+record User(
+    String id,
+    String firstName,
+    String lastName,
+    Address address
+) {}

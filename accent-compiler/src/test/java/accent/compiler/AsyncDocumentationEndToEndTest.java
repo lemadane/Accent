@@ -22,11 +22,11 @@ class AsyncDocumentationEndToEndTest {
         String section = readme.split("### 4. Virtual Thread concurrency", 2)[1].split("### 5\\.", 2)[0];
         String editor = Files.readString(root.resolve("tools/accent-vscode/README.md"));
         Path sources = Files.createDirectories(directory.resolve("source"));
-        Files.writeString(sources.resolve("Customer.accent"), "public record Customer(String name) {}");
+        Files.writeString(sources.resolve("Customer.accent"), "record Customer(String name) {}");
         Files.writeString(sources.resolve("Service.accent"), """
-                public class Service {
-                    public Customer findRequired(int id) { return new Customer("Alice"); }
-                    public Customer findForCustomer(int id) { return new Customer("Alice"); }
+                class Service {
+                    Customer findRequired(int id) { return new Customer("Alice"); }
+                    Customer findForCustomer(int id) { return new Customer("Alice"); }
                 }
                 """);
         var blocks = Pattern.compile("```accent\\n(.*?)```", Pattern.DOTALL).matcher(section + "\n" + editor);
@@ -36,11 +36,11 @@ class AsyncDocumentationEndToEndTest {
             String imports = String.join("\n", snippet.lines().filter(line -> line.startsWith("import ")).toList());
             String body = String.join("\n", snippet.lines().filter(line -> !line.startsWith("import ")).toList());
             String name = "Example" + count++;
-            Files.writeString(sources.resolve(name + ".accent"), imports + "\npublic class " + name + " {\n"
-                    + "private Service customerService = new Service();\n"
-                    + "private Service orderService = new Service();\n"
-                    + "private Service service = new Service();\n"
-                    + "public void example(int id) {\n" + body + "\n}\n}");
+            Files.writeString(sources.resolve(name + ".accent"), imports + "\nclass " + name + " {\n"
+                    + "Service customerService = new Service();\n"
+                    + "Service orderService = new Service();\n"
+                    + "Service service = new Service();\n"
+                    + "void example(int id) {\n" + body + "\n}\n}");
         }
         assertTrue(count >= 6, "Both guides must contain compilable concurrency examples");
         Path output = directory.resolve("classes");

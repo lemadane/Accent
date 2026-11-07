@@ -51,82 +51,82 @@ class AccentSpringEndToEndTest {
                 import org.springframework.http.HttpHeaders;
                 import org.springframework.http.HttpStatus;
                 @RestController
-                public class Endpoint {
+                class Endpoint {
                     @GetMapping("/query")
-                    public String query(@RequestParam("q") String actual) { return actual; }
+                    String query(@RequestParam("q") String actual) { return actual; }
                     @GetMapping("/path/{id}")
-                    public String path(@PathVariable("id") String actual) { return actual; }
+                    String path(@PathVariable("id") String actual) { return actual; }
                     @PostMapping("/body")
-                    public String body(@RequestBody String payload) { return payload; }
+                    String body(@RequestBody String payload) { return payload; }
                     @GetMapping("/implicit")
-                    public String implicit(String name) { return name; }
+                    String implicit(String name) { return name; }
                     @GetMapping("/html")
-                    public Html html() { return (<p>Hello HTML</p>); }
+                    Html html() { return (<p>Hello HTML</p>); }
                     @GetMapping("/component")
-                    public Welcome component() { return new Welcome("Lem"); }
+                    Welcome component() { return new Welcome("Lem"); }
                     @GetMapping("/wrapped-component")
-                    public ResponseEntity<Welcome> wrappedComponent() {
+                    ResponseEntity<Welcome> wrappedComponent() {
                         HttpHeaders headers = new HttpHeaders();
                         headers.add("X-Accent", "component");
                         headers.setContentType(MediaType.TEXT_HTML);
                         return new ResponseEntity<Welcome>(new Welcome("José & Ana"), headers, HttpStatus.CREATED);
                     }
                     @GetMapping("/wrapped-html")
-                    public ResponseEntity<Html> wrappedHtml() {
+                    ResponseEntity<Html> wrappedHtml() {
                         HttpHeaders headers = new HttpHeaders();
                         headers.add("X-Accent", "html");
                         Html body = (<p>你好</p>);
                         return new ResponseEntity<Html>(body, headers, HttpStatus.ACCEPTED);
                     }
                     @GetMapping("/wrapped-json")
-                    public ResponseEntity<Payload> wrappedJson() {
+                    ResponseEntity<Payload> wrappedJson() {
                         return new ResponseEntity<Payload>(new Payload("hello"), HttpStatus.OK);
                     }
                     @GetMapping("/wrapped-empty")
-                    public ResponseEntity<Html> wrappedEmpty() {
+                    ResponseEntity<Html> wrappedEmpty() {
                         return new ResponseEntity<Html>(HttpStatus.NO_CONTENT);
                     }
                     @GetMapping("/wrapped-charset")
-                    public ResponseEntity<Welcome> wrappedCharset() {
+                    ResponseEntity<Welcome> wrappedCharset() {
                         HttpHeaders headers = new HttpHeaders();
                         headers.setContentType(MediaType.parseMediaType("text/html;charset=ISO-8859-1"));
                         return new ResponseEntity<Welcome>(new Welcome("José"), headers, HttpStatus.OK);
                     }
                     @GetMapping(value = "/html-as-json", produces = "application/json")
-                    public Html htmlAsJson() { return (<p>HTML</p>); }
+                    Html htmlAsJson() { return (<p>HTML</p>); }
                     @GetMapping("/json")
-                    public Payload json() { return new Payload("hello"); }
+                    Payload json() { return new Payload("hello"); }
                     @GetMapping("/null-html")
-                    public Html empty() { return null; }
+                    Html empty() { return null; }
                 }
                 """);
         Files.writeString(sources.resolve("Welcome.accent"), """
                 package integrationfixture;
                 import accent.html.Component;
                 import accent.html.Html;
-                public record Welcome(String name) implements Component {
-                    public Html render() { return (<p>{this.name}</p>); }
+                record Welcome(String name) implements Component {
+                    Html render() { return (<p>{this.name}</p>); }
                 }
                 """);
-        Files.writeString(sources.resolve("Payload.accent"), "package integrationfixture; public record Payload(String message) {}");
+        Files.writeString(sources.resolve("Payload.accent"), "package integrationfixture; record Payload(String message) {}");
         Files.writeString(sources.resolve("Qualified.accent"), """
                 package integrationfixture;
                 import org.springframework.beans.factory.annotation.Qualifier;
-                public class Qualified {
-                    private final String value;
-                    public Qualified(@Qualifier("right") String value) { this.value = value; }
-                    public String value() { return this.value; }
+                class Qualified {
+                    final String _value;
+                    Qualified(@Qualifier("right") String value) { this._value = value; }
+                    String value() { return this._value; }
                 }
                 """);
         Files.writeString(sources.resolve("QualifiedRecord.accent"), """
                 package integrationfixture;
                 import org.springframework.beans.factory.annotation.Qualifier;
-                public record QualifiedRecord(@Qualifier("right") String value) {}
+                record QualifiedRecord(@Qualifier("right") String value) {}
                 """);
         Files.writeString(sources.resolve("QualifiedModel.accent"), """
                 package integrationfixture;
                 import org.springframework.beans.factory.annotation.Qualifier;
-                public model QualifiedModel(@Qualifier("right") String value) {}
+                model QualifiedModel(@Qualifier("right") String value) {}
                 """);
         Path output = tempDir.resolve("classes");
         List<String> classpath = Arrays.asList(System.getProperty("java.class.path").split(java.io.File.pathSeparator));

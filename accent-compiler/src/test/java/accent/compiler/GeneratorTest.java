@@ -51,14 +51,14 @@ class GeneratorTest {
     void generatorProducesLazyIterable() throws Exception {
         String accentSrc =
             "package test;\n" +
-            "public class Gen {\n" +
-            "    public generator int numbers(int limit) {\n" +
+            "class Gen {\n" +
+            "    generator int numbers(int limit) {\n" +
             "        for (var i = 0; i < limit; i++) {\n" +
             "            emit i;\n" +
             "        }\n" +
             "    }\n" +
             "\n" +
-            "    public static void main(String[] args) {\n" +
+            "    static void main(String[] args) {\n" +
             "        var gen = new Gen();\n" +
             "        var result = new java.util.ArrayList<Integer>();\n" +
             "        for (Integer n : gen.numbers(5)) {\n" +
@@ -80,8 +80,8 @@ class GeneratorTest {
     void generatorEmitsStrings() throws Exception {
         String accentSrc =
             "package test;\n" +
-            "public class StringGen {\n" +
-            "    public generator String greetings(String! name) {\n" +
+            "class StringGen {\n" +
+            "    generator String greetings(String! name) {\n" +
             "        emit \"Hello, \" + name + \"!\";\n" +
             "        emit \"Welcome, \" + name + \".\";\n" +
             "        emit \"Goodbye, \" + name + \".\";\n" +
@@ -97,8 +97,8 @@ class GeneratorTest {
     void generatorWithConditionalEmit() throws Exception {
         String accentSrc =
             "package test;\n" +
-            "public class ConditionalGen {\n" +
-            "    public generator int evenNumbers(int limit) {\n" +
+            "class ConditionalGen {\n" +
+            "    generator int evenNumbers(int limit) {\n" +
             "        for (var i = 0; i < limit; i++) {\n" +
             "            if (i % 2 == 0) {\n" +
             "                emit i;\n" +
@@ -116,8 +116,8 @@ class GeneratorTest {
     void generatorReturnTypeIsIterableInEmittedJava() throws Exception {
         String accentSrc =
             "package test;\n" +
-            "public class ReturnCheck {\n" +
-            "    public generator int numbers(int limit) {\n" +
+            "class ReturnCheck {\n" +
+            "    generator int numbers(int limit) {\n" +
             "        for (var i = 0; i < limit; i++) {\n" +
             "            emit i;\n" +
             "        }\n" +
@@ -144,7 +144,7 @@ class GeneratorTest {
     void generatorOnFieldIsError() {
         String accentSrc =
             "package test;\n" +
-            "public class BadField {\n" +
+            "class BadField {\n" +
             "    generator int field;\n" +
             "}\n";
 
@@ -157,8 +157,8 @@ class GeneratorTest {
     void emptyGenerator() throws Exception {
         String accentSrc =
             "package test;\n" +
-            "public class EmptyGen {\n" +
-            "    public generator int nothing() {\n" +
+            "class EmptyGen {\n" +
+            "    generator int nothing() {\n" +
             "    }\n" +
             "}\n";
 
@@ -189,8 +189,8 @@ class GeneratorTest {
             String boxed = entry.getValue();
             String src =
                 "package test;\n" +
-                "public class BoxTest {\n" +
-                "    public generator " + prim + " values() {\n" +
+                "class BoxTest {\n" +
+                "    generator " + prim + " values() {\n" +
                 "    }\n" +
                 "}\n";
 

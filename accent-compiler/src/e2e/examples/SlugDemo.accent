@@ -4,8 +4,8 @@ import accent.web.Slug;
 import accent.web.SlugOptions;
 import accent.web.SlugCharacterPolicy;
 
-public class SlugDemo {
-    public static void main(String[] args) {
+class SlugDemo {
+    static void main(String[] args) {
         System.out.println("=== Accent Slug Demo ===\n");
 
         // 1. Generation

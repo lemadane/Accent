@@ -27,49 +27,50 @@ class SingletonVariantsEndToEndTest {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
         Map<String, String> fixtures = new LinkedHashMap<>();
         fixtures.put("Probe", """
-                public class Probe {
-                    public static int classCalls = 0;
-                    public static int recordCalls = 0;
-                    public static int modelCalls = 0;
-                    public static String recordName() { Probe.recordCalls++; return "light"; }
-                    public static String modelName() { Probe.modelCalls++; return "app"; }
+                class Probe {
+                    static int classCalls = 0;
+                    static int recordCalls = 0;
+                    static int modelCalls = 0;
+                    static int classCreated() { Probe.classCalls++; return 1; }
+                    static String recordName() { Probe.recordCalls++; return "light"; }
+                    static String modelName() { Probe.modelCalls++; return "app"; }
                 }
                 """);
         fixtures.put("Config", """
-                public singleton class Config implements java.io.Serializable {
-                    private int count = 0;
-                    private Config() { Probe.classCalls++; }
-                    public int count() { return this.count; }
-                    public void increment() { this.count++; }
+                singleton class Config implements java.io.Serializable {
+                    int _count = 0;
+                    int _created = Probe.classCreated();
+                    int count() { return this._count; }
+                    void increment() { this._count++; }
                 }
                 """);
         fixtures.put("Defaults", """
-                public singleton record Defaults(String theme = Probe.recordName(), int retryLimit = 1 + 2) {}
+                singleton record Defaults(String theme = Probe.recordName(), int retryLimit = 1 + 2) {}
                 """);
         fixtures.put("State", """
-                public singleton model State(final String id = Probe.modelName(), String theme = "light", int count = 0) {}
+                singleton model State(final String id = Probe.modelName(), String theme = "light", int count = 0) {}
                 """);
-        fixtures.put("Computed", "public singleton record Computed(String! name = Probe.recordName() ?? \"fallback\") {}");
-        fixtures.put("EmptyClass", "public singleton class EmptyClass {}");
-        fixtures.put("EmptyRecord", "public singleton record EmptyRecord() {}");
-        fixtures.put("EmptyModel", "public singleton model EmptyModel() {}");
+        fixtures.put("Computed", "singleton record Computed(String! name = Probe.recordName() ?? \"fallback\") {}");
+        fixtures.put("EmptyClass", "singleton class EmptyClass {}");
+        fixtures.put("EmptyRecord", "singleton record EmptyRecord() {}");
+        fixtures.put("EmptyModel", "singleton model EmptyModel() {}");
         fixtures.put("Calls", """
                 import java.util.*;
-                public class Calls {
-                    public static Config config() { return Config.instance(); }
-                    public static Defaults defaults() { return Defaults.instance(); }
-                    public static State state() { return State.instance(); }
-                    public static String defaultsJson() { return Defaults.instance().toJson(); }
-                    public static String defaultsXml() { return Defaults.instance().toXml(); }
-                    public static String stateList() {
+                class Calls {
+                    static Config config() { return Config.instance(); }
+                    static Defaults defaults() { return Defaults.instance(); }
+                    static State state() { return State.instance(); }
+                    static String defaultsJson() { return Defaults.instance().toJson(); }
+                    static String defaultsXml() { return Defaults.instance().toXml(); }
+                    static String stateList() {
                         List<State> values = List.of(State.instance());
                         return values.toJson();
                     }
-                    public static String defaultsMap() {
+                    static String defaultsMap() {
                         Map<String, Defaults> values = Map.of("default", Defaults.instance());
                         return values.toXml();
                     }
-                    public static void main(String[] args) {
+                    static void main(String[] args) {
                         if (Config.instance() != Config.instance()) throw new RuntimeException("class identity");
                         if (Defaults.instance() != Defaults.instance()) throw new RuntimeException("record identity");
                         if (State.instance() != State.instance()) throw new RuntimeException("model identity");
@@ -207,23 +208,23 @@ class SingletonVariantsEndToEndTest {
                 "singleton model Bad(int count) {}",
                 "singleton record Bad(int count = \"bad\") {}",
                 "singleton model Bad(String! name = null) {}",
-                "singleton class Bad { public Bad() {} }",
-                "singleton class Bad { private Bad(int value) {} }",
-                "singleton record Bad(int value = 1) { private Bad() {} }",
-                "singleton model Bad(int value = 1) { private Bad() {} }",
-                "singleton class Bad { public static Bad instance() { return null; } }",
-                "singleton model Bad(int value = 1) { public Bad copy() { return null; } }",
+                "singleton class Bad { Bad() {} }",
+                "singleton class Bad { Bad(int value) {} }",
+                "singleton record Bad(int value = 1) { Bad() {} }",
+                "singleton model Bad(int value = 1) { Bad() {} }",
+                "singleton class Bad { static Bad instance() { return null; } }",
+                "singleton model Bad(int value = 1) { Bad copy() { return null; } }",
                 "singleton record Bad(int instance = 1) {}",
-                "singleton record Bad(int value = 1) { private int other = 0; }",
-                "singleton class Bad { public Object clone() { return null; } }",
-                "singleton class Bad {} class Use { public Object run() { return new Bad(); } }",
-                "singleton record Bad(int value = 1) {} class Use { public Object run() { return new Bad(1); } }",
-                "singleton model Bad(int value = 1) {} class Use { public Object run() { return new Bad(1); } }",
-                "singleton record Bad(int value = 1) {} class Use { public void run() { Bad.instance().value(2); } }",
-                "singleton model Bad(int value = 1) {} class Use { public Object run() { return Bad.instance().copy(2); } }"
+                "singleton record Bad(int value = 1) { int other = 0; }",
+                "singleton class Bad { Object clone() { return null; } }",
+                "singleton class Bad {} class Use { Object run() { return new Bad(); } }",
+                "singleton record Bad(int value = 1) {} class Use { Object run() { return new Bad(1); } }",
+                "singleton model Bad(int value = 1) {} class Use { Object run() { return new Bad(1); } }",
+                "singleton record Bad(int value = 1) {} class Use { void run() { Bad.instance().value(2); } }",
+                "singleton model Bad(int value = 1) {} class Use { Object run() { return Bad.instance().copy(2); } }"
         );
         return invalid.stream().map(text -> DynamicTest.dynamicTest(text, () -> {
-            var result = new AccentCompiler().check(new SourceFile(Path.of("Bad.accent"), text));
+            var result = new AccentCompiler().check(TestSources.sources(text));
             assertFalse(result.successful(), text);
             assertFalse(result.diagnostics().isEmpty());
         }));
@@ -234,7 +235,7 @@ class SingletonVariantsEndToEndTest {
         Path source = tempDir.resolve("Consumer.accent");
         for (String name : List.of("Config", "Defaults", "State")) {
             String args = name.equals("Config") ? "" : name.equals("Defaults") ? "\"dark\", 4" : "\"id\", \"dark\", 0";
-            Files.writeString(source, "import singletons." + name + "; public class Consumer { public Object run() { return new " + name + "(" + args + "); } }");
+            Files.writeString(source, "import singletons." + name + "; class Consumer { Object run() { return new " + name + "(" + args + "); } }");
             var result = new AccentCompiler().compile(List.of(source), tempDir.resolve("consumer"), List.of(runtime, output.toString()), tempDir.resolve("consumer-java"), true);
             assertFalse(result.successful());
             assertTrue(result.diagnostics().stream().anyMatch(d -> d.message().contains("Cannot construct singleton")), () -> result.diagnostics().toString());

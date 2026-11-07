@@ -21,8 +21,8 @@ class LoggingGenerationTest {
             import accent.logging.Logging;
             
             @Logging
-            public class CustomerService {
-                public void login() {
+            class CustomerService {
+                void login() {
                     log.info("Test");
                 }
             }
