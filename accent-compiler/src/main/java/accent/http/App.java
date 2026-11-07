@@ -1,6 +1,8 @@
 package accent.http;
 
 import io.undertow.Undertow;
+import accent.logging.internal.LogContext;
+import accent.logging.LogManager;
 import io.undertow.UndertowOptions;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.GracefulShutdownHandler;
@@ -96,8 +98,9 @@ public final class App implements AutoCloseable {
     }
 
     private void handle(HttpServerExchange exchange) {
-        exchange.startBlocking();
+        LogContext.clear();
         try {
+            exchange.startBlocking();
             if (exchange.getRequestContentLength() > maxBodyBytes) throw new HttpException(413, "Request body too large");
             byte[] body = exchange.getInputStream().readNBytes(maxBodyBytes + 1);
             if (body.length > maxBodyBytes) throw new HttpException(413, "Request body too large");
@@ -132,9 +135,12 @@ public final class App implements AutoCloseable {
             exchange.setPersistent(false);
             error(exchange, exception.status(), exception.getMessage());
         } catch (Exception exception) {
-            System.getLogger(App.class.getName()).log(System.Logger.Level.ERROR, "HTTP request failed", exception);
+            LogManager.getLogger(App.class).error("HTTP request failed", exception);
             error(exchange, 500, "Internal Server Error");
-        } finally { exchange.endExchange(); }
+        } finally {
+            LogContext.clear();
+            exchange.endExchange();
+        }
     }
 
     private static Response normalize(Response response) { return response == null ? Response.empty(204) : response; }

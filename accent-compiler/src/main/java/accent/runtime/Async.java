@@ -1,6 +1,7 @@
 package accent.runtime;
 
 import java.time.Duration;
+import accent.logging.internal.LogContext;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeoutException;
  * {@code await valueAsync} is shorthand for {@code valueAsync.await()}.
  * Call {@link #await()} to retrieve its result. Operations have independent lifetimes;
  * timeouts and interruption of an awaiter do not automatically cancel the operation.
+ * Each task receives an independent submission-time snapshot of the Accent logging context.
  *
  * @param <T> result type, or {@link Void} for a void operation
  */
@@ -40,7 +42,15 @@ public final class Async<T> {
      */
     public static <T> Async<T> run(Callable<T> operation) {
         Objects.requireNonNull(operation, "operation");
-        FutureTask<T> task = new FutureTask<>(operation);
+        var context = LogContext.snapshot();
+        FutureTask<T> task = new FutureTask<>(() -> {
+            LogContext.restore(context);
+            try {
+                return operation.call();
+            } finally {
+                LogContext.clear();
+            }
+        });
         Thread.ofVirtual().name("accent-task-", TASK_SEQUENCE.incrementAndGet()).start(task);
         return new Async<>(task);
     }

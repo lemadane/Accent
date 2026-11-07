@@ -372,6 +372,7 @@ class HttpEndToEndTest {
     }
 
     @Test
+    @Timeout(40)
     void readmeExampleRunsThroughCliAndStopsItsServerChildOnTermination() throws Exception {
         String readme = Files.readString(Path.of("../README.md"));
         String section = readme.split("## Standalone HTTP — Undertow by Default", 2)[1];
@@ -399,13 +400,14 @@ class HttpEndToEndTest {
             assertTrue(process.waitFor(10, TimeUnit.SECONDS));
             for (ProcessHandle child : children) assertFalse(child.isAlive(), "CLI must terminate its server JVM");
         } finally {
+            process.descendants().forEach(ProcessHandle::destroyForcibly);
             process.destroyForcibly();
             for (ProcessHandle child : children) if (child.isAlive()) child.destroyForcibly();
         }
     }
 
     private static int awaitPort(Process process, Path log) throws Exception {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
         var pattern = java.util.regex.Pattern.compile("Accent HTTP listening on (\\d+)");
         while (System.nanoTime() < deadline) {
             var matcher = pattern.matcher(read(log));

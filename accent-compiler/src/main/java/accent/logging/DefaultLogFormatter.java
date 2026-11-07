@@ -12,6 +12,6 @@ public class DefaultLogFormatter implements LogFormatter {
                 event.level(),
                 event.threadName(),
                 event.loggerName(),
-                event.message());
+                event.message()) + (event.mdc().isEmpty() ? "" : " " + new java.util.TreeMap<>(event.mdc()));
     }
 }
