@@ -19,8 +19,9 @@ with zipfile.ZipFile(archive) as package:
     assert grammar_bytes == (root / "syntaxes/accent.tmLanguage.json").read_bytes()
     grammar = json.loads(grammar_bytes)
     patterns = [rule["match"] for rule in grammar["repository"]["accent-keywords"]["patterns"]]
-    assert not any(re.search(pattern, "async") for pattern in patterns)
-    assert not any(re.search(pattern, "await") for pattern in patterns)
+    assert any(re.search(pattern, "async") for pattern in patterns)
+    assert any(re.search(pattern, "await") for pattern in patterns)
+    assert not any(re.search(pattern, "ordersAsync.await()") for pattern in patterns)
     assert package.read("extension/readme.md") == (root / "README.md").read_bytes()
     assert package.read("extension/dist/extension.js") == (root / "dist/extension.js").read_bytes()
-print(f"Verified {archive.name}: start and await are methods, async is not a keyword, version and contents match source")
+print(f"Verified {archive.name}: async/await shorthand and Async.run/await methods supported, version and contents match source")

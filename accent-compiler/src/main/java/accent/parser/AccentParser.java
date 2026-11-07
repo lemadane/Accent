@@ -457,7 +457,8 @@ public final class AccentParser {
             name = advance().lexeme();
         } else {
             type = parseType();
-            name = consume(TokenType.IDENTIFIER, "Expected member name.").lexeme();
+            name = match(TokenType.AWAIT) ? previous().lexeme()
+                    : consume(TokenType.IDENTIFIER, "Expected member name.").lexeme();
         }
 
         if (match(TokenType.LEFT_PAREN)) {
@@ -1061,6 +1062,16 @@ public final class AccentParser {
                 Expression right = parseExpression(Precedence.UNARY);
                 yield new UnaryExpr(token, right, false);
             }
+            case ASYNC -> {
+                Expression operation = parseExpression(Precedence.UNARY);
+                LambdaExpr lambda = new LambdaExpr(List.of(), operation, token);
+                yield new MethodCallExpr(new IdentifierExpr("accent.runtime.Async", token),
+                        "run", List.of(), List.of(lambda), false, token);
+            }
+            case AWAIT -> {
+                Expression value = parseExpression(Precedence.UNARY);
+                yield new MethodCallExpr(value, "await", List.of(), List.of(), false, token);
+            }
             case NEW -> {
                 TypeNode type = parseType();
                 if (match(TokenType.LEFT_PAREN)) {
@@ -1362,7 +1373,7 @@ public final class AccentParser {
                 }
 
                 String memberName;
-                if (check(TokenType.CLASS)) {
+                if (check(TokenType.CLASS) || check(TokenType.AWAIT)) {
                     memberName = advance().lexeme();
                 } else {
                     memberName = consume(TokenType.IDENTIFIER, "Expected member name after '" + op.lexeme() + "'.").lexeme();

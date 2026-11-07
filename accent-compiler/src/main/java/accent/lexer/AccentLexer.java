@@ -530,6 +530,8 @@ public final class AccentLexer {
         keywords.put("while", TokenType.WHILE);
         keywords.put("do", TokenType.DO);
         keywords.put("yield", TokenType.YIELD);
+        keywords.put("async", TokenType.ASYNC);
+        keywords.put("await", TokenType.AWAIT);
         keywords.put("return", TokenType.RETURN);
         keywords.put("new", TokenType.NEW);
         keywords.put("public", TokenType.PUBLIC);

@@ -21,8 +21,8 @@ class AccentLexerTest {
                     }
                 }
 
-                final valueAsync = Async.start(() -> service.load());
-                final value = valueAsync.await();
+                final valueAsync = async service.load();
+                final value = await valueAsync;
 
                 final values = for (var i = 0; i < 10; i++) {
                     yield i;
@@ -37,8 +37,8 @@ class AccentLexerTest {
         assertTrue(types.contains(TokenType.BANG));
         assertTrue(types.contains(TokenType.OPTIONAL_CHAIN));
         assertTrue(types.contains(TokenType.NULL_COALESCING));
-        assertTrue(result.tokens().stream().anyMatch(token -> token.type() == TokenType.IDENTIFIER && token.lexeme().equals("Async")));
-        assertTrue(result.tokens().stream().anyMatch(token -> token.type() == TokenType.IDENTIFIER && token.lexeme().equals("await")));
+        assertTrue(types.contains(TokenType.ASYNC));
+        assertTrue(types.contains(TokenType.AWAIT));
         assertTrue(types.contains(TokenType.FOR));
         assertTrue(types.contains(TokenType.YIELD));
         assertEquals(TokenType.EOF, types.getLast());

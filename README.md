@@ -13,8 +13,6 @@
 ## A first look
 
 ```accent
-import accent.runtime.Async;
-
 @Service
 public record DashboardService(
         CustomerService! customerService,
@@ -22,13 +20,13 @@ public record DashboardService(
 
     public Dashboard! load(UUID! customerId) {
         final customerAsync =
-            Async.start(() -> this.customerService.findRequired(customerId));
+            async this.customerService.findRequired(customerId);
 
         final ordersAsync =
-            Async.start(() -> this.orderService.findForCustomer(customerId));
+            async this.orderService.findForCustomer(customerId);
 
-        final customer = customerAsync.await();
-        final orders = ordersAsync.await();
+        final customer = await customerAsync;
+        final orders = await ordersAsync;
 
         final status = if (customer.isActive()) {
             yield "ACTIVE";
@@ -93,9 +91,32 @@ The right-hand expression is evaluated only when the left-hand value is `null`.
 
 ### 4. Virtual Thread concurrency
 
-Start work with `Async.start(() -> expression)` and retrieve its result with `.await()`. Both are methods on `accent.runtime.Async<T>`; `async` and `await` are not language keywords.
+Accent provides two compiler shorthands for the `Async<T>` methods:
 
-Ordinary Java and Accent methods remain synchronous. If `findRequired(id)` returns `Customer`, then `Async.start(() -> service.findRequired(id))` immediately returns `Async<Customer>` while the service call runs on a new virtual thread. The service method itself still returns `Customer`.
+| Shorthand | Equivalent method call | Result type |
+| --- | --- | --- |
+| `async expression` | `Async.run(() -> expression)` | `Async<T>` |
+| `await valueAsync` | `valueAsync.await()` | `T` |
+
+The compiler rewrites the shorthand to the equivalent method call. Both forms share the same execution, result, failure, and cancellation behavior, and can be mixed freely.
+
+```accent
+final customerAsync = async this.customerService.findRequired(id);
+final customer = await customerAsync;
+```
+
+The equivalent method form is:
+
+```accent
+import accent.runtime.Async;
+
+final customerAsync = Async.run(() -> this.customerService.findRequired(id));
+final customer = customerAsync.await();
+```
+
+The shorthand does not require an `Async` import. Import `accent.runtime.Async` when calling `Async.run()` or declaring `Async<T>` explicitly.
+
+Ordinary Java and Accent methods remain synchronous. If `findRequired(id)` returns `Customer`, then `Async.run(() -> service.findRequired(id))` immediately returns `Async<Customer>` while the service call runs on a new virtual thread. The service method itself still returns `Customer`.
 
 Start independent calls before awaiting their results:
 
@@ -103,21 +124,21 @@ Start independent calls before awaiting their results:
 import accent.runtime.Async;
 
 final customerAsync =
-    Async.start(() -> this.customerService.findRequired(id));
+    Async.run(() -> this.customerService.findRequired(id));
 
 final ordersAsync =
-    Async.start(() -> this.orderService.findForCustomer(id));
+    Async.run(() -> this.orderService.findForCustomer(id));
 
 final customer = customerAsync.await();
 final orders = ordersAsync.await();
 ```
 
-`Async.start(() -> expression)` returns `accent.runtime.Async<T>`, where `T` is the expression's result type. You can let Accent infer it or declare it explicitly:
+`Async.run(() -> expression)` returns `accent.runtime.Async<T>`, where `T` is the expression's result type. You can let Accent infer it or declare it explicitly:
 
 ```accent
 import accent.runtime.Async;
 
-final Async<Customer> customerAsync = Async.start(() -> this.customerService.findRequired(id));
+final Async<Customer> customerAsync = Async.run(() -> this.customerService.findRequired(id));
 final Customer customer = customerAsync.await();
 ```
 
@@ -126,11 +147,11 @@ Use the `Async` suffix for operation variables (`customerAsync`, `ordersAsync`) 
 The semantics are:
 
 ```text
-Async.start(operation) -> start the operation on a virtual thread and return Async<T>
-asyncValue.await() -> wait for completion and produce the result
+async expression -> Async.run(() -> expression) -> Async<T>
+await valueAsync -> valueAsync.await() -> T
 ```
 
-Each `Async.start()` call starts its operation on a virtual thread and returns `Async<T>`. Call `.await()` to wait for its result. Runtime failures are rethrown; checked failures are wrapped in `AccentExecutionException`.
+Each `Async.run()` call starts its operation on a virtual thread and returns `Async<T>`. Call `.await()` to wait for its result. Runtime failures are rethrown; checked failures are wrapped in `AccentExecutionException`.
 
 | Method | Behavior |
 | --- | --- |
@@ -148,7 +169,7 @@ import accent.runtime.Async;
 import java.time.Duration;
 import accent.runtime.AccentExecutionException;
 
-final customerAsync = Async.start(() -> this.customerService.findRequired(id));
+final customerAsync = Async.run(() -> this.customerService.findRequired(id));
 try {
     final customer = customerAsync.await(Duration.ofSeconds(2));
 } catch (AccentExecutionException exception) {
@@ -159,9 +180,9 @@ try {
 
 Awaiting a cancelled operation throws `CancellationException`. If the awaiting thread is interrupted, `.await()` preserves its interrupt flag and throws `CancellationException`; it does not cancel the operation. Multiple callers can await the same operation. A void operation produces `Async<Void>` and its successful `.await()` returns `null`.
 
-Tasks are independent: leaving a method or observing one task fail does not automatically await or cancel other tasks. Each `Async.start()` starts a new virtual thread; Accent does not impose a concurrency limit. Shared mutable objects still require coordination.
+Tasks are independent: leaving a method or observing one task fail does not automatically await or cancel other tasks. Each `Async.run()` starts a new virtual thread; Accent does not impose a concurrency limit. Shared mutable objects still require coordination.
 
-The operation is a lambda: captured local variables must be final or effectively final. Referenced objects remain shared; their contents are not copied. Put the entire operation inside the lambda, for example `Async.start(() -> first() + second())`. Passing `service.findRequired(id)` directly would evaluate it before `start()`; pass `() -> service.findRequired(id)` instead.
+The operation is a lambda: captured local variables must be final or effectively final. Referenced objects remain shared; their contents are not copied. Put the entire operation inside the lambda, for example `Async.run(() -> first() + second())`, or use `async (first() + second())`. Shorthand binds as a unary expression: `(await valueAsync).method()` calls a method on the completed result. Passing `service.findRequired(id)` directly would evaluate it before `run()`; pass `() -> service.findRequired(id)` instead.
 
 Virtual threads do not keep the JVM running after its non-daemon threads exit. Await important work before application shutdown.
 
@@ -171,7 +192,7 @@ Start independent operations before awaiting them to allow overlap. Immediately 
 import accent.runtime.Async;
 
 final customer =
-    Async.start(() -> this.customerService.findRequired(id)).await();
+    Async.run(() -> this.customerService.findRequired(id)).await();
 ```
 
 Prefer the ordinary synchronous call in that case:
@@ -780,12 +801,12 @@ The runtime automatically maps database result set columns to Java records using
 
 ### 25. Synchronous SQL Query Execution for Virtual Threads
 
-Use `Async.start()` to execute a SQL query on a virtual thread, then call `.await()` on its `Async<T>` result:
+Use `Async.run()` to execute a SQL query on a virtual thread, then call `.await()` on its `Async<T>` result:
 
 ```accent
 import accent.runtime.Async;
 
-final usersAsync = Async.start(() -> sql<User>`SELECT * FROM users`);
+final usersAsync = Async.run(() -> sql<User>`SELECT * FROM users`);
 // ... concurrent operations ...
 final users = usersAsync.await();
 ```
@@ -1041,7 +1062,7 @@ The target guarantees are:
 4. Accent annotations and generic signatures are preserved.
 5. Accent nullability is retained as metadata while remaining compatible with JVM descriptors.
 6. Class extensions lower to normal static Java methods.
-7. `Async.start(() -> expression)` can run ordinary Java or Accent expressions.
+7. `Async.run(() -> expression)` can run ordinary Java or Accent expressions.
 8. Accent requires no modified JVM.
 9. Mixed Java and Accent projects produce normal JAR files.
 10. Frameworks should not need to know whether a class originated from Java or Accent.
@@ -1562,7 +1583,7 @@ The repository already contains:
 - a **Java source emitter** for transpilation output
 - source-file and diagnostic abstractions
 - a CLI with `check`, `tokens`, and `checkAccent` commands
-- a virtual-thread runtime with `Async.start()` and `Async<T>.await()` methods
+- a virtual-thread runtime with `async` / `await` shorthand and `Async.run()` / `.await()` methods
 - JUnit 5 tests (including end-to-end compiler tests)
 - an example `.accent` source file
 
@@ -1590,9 +1611,9 @@ An LSP-compliant server built with LSP4J communicating via `stdin`/`stdout`.
 
 ### 3. `accent-vscode` (VS Code Extension)
 Provides out-of-the-box support for VS Code:
-* **Syntax Highlighting**: Custom TextMate grammar (`.accent` language mode) highlighting interpolated strings, JSX HTML tags, and `Async.start()` and `.await()` calls.
+* **Syntax Highlighting**: Custom TextMate grammar (`.accent` language mode) highlighting interpolated strings, JSX HTML tags, and both `async` / `await` shorthand and `Async.run()` / `.await()` calls.
 * **LSP Client**: Boots the Language Server from local Gradle build automatically.
-* **Updated syntax package**: Install [accent-vscode-0.1.5.vsix](tools/accent-vscode/accent-vscode-0.1.5.vsix) for method-based `Async.start()` and `.await()` syntax without `async` or `await` keywords. Older archives retain their original grammar. See the [VS Code installation and build instructions](tools/accent-vscode/README.md#building-updated-editor-support).
+* **Updated syntax package**: Install [accent-vscode-0.1.6.vsix](tools/accent-vscode/accent-vscode-0.1.6.vsix) for `async` / `await` shorthand alongside `Async.run()` / `.await()` methods. Older archives retain their original grammar. See the [VS Code installation and build instructions](tools/accent-vscode/README.md#building-updated-editor-support).
 * **Commands**: Run command `Accent: Show Generated Java` to transpile on-the-fly and display raw Java side-by-side.
 
 ### 4. `accent-intellij` (IntelliJ Plugin)

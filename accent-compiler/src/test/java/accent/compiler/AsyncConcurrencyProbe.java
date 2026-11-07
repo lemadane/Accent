@@ -2,7 +2,7 @@ package accent.compiler;
 
 import java.util.concurrent.Callable;
 
-/** Java interop operation invoked by compiled Accent Async.start calls. */
+/** Java interop operation invoked by compiled Accent Async.run calls. */
 public final class AsyncConcurrencyProbe {
     private final Callable<String> operation;
 

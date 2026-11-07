@@ -724,9 +724,9 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
 
             if (rec != null && rec.info().fullName().equals("accent.runtime.Async")
-                    && mc.methodName().equals("start") && mc.arguments().size() == 1
+                    && mc.methodName().equals("run") && mc.arguments().size() == 1
                     && mc.arguments().getFirst() instanceof LambdaExpr lambda) {
-                if (!lambda.parameters().isEmpty()) error(mc.token(), "Async.start requires a zero-argument operation.");
+                if (!lambda.parameters().isEmpty()) error(mc.token(), "Async.run requires a zero-argument operation.");
                 ResolvedType result = lambdaResults.get(lambda);
                 if (result == null) result = new ResolvedType(symbolTable.getType("java.lang.Object"), false, List.of(), 0);
                 String boxed = switch (result.info().fullName()) {

@@ -498,7 +498,7 @@ public final class AccentLowerer implements ImportResolver {
 
             ResolvedType resultType = expressionTypes.get(mc);
             // A returned HTML lambda needs a concrete target inside the Callable lambda.
-            if (mc.methodName().equals("start") && mc.typeArguments().isEmpty()
+            if (mc.methodName().equals("run") && mc.typeArguments().isEmpty()
                     && resultType != null && resultType.info().fullName().equals("accent.runtime.Async")
                     && !resultType.typeArguments().isEmpty()
                     && resultType.typeArguments().getFirst().info().fullName().equals("accent.html.Html")) {

@@ -32,15 +32,15 @@ cd accent-lang
 
 ## Testing Concurrency Changes
 
-Accent starts work with `Async.start(() -> expression)` and waits with `valueAsync.await()`. The result type is `accent.runtime.Async<T>`; `start` and `await` are ordinary method names, and `async` is no longer a keyword. Keep examples, diagnostics, completion, and packaged grammars consistent with this syntax.
+Accent supports `async expression` as shorthand for `Async.run(() -> expression)` and `await valueAsync` as shorthand for `valueAsync.await()`. Both forms return the same `accent.runtime.Async<T>` handles and results, and may be mixed. The compiler rewrites the shorthands to these method calls, so test both forms against the same behavior. Keep examples, diagnostics, completions, and packaged grammars consistent with both forms.
 
 Run the runtime and compiled-language concurrency tests:
 
 ```bash
-./gradlew :accent-compiler:test --tests accent.runtime.AccentRuntimeTest --tests accent.compiler.AsyncConcurrencyEndToEndTest --tests accent.compiler.AsyncDocumentationEndToEndTest
+./gradlew :accent-compiler:test --tests accent.runtime.AccentRuntimeTest --tests accent.compiler.AsyncConcurrencyEndToEndTest --tests accent.compiler.AsyncSyntaxEquivalenceEndToEndTest --tests accent.compiler.AsyncDocumentationEndToEndTest
 ```
 
-The E2E suite covers virtual-thread overlap, inferred and explicit result types, nested and void operations, repeated and simultaneous awaits, failures, timed waits, cancellation, interruption, and rejection of the removed prefix syntax. Use latches and bounded waits to test overlap rather than timing-based speed comparisons. `AsyncDocumentationEndToEndTest` reads the actual README and VS Code guide snippets, compiles them, and executes them.
+The E2E suite covers virtual-thread overlap, inferred and explicit result types, nested and void operations, repeated and simultaneous awaits, failures, timed waits, cancellation, interruption, invalid operations, and interoperability between shorthand and method syntax. `AsyncSyntaxEquivalenceEndToEndTest` runs a shared behavioral contract against both forms, including captures, evaluation order, short-circuiting, generic identity, and failure propagation. Use latches and bounded waits to test overlap rather than timing-based speed comparisons. `AsyncDocumentationEndToEndTest` reads the actual README and VS Code guide snippets, compiles them, and executes them.
 
 ## Making Changes
 

@@ -219,11 +219,11 @@ class AccentEndToEndTest {
                 package test;
                 import accent.runtime.Async;
                 public class TypedAsyncMain {
-                    public static Async<String> start() { return Async.start(() -> "hello"); }
+                    public static Async<String> start() { return Async.run(() -> "hello"); }
                     public static String finish(Async<String> task) { return task.await(); }
                     public static void main(String[] args) {
                         final Async<String> task = start();
-                        final inferred = Async.start(() -> "world");
+                        final inferred = Async.run(() -> "world");
                         if (finish(task) != "hello") throw new RuntimeException("Typed Async failed");
                         if (finish(inferred) != "world") throw new RuntimeException("Inferred Async failed");
                     }
@@ -245,7 +245,7 @@ class AccentEndToEndTest {
             "import accent.runtime.Async;\n" +
             "public class AsyncMain {\n" +
             "    public static void main(String[] args) {\n" +
-            "        final valueAsync = Async.start(() -> 42);\n" +
+            "        final valueAsync = Async.run(() -> 42);\n" +
             "        final val = valueAsync.await();\n" +
             "        if (val != 42) { throw new RuntimeException(\"Async/await failed\"); }\n" +
             "    }\n" +
@@ -407,7 +407,7 @@ class AccentEndToEndTest {
             "public class AsyncSqlMain {\n" +
             "    public static void main(String[] args) {\n" +
             "        final id = 42;\n" +
-            "        final queryAsync = Async.start(() -> sql`SELECT * FROM users WHERE id = {id}`);\n" +
+            "        final queryAsync = Async.run(() -> sql`SELECT * FROM users WHERE id = {id}`);\n" +
             "        final query = queryAsync.await();\n" +
             "    }\n" +
             "}\n";

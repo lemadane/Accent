@@ -12,7 +12,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Result of {@link #start(Callable)}, running on a virtual thread.
+ * Result of {@link #run(Callable)}, running on a virtual thread.
+ * Accent {@code async expression} is compiler shorthand for
+ * {@code Async.run(() -> expression)};
+ * {@code await valueAsync} is shorthand for {@code valueAsync.await()}.
  * Call {@link #await()} to retrieve its result. Operations have independent lifetimes;
  * timeouts and interruption of an awaiter do not automatically cancel the operation.
  *
@@ -35,7 +38,7 @@ public final class Async<T> {
      * @param <T> result type
      * @return a handle for awaiting or cancelling the operation
      */
-    public static <T> Async<T> start(Callable<T> operation) {
+    public static <T> Async<T> run(Callable<T> operation) {
         Objects.requireNonNull(operation, "operation");
         FutureTask<T> task = new FutureTask<>(operation);
         Thread.ofVirtual().name("accent-task-", TASK_SEQUENCE.incrementAndGet()).start(task);
@@ -47,9 +50,9 @@ public final class Async<T> {
      * @param operation operation evaluated on the virtual thread
      * @return a handle whose successful await returns null
      */
-    public static Async<Void> start(Action operation) {
+    public static Async<Void> run(Action operation) {
         Objects.requireNonNull(operation, "operation");
-        return start(() -> {
+        return run(() -> {
             operation.run();
             return null;
         });

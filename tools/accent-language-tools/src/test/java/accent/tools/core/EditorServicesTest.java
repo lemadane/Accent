@@ -76,7 +76,7 @@ class EditorServicesTest {
                 import accent.runtime.Async;
                 public class AsyncEditor {
                     public void inspect() {
-                        final customerAsync = Async.start(() -> "Alice");
+                        final customerAsync = Async.run(() -> "Alice");
                         final customer = customerAsync.await();
                         customerAsync.
                     }
@@ -94,8 +94,8 @@ class EditorServicesTest {
         assertTrue(members.stream().filter(item -> item.label().equals("await"))
                 .allMatch(item -> item.detail().contains("String")), "await completion should expose the result type");
         List<CompletionItem> keywords = CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1);
-        assertFalse(keywords.stream().anyMatch(item -> item.label().equals("async") && item.kind().equals("Keyword")));
-        assertFalse(keywords.stream().anyMatch(item -> item.label().equals("await") && item.kind().equals("Keyword")));
+        assertTrue(keywords.stream().anyMatch(item -> item.label().equals("async") && item.kind().equals("Keyword")));
+        assertTrue(keywords.stream().anyMatch(item -> item.label().equals("await") && item.kind().equals("Keyword")));
     }
 
 }
