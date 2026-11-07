@@ -224,7 +224,7 @@ public final class JavaEmitter {
             // Setters for var fields
             for (Parameter p : md.components()) {
                 if (p.isMutable()) {
-                    String setterName = "set" + Character.toUpperCase(p.name().charAt(0)) + p.name().substring(1);
+                    String setterName = p.name();
                     printIndent();
                     sb.append("public void ").append(setterName).append("(").append(emitType(p.type())).append(" ").append(p.name()).append(") {\n");
                     indentLevel++;

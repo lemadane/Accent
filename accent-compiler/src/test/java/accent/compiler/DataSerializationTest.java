@@ -69,7 +69,7 @@ class DataSerializationTest {
             Object customValue = custom.getConstructor(String.class).newInstance("name");
             assertEquals("custom json", custom.getMethod("toJson").invoke(customValue));
             assertEquals("custom xml", custom.getMethod("toXml").invoke(customValue));
-            userClass.getMethod("setName", String.class).invoke(user, "Updated");
+            userClass.getMethod("name", String.class).invoke(user, "Updated");
             assertTrue(((String) userClass.getMethod("toJson").invoke(user)).contains("Updated"));
         }
     }

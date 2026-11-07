@@ -73,7 +73,7 @@ class SingletonVariantsEndToEndTest {
                         if (Config.instance() != Config.instance()) throw new RuntimeException("class identity");
                         if (Defaults.instance() != Defaults.instance()) throw new RuntimeException("record identity");
                         if (State.instance() != State.instance()) throw new RuntimeException("model identity");
-                        State.instance().setTheme("dark");
+                        State.instance().theme("dark");
                         if (not State.instance().theme().equals("dark")) throw new RuntimeException("shared state");
                         System.out.println(Defaults.instance().toJson());
                         System.out.println(State.instance().toXml());
@@ -151,13 +151,13 @@ class SingletonVariantsEndToEndTest {
         assertEquals("light", defaults.getClass().getMethod("theme").invoke(defaults));
         assertEquals(3, defaults.getClass().getMethod("retryLimit").invoke(defaults));
         assertTrue(Modifier.isFinal(defaults.getClass().getDeclaredField("theme").getModifiers()));
-        assertThrows(NoSuchMethodException.class, () -> defaults.getClass().getMethod("setTheme", String.class));
+        assertThrows(NoSuchMethodException.class, () -> defaults.getClass().getMethod("theme", String.class));
         Object state = calls.getMethod("state").invoke(null);
         assertEquals("app", state.getClass().getMethod("id").invoke(state));
-        assertThrows(NoSuchMethodException.class, () -> state.getClass().getMethod("setId", String.class));
-        state.getClass().getMethod("setTheme", String.class).invoke(state, "dark");
+        assertThrows(NoSuchMethodException.class, () -> state.getClass().getMethod("id", String.class));
+        state.getClass().getMethod("theme", String.class).invoke(state, "dark");
         assertEquals("dark", state.getClass().getMethod("theme").invoke(calls.getMethod("state").invoke(null)));
-        state.getClass().getMethod("setTheme", String.class).invoke(state, "light");
+        state.getClass().getMethod("theme", String.class).invoke(state, "light");
         assertEquals("{\"theme\":\"light\",\"retryLimit\":3}", calls.getMethod("defaultsJson").invoke(null));
         assertEquals("<Defaults><theme>light</theme><retryLimit>3</retryLimit></Defaults>", calls.getMethod("defaultsXml").invoke(null));
         assertEquals("[{\"id\":\"app\",\"theme\":\"light\",\"count\":0}]", calls.getMethod("stateList").invoke(null));
@@ -219,7 +219,7 @@ class SingletonVariantsEndToEndTest {
                 "singleton class Bad {} class Use { public Object run() { return new Bad(); } }",
                 "singleton record Bad(int value = 1) {} class Use { public Object run() { return new Bad(1); } }",
                 "singleton model Bad(int value = 1) {} class Use { public Object run() { return new Bad(1); } }",
-                "singleton record Bad(int value = 1) {} class Use { public void run() { Bad.instance().setValue(2); } }",
+                "singleton record Bad(int value = 1) {} class Use { public void run() { Bad.instance().value(2); } }",
                 "singleton model Bad(int value = 1) {} class Use { public Object run() { return Bad.instance().copy(2); } }"
         );
         return invalid.stream().map(text -> DynamicTest.dynamicTest(text, () -> {

@@ -702,8 +702,8 @@ class AccentEndToEndTest {
             "        if (not user.id().equals(\"U101\") or not user.name().equals(\"Lemuel\") or user.age() != 42) {\n" +
             "            throw new RuntimeException(\"Fail model getter check: \" + user);\n" +
             "        }\n" +
-            "        user.setName(\"Lemuel A.\");\n" +
-            "        user.setAge(43);\n" +
+            "        user.name(\"Lemuel A.\");\n" +
+            "        user.age(43);\n" +
             "        if (not user.name().equals(\"Lemuel A.\") or user.age() != 43) {\n" +
             "            throw new RuntimeException(\"Fail model setter check: \" + user);\n" +
             "        }\n" +
@@ -742,7 +742,7 @@ class AccentEndToEndTest {
             "public class BadModel {\n" +
             "    public static void main(String[] args) {\n" +
             "        final user = new User(\"U101\", \"Lemuel\");\n" +
-            "        user.setId(\"U102\");\n" +
+            "        user.id(\"U102\");\n" +
             "    }\n" +
             "}\n" +
             "model User(final String! id, var String! name) {}\n";
@@ -756,4 +756,28 @@ class AccentEndToEndTest {
         assertFalse(result.successful(), "Compilation should fail when calling setter on final field 'id'");
         assertTrue(result.diagnostics().stream().anyMatch(d -> d.message().contains("is final and cannot have a setter")));
     }
+
+    @Test
+    void testModelSettersRejectOldPrefixAndInvalidArguments() throws Exception {
+        for (String statement : List.of(
+                "customer.setName(\"Ann\");",
+                "customer.setAge(31);",
+                "customer.name(31);",
+                "customer.age(\"31\");")) {
+            Path tempDir = createTempDir();
+            Path source = tempDir.resolve("Main.accent");
+            Files.writeString(source, """
+                    public class Main {
+                        public static void main(String[] args) {
+                            final customer = new Customer("C1", "Ana", 30);
+                            %s
+                        }
+                    }
+                    model Customer(final String! id, String! name, int age) {}
+                    """.formatted(statement));
+            CompilationResult result = compile(source, tempDir.resolve("bin"), tempDir.resolve("gen"));
+            assertFalse(result.successful(), "Must reject invalid model mutation: " + statement);
+        }
+    }
+
 }

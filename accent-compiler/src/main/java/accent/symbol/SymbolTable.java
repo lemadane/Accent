@@ -228,7 +228,7 @@ public final class SymbolTable {
                 fields.add(new FieldInfo(p.name(), fieldMods, p.type()));
                 methods.add(new MethodInfo(p.name(), List.of("public"), p.type(), List.of()));
                 if (p.isMutable()) {
-                    String setterName = "set" + Character.toUpperCase(p.name().charAt(0)) + p.name().substring(1);
+                    String setterName = p.name();
                     methods.add(new MethodInfo(setterName, List.of("public"), voidType, List.of(p)));
                 }
             }

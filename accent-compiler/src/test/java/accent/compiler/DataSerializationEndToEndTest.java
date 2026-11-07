@@ -231,7 +231,7 @@ class DataSerializationEndToEndTest {
         assertEquals("false", document.getElementsByTagName("active").item(0).getTextContent());
         assertEquals("0", document.getElementsByTagName("count").item(0).getTextContent());
         assertEquals(3, document.getElementsByTagName("name").getLength());
-        owner.getClass().getMethod("setName", String.class).invoke(owner, "Updated");
+        owner.getClass().getMethod("name", String.class).invoke(owner, "Updated");
         Map<?, ?> updated = (Map<?, ?>) JsonParser.parse((String) call("payload", payloadClass, payload));
         assertEquals(Map.of("name", "Updated"), updated.get("owner"));
     }
@@ -311,7 +311,7 @@ class DataSerializationEndToEndTest {
     void generatedMethodsRejectCyclesAndRecoverOnLaterCalls() throws Exception {
         Class<?> nodeType = loader.loadClass("Node");
         Object node = nodeType.getConstructor(Object.class).newInstance(new Object[]{null});
-        nodeType.getMethod("setValue", Object.class).invoke(node, node);
+        nodeType.getMethod("value", Object.class).invoke(node, node);
         for (String format : List.of("Json", "Xml")) {
             var error = assertThrows(InvocationTargetException.class, () -> call("node" + format, nodeType, node));
             assertTrue(hasMessage(error, "Circular reference"));
@@ -320,7 +320,7 @@ class DataSerializationEndToEndTest {
         assertTrue(hasMessage(listError, "Circular reference"));
         var mapError = assertThrows(InvocationTargetException.class, () -> call("nodeMap", Map.class, Map.of("cycle", node)));
         assertTrue(hasMessage(mapError, "Circular reference"));
-        nodeType.getMethod("setValue", Object.class).invoke(node, "recovered");
+        nodeType.getMethod("value", Object.class).invoke(node, "recovered");
         assertEquals("{\"value\":\"recovered\"}", call("nodeJson", nodeType, node));
         assertEquals("<Node><value>recovered</value></Node>", call("nodeXml", nodeType, node));
         List<Object> cycle = new ArrayList<>();

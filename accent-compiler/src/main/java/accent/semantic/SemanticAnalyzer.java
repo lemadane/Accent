@@ -779,6 +779,19 @@ public final class SemanticAnalyzer implements ImportResolver {
                     return null;
                 }
 
+                if (mc.arguments().size() == 1) {
+                    String fieldName = mc.methodName();
+                    SymbolTable.FieldInfo fInfo = rec.info().fields().stream()
+                            .filter(f -> f.name().equals(fieldName))
+                            .findFirst().orElse(null);
+                    if (fInfo != null && fInfo.modifiers().contains("final")
+                            && rec.info().findAllMethods(mc.methodName(), symbolTable).stream()
+                                    .noneMatch(method -> method.parameters().size() == 1)) {
+                        error(mc.token(), "Cannot call setter '" + mc.methodName() + "': field '" + fieldName + "' in type '" + rec.info().fullName() + "' is final and cannot have a setter.");
+                        return new ResolvedType(symbolTable.getType("void"), false, List.of(), 0);
+                    }
+                }
+
                 // 1. Resolve normal instance/static methods
                 SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), argTypes, symbolTable);
 
@@ -816,17 +829,6 @@ public final class SemanticAnalyzer implements ImportResolver {
                             }
                             return retType;
                         }
-                    }
-                }
-
-                if (mc.methodName().startsWith("set") && mc.methodName().length() > 3) {
-                    String fieldName = Character.toLowerCase(mc.methodName().charAt(3)) + mc.methodName().substring(4);
-                    SymbolTable.FieldInfo fInfo = rec.info().fields().stream()
-                            .filter(f -> f.name().equals(fieldName))
-                            .findFirst().orElse(null);
-                    if (fInfo != null && fInfo.modifiers().contains("final")) {
-                        error(mc.token(), "Cannot call setter '" + mc.methodName() + "': field '" + fieldName + "' in type '" + rec.info().fullName() + "' is final and cannot have a setter.");
-                        return new ResolvedType(symbolTable.getType("void"), false, List.of(), 0);
                     }
                 }
 

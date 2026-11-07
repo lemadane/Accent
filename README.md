@@ -273,8 +273,8 @@ Accent provides native support for data classes via the `model` keyword (`public
 ```java
 public model User(
     final String! id,   // final     -> Immutable (getter id() ONLY, no setter)
-    String! name,       // default   -> Mutable   (getter name(), setter setName)
-    int age             // default   -> Mutable   (getter age(), setter setAge)
+    String! name,       // default   -> Mutable   (getter name(), setter name(...))
+    int age             // default   -> Mutable   (getter age(), setter age(...))
 ) {}
 ```
 
@@ -288,10 +288,10 @@ final id = user.id();
 final name = user.name();
 
 // Setters for mutable fields
-user.setName("Lemuel A.");
-user.setAge(43);
+user.name("Lemuel A.");
+user.age(43);
 
-// user.setId("U102"); // Compile-time error: 'id' is final!
+// user.id("U102"); // Compile-time error: 'id' is final!
 
 // Kotlin-style copy method
 final userCopy = user.copy("U101", "Lemuel A.", 43);
@@ -302,8 +302,10 @@ System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
 
 #### Model Features & Semantics
 
-* **Default Mutability**: Fields without `final` are **mutable** by default, generating getters (`name()`, `age()`) AND setters (`setName(...)`, `setAge(...)`).
-* **Explicit Immutability (`final`)**: Fields prefixed with `final` are **immutable** (`private final String id;`), generating a getter only (`id()`) and NO setter (`setId`). Calling a setter on a `final` field results in a compile-time error.
+Getters and setters share the field name: `user.name()` reads it, and `user.name("Ann")` updates it. Setters return `void`; no `set`-prefixed methods are generated.
+
+* **Default Mutability**: Fields without `final` are **mutable** by default, generating getters (`name()`, `age()`) AND setters (`name(...)`, `age(...)`).
+* **Explicit Immutability (`final`)**: Fields prefixed with `final` are **immutable** (`private final String id;`), generating a getter only (`id()`) and NO setter (`id(...)`). Calling a setter on a `final` field results in a compile-time error.
 * **Kotlin-style `copy(...)` Method**: Automatically generates a `copy(...)` method for convenient object cloning.
 * **Value-based `equals()` and `hashCode()`**: Generates value-based equality and hashing implementations.
 * **Automatic `toString()`**: Emits formatted string representation (`User[id=..., name=..., age=...]`).
@@ -406,7 +408,7 @@ public singleton model AppState(
 
 final defaults = Defaults.instance(); // immutable component bindings
 final state = AppState.instance();
-state.setTheme("dark");              // shared mutable state
+state.theme("dark");                 // shared mutable state
 ```
 
 Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Classes may declare a private parameterless constructor; record/model constructors are generated and private. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `__accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
