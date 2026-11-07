@@ -70,4 +70,32 @@ class EditorServicesTest {
         boolean hasInfo = completions.stream().anyMatch(c -> "info".equals(c.label()));
         assertTrue(hasInfo, "Should suggest logging methods like info");
     }
+    @Test
+    void asyncMembersAndKeywordCompletionsMatchThePublicApi() {
+        String code = """
+                import accent.runtime.Async;
+                public class AsyncEditor {
+                    public void inspect() {
+                        final customerAsync = Async.start(() -> "Alice");
+                        final customer = customerAsync.await();
+                        customerAsync.
+                    }
+                }
+                """;
+        Path path = Path.of("AsyncEditor.accent");
+        ProjectContext context = new ProjectContext(List.of());
+        context.putFile(path, code);
+        CompilationResult result = context.analyze(path, true);
+        int dotColumn = code.lines().toList().get(5).indexOf('.') + 2;
+        List<CompletionItem> members = CompletionProvider.getCompletions(result.unit(), result.analyzer(), 6, dotColumn);
+        for (String name : List.of("await", "cancel", "isDone", "isCancelled")) {
+            assertTrue(members.stream().anyMatch(item -> item.label().equals(name)), name);
+        }
+        assertTrue(members.stream().filter(item -> item.label().equals("await"))
+                .allMatch(item -> item.detail().contains("String")), "await completion should expose the result type");
+        List<CompletionItem> keywords = CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1);
+        assertFalse(keywords.stream().anyMatch(item -> item.label().equals("async") && item.kind().equals("Keyword")));
+        assertFalse(keywords.stream().anyMatch(item -> item.label().equals("await") && item.kind().equals("Keyword")));
+    }
+
 }

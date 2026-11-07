@@ -23,6 +23,9 @@ public final class SemanticAnalyzer implements ImportResolver {
     // Scopes
     private final List<Map<String, LocalVar>> scopes = new ArrayList<>();
     
+    private final Deque<List<ResolvedType>> lambdaReturns = new ArrayDeque<>();
+    private final Map<LambdaExpr, ResolvedType> lambdaResults = new IdentityHashMap<>();
+
     // Stack of expression contexts for yield checks
     private final Deque<ExpressionContext> expressionContexts = new ArrayDeque<>();
 
@@ -494,7 +497,9 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
             ts.finallyBlock().ifPresent(this::checkStatement);
         } else if (stmt instanceof ReturnStmt rs) {
-            rs.expression().ifPresent(this::checkExpression);
+            ResolvedType result = rs.expression().map(this::checkExpression)
+                    .orElse(new ResolvedType(symbolTable.getType("void"), false, List.of(), 0));
+            if (!lambdaReturns.isEmpty() && result != null) lambdaReturns.peek().add(result);
         } else if (stmt instanceof YieldStmt ys) {
             ResolvedType type = checkExpression(ys.expression());
             if (expressionContexts.isEmpty()) {
@@ -510,7 +515,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             checkExpression(es.expression());
         } else if (stmt instanceof ExprStmt es) {
             ResolvedType type = checkExpression(es.expression());
-            // Warning for ignored future
+            // Warning for ignored Async result
             if (type != null && type.info().fullName().equals("accent.runtime.Async")) {
                 warning(es.expression().token(), "ACCENT-W001", "Unobserved or ignored Async result. Consider assigning it to a variable or calling .await().");
             }
@@ -718,6 +723,30 @@ public final class SemanticAnalyzer implements ImportResolver {
                 argTypes.add(checkExpression(arg));
             }
 
+            if (rec != null && rec.info().fullName().equals("accent.runtime.Async")
+                    && mc.methodName().equals("start") && mc.arguments().size() == 1
+                    && mc.arguments().getFirst() instanceof LambdaExpr lambda) {
+                if (!lambda.parameters().isEmpty()) error(mc.token(), "Async.start requires a zero-argument operation.");
+                ResolvedType result = lambdaResults.get(lambda);
+                if (result == null) result = new ResolvedType(symbolTable.getType("java.lang.Object"), false, List.of(), 0);
+                String boxed = switch (result.info().fullName()) {
+                    case "void" -> "java.lang.Void";
+                    case "null" -> "java.lang.Object";
+                    case "boolean" -> "java.lang.Boolean";
+                    case "byte" -> "java.lang.Byte";
+                    case "short" -> "java.lang.Short";
+                    case "char" -> "java.lang.Character";
+                    case "int" -> "java.lang.Integer";
+                    case "long" -> "java.lang.Long";
+                    case "float" -> "java.lang.Float";
+                    case "double" -> "java.lang.Double";
+                    default -> null;
+                };
+                if (boxed != null && result.arrayDimensions() == 0) result = new ResolvedType(symbolTable.getType(boxed), result.isNonNull(), List.of(), 0);
+                if (mc.typeArguments().size() == 1) result = symbolTable.resolveTypeNode(mc.typeArguments().getFirst(), this);
+                return new ResolvedType(rec.info(), true, List.of(result), 0);
+            }
+
             if (mc.methodName().equals("super")) {
                 return new ResolvedType(symbolTable.getType("void"), false, List.of(), 0);
             }
@@ -811,27 +840,27 @@ public final class SemanticAnalyzer implements ImportResolver {
                 return new ResolvedType(rec.info(), false, rec.typeArguments(), rec.arrayDimensions() - 1);
             }
         } else if (expr instanceof LambdaExpr le) {
+            lambdaReturns.push(new ArrayList<>());
             pushScope();
             for (Parameter param : le.parameters()) {
                 ResolvedType pType = symbolTable.resolveTypeNode(param.type(), this);
                 scopes.getFirst().put(param.name(), new LocalVar(param.name(), pType, true, true));
             }
             if (le.body() instanceof Expression bodyExpr) {
-                checkExpression(bodyExpr);
+                ResolvedType result = checkExpression(bodyExpr);
+                if (result != null) lambdaReturns.peek().add(result);
             } else if (le.body() instanceof Statement bodyStmt) {
                 checkStatement(bodyStmt);
             }
             popScope();
+            List<ResolvedType> returns = lambdaReturns.pop();
+            ResolvedType result = returns.isEmpty()
+                    ? new ResolvedType(symbolTable.getType("void"), false, List.of(), 0) : returns.getFirst();
+            for (int i = 1; i < returns.size(); i++) result = getCommonSupertype(result, returns.get(i));
+            lambdaResults.put(le, result);
             // Lambdas map to functional interface
             TypeInfo funcItf = symbolTable.getType("java.lang.Runnable");
             return new ResolvedType(funcItf, true, List.of(), 0);
-        } else if (expr instanceof AsyncExpr ae) {
-            ResolvedType type = checkExpression(ae.expression());
-            if (type != null && type.info().fullName().equals("void")) {
-                type = new ResolvedType(symbolTable.getType("java.lang.Void"), false, List.of(), 0);
-            }
-            TypeInfo asyncType = symbolTable.getType("accent.runtime.Async");
-            return new ResolvedType(asyncType, true, List.of(type), 0);
         } else if (expr instanceof IfExpr ie) {
             checkExpression(ie.condition());
             

@@ -128,7 +128,9 @@ public final class AccentLanguageService {
         try {
             SymbolTable symbolTable = new SymbolTable(loader);
             symbolTable.addCompilationUnit(unit);
-            accent.lowering.AccentLowerer lowerer = new accent.lowering.AccentLowerer(symbolTable);
+            SemanticAnalyzer analyzer = new SemanticAnalyzer(symbolTable);
+            analyzer.analyze(unit);
+            accent.lowering.AccentLowerer lowerer = new accent.lowering.AccentLowerer(symbolTable, analyzer.resolvedTypes);
             accent.emitter.JavaEmitter emitter = new accent.emitter.JavaEmitter();
             CompilationUnit lowered = lowerer.lower(unit);
             return emitter.emit(lowered);

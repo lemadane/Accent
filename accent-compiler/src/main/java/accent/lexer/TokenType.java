@@ -29,7 +29,6 @@ public enum TokenType {
     WHILE,
     DO,
     YIELD,
-    ASYNC,
     RETURN,
     NEW,
     PUBLIC,

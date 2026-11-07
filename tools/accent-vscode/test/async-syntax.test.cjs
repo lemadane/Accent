@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const grammar = require('../syntaxes/accent.tmLanguage.json');
+const rules = grammar.repository['accent-keywords'].patterns.map(rule => new RegExp(rule.match));
+const isKeyword = text => rules.some(rule => rule.test(text));
+assert.equal(isKeyword('async'), false);
+assert.equal(isKeyword('await'), false);
+assert.equal(isKeyword('customerAsync'), false);
+assert.equal(isKeyword('customerAsync.await()'), false);
+assert.equal(isKeyword('Async.start(() -> service.findRequired(id))'), false);
+console.log('Async syntax regression checks passed');

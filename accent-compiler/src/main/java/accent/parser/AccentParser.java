@@ -1061,10 +1061,6 @@ public final class AccentParser {
                 Expression right = parseExpression(Precedence.UNARY);
                 yield new UnaryExpr(token, right, false);
             }
-            case ASYNC -> {
-                Expression right = parseExpression(Precedence.UNARY);
-                yield new AsyncExpr(right, token);
-            }
             case NEW -> {
                 TypeNode type = parseType();
                 if (match(TokenType.LEFT_PAREN)) {

@@ -1,34 +1,8 @@
 package accent.runtime;
 
-import java.util.Objects;
-import java.util.concurrent.Callable;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.atomic.AtomicLong;
-
-/** Runtime support for Accent async expressions. */
+/** Runtime support for Accent expression semantics. */
 public final class AccentRuntime {
-    private static final AtomicLong TASK_SEQUENCE = new AtomicLong();
-
     private AccentRuntime() {
-    }
-
-    public static <T> Async<T> async(Callable<T> operation) {
-        Objects.requireNonNull(operation, "operation");
-
-        FutureTask<T> task = new FutureTask<>(operation);
-        Thread.ofVirtual()
-                .name("accent-task-", TASK_SEQUENCE.incrementAndGet())
-                .start(task);
-
-        return new Async<>(task);
-    }
-
-    public static Async<Void> async(Runnable operation) {
-        Objects.requireNonNull(operation, "operation");
-        return async(() -> {
-            operation.run();
-            return null;
-        });
     }
 
     /** Evaluates Javascript-style truthiness for any Object or reference value. */

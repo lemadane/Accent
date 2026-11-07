@@ -131,7 +131,7 @@
       "patterns": [
         {
           "name": "keyword.control.accent",
-          "match": "\\b(not|and|or|yield|async|generator|emit)\\b"
+          "match": "\\b(not|and|or|yield|generator|emit)\\b"
         }
       ]
     },

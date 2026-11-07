@@ -58,7 +58,11 @@ public final class CompletionProvider {
                     TypeInfo info = type.info();
                     // Add methods
                     for (MethodInfo m : info.methods()) {
-                        items.add(new CompletionItem(m.name(), "Method", m.returnType().toString()));
+                        String resultType = info.fullName().equals("accent.runtime.Async")
+                                && m.name().equals("await") && !type.typeArguments().isEmpty()
+                                ? type.typeArguments().getFirst().toString()
+                                : m.returnType().toString();
+                        items.add(new CompletionItem(m.name(), "Method", resultType));
                     }
                     // Add fields
                     for (FieldInfo f : info.fields()) {
@@ -85,7 +89,7 @@ public final class CompletionProvider {
             "public", "private", "protected", "static", "final",
             "void", "return", "if", "else", "for", "while", "do",
             "try", "catch", "finally", "throw", "yield", "break",
-            "continue", "async", "generator", "emit"
+            "continue", "generator", "emit"
         };
         for (String kw : keywords) {
             items.add(new CompletionItem(kw, "Keyword", "Accent keyword"));

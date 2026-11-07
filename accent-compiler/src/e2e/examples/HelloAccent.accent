@@ -1,5 +1,7 @@
 package example;
 
+import accent.runtime.Async;
+
 extension String! {
     String! normalized() {
         return this.trim().toUpperCase();
@@ -19,10 +21,10 @@ public class DashboardService {
 
     public Dashboard! load(UUID! customerId) {
         final customerAsync =
-            async this.customerService.findRequired(customerId);
+            Async.start(() -> this.customerService.findRequired(customerId));
 
         final ordersAsync =
-            async this.orderService.findForCustomer(customerId);
+            Async.start(() -> this.orderService.findForCustomer(customerId));
 
         final customer = customerAsync.await();
         final orders = ordersAsync.await();

@@ -219,11 +219,11 @@ class AccentEndToEndTest {
                 package test;
                 import accent.runtime.Async;
                 public class TypedAsyncMain {
-                    public static Async<String> start() { return async "hello"; }
+                    public static Async<String> start() { return Async.start(() -> "hello"); }
                     public static String finish(Async<String> task) { return task.await(); }
                     public static void main(String[] args) {
                         final Async<String> task = start();
-                        final inferred = async "world";
+                        final inferred = Async.start(() -> "world");
                         if (finish(task) != "hello") throw new RuntimeException("Typed Async failed");
                         if (finish(inferred) != "world") throw new RuntimeException("Inferred Async failed");
                     }
@@ -242,9 +242,10 @@ class AccentEndToEndTest {
     void testAsyncAwaitConcurrency() throws Exception {
         String code = 
             "package test;\n" +
+            "import accent.runtime.Async;\n" +
             "public class AsyncMain {\n" +
             "    public static void main(String[] args) {\n" +
-            "        final valueAsync = async 42;\n" +
+            "        final valueAsync = Async.start(() -> 42);\n" +
             "        final val = valueAsync.await();\n" +
             "        if (val != 42) { throw new RuntimeException(\"Async/await failed\"); }\n" +
             "    }\n" +
@@ -400,12 +401,13 @@ class AccentEndToEndTest {
     void testAsyncSqlExpression() throws Exception {
         String code = 
             "package test;\n" +
+            "import accent.runtime.Async;\n" +
             "import java.util.List;\n" +
             "import java.util.Map;\n" +
             "public class AsyncSqlMain {\n" +
             "    public static void main(String[] args) {\n" +
             "        final id = 42;\n" +
-            "        final queryAsync = async sql`SELECT * FROM users WHERE id = {id}`;\n" +
+            "        final queryAsync = Async.start(() -> sql`SELECT * FROM users WHERE id = {id}`);\n" +
             "        final query = queryAsync.await();\n" +
             "    }\n" +
             "}\n";

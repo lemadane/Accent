@@ -12,6 +12,7 @@ import java.util.*;
 
 public final class AccentLowerer implements ImportResolver {
     private final SymbolTable symbolTable;
+    private final Map<Expression, ResolvedType> expressionTypes = new IdentityHashMap<>();
     
     // State for name resolution
     private CompilationUnit currentUnit;
@@ -24,10 +25,14 @@ public final class AccentLowerer implements ImportResolver {
     // Generated statements to insert before the current statement
     private final List<Statement> pendingStatements = new ArrayList<>();
     private int tempVarCounter = 0;
-    private final Set<LambdaExpr> markupLambdas = Collections.newSetFromMap(new IdentityHashMap<>());
 
     public AccentLowerer(SymbolTable symbolTable) {
+        this(symbolTable, Map.of());
+    }
+
+    public AccentLowerer(SymbolTable symbolTable, Map<Expression, ResolvedType> resolvedTypes) {
         this.symbolTable = symbolTable;
+        expressionTypes.putAll(resolvedTypes);
     }
 
     @Override
@@ -333,6 +338,13 @@ public final class AccentLowerer implements ImportResolver {
     }
 
     private Expression lowerExpression(Expression expr) {
+        Expression lowered = lowerExpressionInternal(expr);
+        ResolvedType type = expressionTypes.get(expr);
+        if (type != null) expressionTypes.put(lowered, type);
+        return lowered;
+    }
+
+    private Expression lowerExpressionInternal(Expression expr) {
         if (expr instanceof LiteralExpr || expr instanceof IdentifierExpr || expr instanceof ThisExpr || expr instanceof SuperExpr) {
             return expr;
         } else if (expr instanceof TernaryExpr tern) {
@@ -484,6 +496,15 @@ public final class AccentLowerer implements ImportResolver {
                 return new MethodCallExpr(new IdentifierExpr(extClassName, null), mc.methodName(), mc.typeArguments(), staticArgs, false, mc.token());
             }
 
+            ResolvedType resultType = expressionTypes.get(mc);
+            // A returned HTML lambda needs a concrete target inside the Callable lambda.
+            if (mc.methodName().equals("start") && mc.typeArguments().isEmpty()
+                    && resultType != null && resultType.info().fullName().equals("accent.runtime.Async")
+                    && !resultType.typeArguments().isEmpty()
+                    && resultType.typeArguments().getFirst().info().fullName().equals("accent.html.Html")) {
+                return new MethodCallExpr(rec, mc.methodName(),
+                        List.of(mapResolvedTypeToNode(resultType.typeArguments().getFirst())), resolvedArgs, false, mc.token());
+            }
             return new MethodCallExpr(rec, mc.methodName(), mc.typeArguments(), resolvedArgs, false, mc.token());
         } else if (expr instanceof NewObjectExpr no) {
             ResolvedType type = symbolTable.resolveTypeNode(no.type(), this);
@@ -502,25 +523,30 @@ public final class AccentLowerer implements ImportResolver {
         } else if (expr instanceof ArrayAccessExpr aa) {
             return new ArrayAccessExpr(lowerExpression(aa.receiver()), lowerExpression(aa.index()), aa.token());
         } else if (expr instanceof LambdaExpr le) {
-            if (!markupLambdas.contains(le)) return le;
             pushScope();
             for (Parameter parameter : le.parameters()) {
                 scopes.getFirst().put(parameter.name(), symbolTable.resolveTypeNode(parameter.type(), this));
             }
-            BlockStmt body = lowerBlock((BlockStmt) le.body());
+            Node body;
+            if (le.body() instanceof BlockStmt block) {
+                body = lowerBlock(block);
+            } else {
+                List<Statement> saved = new ArrayList<>(pendingStatements);
+                pendingStatements.clear();
+                Expression value = lowerExpression((Expression) le.body());
+                if (pendingStatements.isEmpty()) body = value;
+                else {
+                    List<Statement> statements = new ArrayList<>(pendingStatements);
+                    ResolvedType type = getTypeOf(value);
+                    statements.add(type != null && type.info().fullName().equals("void")
+                            ? new ExprStmt(value) : new ReturnStmt(Optional.of(value)));
+                    body = new BlockStmt(statements);
+                }
+                pendingStatements.clear();
+                pendingStatements.addAll(saved);
+            }
             popScope();
             return new LambdaExpr(le.parameters(), body, le.token());
-        } else if (expr instanceof AsyncExpr ae) {
-            // Lower: async expr -> AccentRuntime.async(() -> expr)
-            Expression inner = lowerExpression(ae.expression());
-            ResolvedType type = getTypeOf(inner);
-            
-            // Void operations need Callable<Void> too, so checked exceptions reach Async.await().
-            Node body = type != null && type.info().fullName().equals("void")
-                    ? new BlockStmt(List.of(new ExprStmt(inner), new ReturnStmt(Optional.of(new LiteralExpr(null, null)))))
-                    : inner;
-            LambdaExpr lambda = new LambdaExpr(List.of(), body, null);
-            return new MethodCallExpr(new IdentifierExpr("accent.runtime.AccentRuntime", null), "async", List.of(), List.of(lambda), false, ae.token());
         } else if (expr instanceof IfExpr ie) {
             // Lower block expression: if (cond) { yield X; } else { yield Y; }
             ResolvedType type = getTypeOf(ie);
@@ -682,6 +708,8 @@ public final class AccentLowerer implements ImportResolver {
     // --- Lightweight Type Checking during Lowering ---
 
     private ResolvedType getTypeOf(Expression expr) {
+        ResolvedType known = expressionTypes.get(expr);
+        if (known != null) return known;
         if (expr instanceof LiteralExpr lit) {
             if (lit.value() == null) return new ResolvedType(symbolTable.getType("null"), false, List.of(), 0);
             if (lit.value() instanceof Boolean) return new ResolvedType(symbolTable.getType("boolean"), true, List.of(), 0);
@@ -775,12 +803,6 @@ public final class AccentLowerer implements ImportResolver {
             if (rec != null && rec.arrayDimensions() > 0) {
                 return new ResolvedType(rec.info(), false, rec.typeArguments(), rec.arrayDimensions() - 1);
             }
-        } else if (expr instanceof AsyncExpr ae) {
-            ResolvedType type = getTypeOf(ae.expression());
-            if (type != null && type.info().fullName().equals("void")) {
-                type = new ResolvedType(symbolTable.getType("java.lang.Void"), false, List.of(), 0);
-            }
-            return new ResolvedType(symbolTable.getType("accent.runtime.Async"), true, List.of(type), 0);
         } else if (expr instanceof IfExpr ie) {
             ResolvedType t1 = getTypeOf(ie.thenBranch().statements().get(0) instanceof YieldStmt ? ((YieldStmt) ie.thenBranch().statements().get(0)).expression() : new LiteralExpr(null, null));
             return t1;
@@ -976,7 +998,6 @@ public final class AccentLowerer implements ImportResolver {
         String writerName = "__accentWriter$" + tempVarCounter++;
         Parameter writerParam = new Parameter(new BaseTypeNode("accent.html.HtmlWriter", List.of(), true), writerName, false, Optional.empty());
         LambdaExpr lambda = new LambdaExpr(List.of(writerParam), new BlockStmt(compileMarkupNodes(nodes, writerName)), token);
-        markupLambdas.add(lambda);
         return lambda;
     }
 
