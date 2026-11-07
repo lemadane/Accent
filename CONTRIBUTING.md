@@ -23,12 +23,14 @@ cd accent-lang
 ### Running the CLI
 
 ```bash
-# Check a Accent source file
-./gradlew run --args="check examples/HelloAccent.accent"
+# Check an Accent project, including references between files
+./gradlew :accent-compiler:run --args="check src/e2e/examples/hello"
 
 # Print the token stream
-./gradlew run --args="tokens examples/HelloAccent.accent"
+./gradlew :accent-compiler:run --args="tokens src/e2e/examples/hello/HelloAccent.accent"
 ```
+
+Use at most one ordinary top-level type per `.accent` file; extension blocks may appear alone or accompany it. Member names determine visibility: unprefixed members are public, `_name` is package-private, and `__name` is protected. Check a directory when a feature spans several source files, and compile it to verify the generated Java as well.
 
 ## Testing Concurrency Changes
 

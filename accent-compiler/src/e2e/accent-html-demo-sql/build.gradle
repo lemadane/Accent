@@ -74,7 +74,7 @@ tasks.register('compileAccent', JavaExec) {
     
     args 'compile', 'src/main/accent', '-d', 'build/classes/java/main', '-cp', configurations.compileClasspath.asPath, '--save-java', 'build/generated/sources/accent/main'
     
-    inputs.dir('src/main/accent').optional()
+    inputs.files(fileTree('src/main/accent') { include '**/*.accent', '**/*.java' }).skipWhenEmpty()
     outputs.dir('build/generated/sources/accent/main')
     
     dependsOn project(':accent-compiler').tasks.named('classes')
@@ -99,7 +99,7 @@ tasks.register('compileTestAccent', JavaExec) {
     
     args 'compile', 'src/test/accent', '-d', 'build/classes/java/test', '-cp', configurations.testCompileClasspath.asPath, '--save-java', 'build/generated/sources/accent/test'
     
-    inputs.dir('src/test/accent').optional()
+    inputs.files(fileTree('src/test/accent') { include '**/*.accent', '**/*.java' }).skipWhenEmpty()
     outputs.dir('build/generated/sources/accent/test')
     
     dependsOn project(':accent-compiler').tasks.named('classes')

@@ -120,7 +120,11 @@ public final class AccentParser {
     }
 
     private Token consume(TokenType type, String message) {
-        if (check(type)) return advance();
+        if (check(type)) {
+            Token token = advance();
+            if (type == TokenType.IDENTIFIER) validateIdentifier(token);
+            return token;
+        }
         if (isErrorTolerant) {
             Token currentToken = peek();
             if (!isSpeculative) {
@@ -155,6 +159,12 @@ public final class AccentParser {
     }
 
     private static final java.util.Set<String> VISIBILITY_WORDS = java.util.Set.of("public", "protected", "private");
+
+    private void validateIdentifier(Token token) {
+        if (!isJava && VISIBILITY_WORDS.contains(token.lexeme())) {
+            report(token, "'" + token.lexeme() + "' cannot be used as an identifier because it is reserved by Java; choose a different name");
+        }
+    }
 
     /**
      * The words public/protected/private are no longer Accent keywords. They are still recognized in modifier
@@ -234,7 +244,6 @@ public final class AccentParser {
             }
             return;
         }
-        if (currentTypeKind.equals("extension")) return;
         String visibility = visibilityModifierFor(name);
         if (visibility != null) modifiers.add(annotationCount(modifiers), visibility);
     }
@@ -578,7 +587,7 @@ public final class AccentParser {
         if (!isGenerator && check(TokenType.IDENTIFIER) && (lookAhead(1).type() == TokenType.ASSIGN || lookAhead(1).type() == TokenType.SEMICOLON)) {
             boolean isFinal = modifiers.contains("final");
             type = new BaseTypeNode(isFinal ? "final" : "var", List.of(), false);
-            name = advance().lexeme();
+            name = consume(TokenType.IDENTIFIER, "Expected member name.").lexeme();
         } else {
             type = parseType();
             name = match(TokenType.AWAIT) ? previous().lexeme()
@@ -759,6 +768,7 @@ public final class AccentParser {
         if (match(TokenType.VOID)) {
             type = new PrimitiveTypeNode("void");
         } else if (match(TokenType.IDENTIFIER)) {
+            validateIdentifier(previous());
             String name = previous().lexeme();
             while (match(TokenType.DOT)) {
                 name += "." + consume(TokenType.IDENTIFIER, "Expected identifier after '.'.") .lexeme();
@@ -1104,6 +1114,7 @@ public final class AccentParser {
             case FALSE -> new LiteralExpr(false, token);
             case NULL -> new LiteralExpr(null, token);
             case IDENTIFIER -> {
+                validateIdentifier(token);
                 if (token.lexeme().equals("sql")) {
                     Optional<TypeNode> resultType = Optional.empty();
                     if (match(TokenType.LESS)) {
@@ -1160,7 +1171,7 @@ public final class AccentParser {
                             if (check(TokenType.IDENTIFIER)
                                     && (lookAhead(1).type() == TokenType.COMMA || lookAhead(1).type() == TokenType.RIGHT_PAREN)) {
                                 parameters.add(new Parameter(new BaseTypeNode("var", List.of(), false),
-                                        advance().lexeme(), false, Optional.empty()));
+                                        consume(TokenType.IDENTIFIER, "Expected lambda parameter name.").lexeme(), false, Optional.empty()));
                             } else parameters.add(parseParameter());
                         } while (match(TokenType.COMMA));
                     }
@@ -1578,7 +1589,7 @@ public final class AccentParser {
         if (!check(TokenType.RIGHT_PAREN)) {
             do {
                 if (check(TokenType.IDENTIFIER) && lookAhead(1).type() == TokenType.COLON) {
-                    String name = advance().lexeme();
+                    String name = consume(TokenType.IDENTIFIER, "Expected named argument name.").lexeme();
                     consume(TokenType.COLON, "Expected ':' after named argument.");
                     Expression expr = parseExpression(Precedence.NONE);
                     arguments.add(new NamedArgExpr(name, expr));

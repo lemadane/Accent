@@ -13,6 +13,18 @@ import java.util.List;
 
 class EditorServicesTest {
 
+    private static final String BASE_MEMBERS = """
+            package owner;
+            class Base {
+                int visibleField;
+                int _packageField;
+                int __protectedField;
+                void visibleMethod() {}
+                void _packageMethod() {}
+                void __protectedMethod() {}
+            }
+            """;
+
     @Test
     void testErrorTolerantParsingAndCompletion() {
         // Incomplete code ending in a trailing dot
@@ -98,4 +110,115 @@ class EditorServicesTest {
         assertTrue(keywords.stream().anyMatch(item -> item.label().equals("await") && item.kind().equals("Keyword")));
     }
 
+    @Test
+    void javaMemberCompletionIncludesInheritedPublicApiAndHidesInternals() {
+        List<CompletionItem> members = complete(new ProjectContext(List.of()), "Dummy.accent", """
+                package test;
+                class Dummy {
+                    void inspect() {
+                        String! text = "hello";
+                        text.<caret>
+                    }
+                }
+                """);
+
+        assertMembersPresent(members, "length", "getClass", "wait");
+        assertEquals(1, members.stream().filter(member -> member.label().equals("toString")).count(),
+                "Overrides and inherited methods with identical completion details should appear once");
+        assertMembersAbsent(members, "value", "coder", "isLatin1", "hash", "serialVersionUID",
+                "COMPACT_STRINGS", "clone", "finalize");
+    }
+
+    @Test
+    void samePackageMemberCompletionIncludesPackageAndProtectedMembers() {
+        List<CompletionItem> members = complete(baseContext(), "Neighbor.accent", """
+                package owner;
+                class Neighbor {
+                    void inspect(Base! value) {
+                        value.<caret>
+                    }
+                }
+                """);
+
+        assertMembersPresent(members, "visibleField", "visibleMethod", "_packageField", "_packageMethod",
+                "__protectedField", "__protectedMethod");
+    }
+
+    @Test
+    void unrelatedPackageMemberCompletionHidesPackageAndProtectedMembers() {
+        List<CompletionItem> members = complete(baseContext(), "Caller.accent", """
+                package other;
+                import owner.Base;
+                class Caller {
+                    void inspect(Base! value) {
+                        value.<caret>
+                    }
+                }
+                """);
+
+        assertMembersPresent(members, "visibleField", "visibleMethod", "getClass");
+        assertMembersAbsent(members, "_packageField", "_packageMethod", "__protectedField", "__protectedMethod");
+    }
+
+    @Test
+    void subclassMemberCompletionIncludesInheritedProtectedMembers() {
+        List<CompletionItem> members = complete(baseContext(), "Child.accent", """
+                package other;
+                import owner.Base;
+                class Child extends Base {
+                    void inspect() {
+                        this.<caret>
+                    }
+                }
+                """);
+
+        assertMembersPresent(members, "visibleField", "visibleMethod", "__protectedField", "__protectedMethod", "getClass");
+        assertMembersAbsent(members, "_packageField", "_packageMethod");
+    }
+
+    @Test
+    void subclassCannotCompleteProtectedMembersOnAnUnrelatedBaseReceiver() {
+        List<CompletionItem> members = complete(baseContext(), "Child.accent", """
+                package other;
+                import owner.Base;
+                class Child extends Base {
+                    void inspect(Base! value) {
+                        value.<caret>
+                    }
+                }
+                """);
+
+        assertMembersPresent(members, "visibleField", "visibleMethod");
+        assertMembersAbsent(members, "_packageField", "_packageMethod", "__protectedField", "__protectedMethod");
+    }
+
+    private static ProjectContext baseContext() {
+        ProjectContext context = new ProjectContext(List.of());
+        Path path = Path.of("Base.accent");
+        context.putFile(path, BASE_MEMBERS);
+        assertTrue(context.analyze(path, false).diagnostics().isEmpty());
+        return context;
+    }
+
+    private static List<CompletionItem> complete(ProjectContext context, String filename, String markedSource) {
+        int cursor = markedSource.indexOf("<caret>");
+        assertTrue(cursor >= 0, "Missing completion cursor");
+        String prefix = markedSource.substring(0, cursor);
+        int line = (int) prefix.chars().filter(c -> c == '\n').count() + 1;
+        int column = cursor - prefix.lastIndexOf('\n');
+        Path path = Path.of(filename);
+        context.putFile(path, markedSource.replace("<caret>", ""));
+        CompilationResult result = context.analyze(path, true);
+        return CompletionProvider.getCompletions(result.unit(), result.analyzer(), line, column);
+    }
+
+    private static void assertMembersPresent(List<CompletionItem> members, String... names) {
+        List<String> labels = members.stream().map(CompletionItem::label).toList();
+        for (String name : names) assertTrue(labels.contains(name), () -> "Missing " + name + ": " + labels);
+    }
+
+    private static void assertMembersAbsent(List<CompletionItem> members, String... names) {
+        List<String> labels = members.stream().map(CompletionItem::label).toList();
+        for (String name : names) assertFalse(labels.contains(name), () -> "Inaccessible " + name + ": " + labels);
+    }
 }

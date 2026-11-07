@@ -1,6 +1,8 @@
 package accent.compiler;
 
 import accent.ast.Ast.CompilationUnit;
+import accent.ast.Ast.ExtensionDecl;
+import accent.ast.Ast.TypeDeclaration;
 import accent.diagnostic.Diagnostic;
 import accent.diagnostic.DiagnosticSeverity;
 import accent.lexer.AccentLexer;
@@ -69,6 +71,10 @@ public final class AccentCompiler {
             return new CompilationResult(Optional.empty(), diagnostics);
         }
 
+        if (!registerTypeNames(compilationUnit, new LinkedHashMap<>(), diagnostics)) {
+            return new CompilationResult(Optional.empty(), diagnostics);
+        }
+
         // Perform semantic checks just for validation
         SymbolTable table = new SymbolTable();
         table.addCompilationUnit(compilationUnit);
@@ -90,37 +96,89 @@ public final class AccentCompiler {
      * they can reference each other.
      */
     public CompilationResult check(List<SourceFile> sourceFiles) {
+        MultiCheck outcome = checkAll(sourceFiles);
+        List<Diagnostic> diagnostics = outcome.perFile().values().stream().flatMap(List::stream).toList();
+        if (diagnostics.stream().anyMatch(d -> d.severity() == DiagnosticSeverity.ERROR)) {
+            return new CompilationResult(Optional.empty(), diagnostics);
+        }
+        return new CompilationResult(outcome.lastUnit(), diagnostics);
+    }
+
+    /**
+     * Like {@link #check(List)}, but keeps each diagnostic attributed to the file it came from.
+     * Files without diagnostics map to an empty list; iteration order matches {@code sourceFiles}.
+     */
+    public Map<SourceFile, List<Diagnostic>> checkEach(List<SourceFile> sourceFiles) {
+        return checkAll(sourceFiles).perFile();
+    }
+
+    private record MultiCheck(Map<SourceFile, List<Diagnostic>> perFile, Optional<CompilationUnit> lastUnit) {}
+
+    private MultiCheck checkAll(List<SourceFile> sourceFiles) {
         Objects.requireNonNull(sourceFiles, "sourceFiles");
-        List<Diagnostic> diagnostics = new ArrayList<>();
-        List<CompilationUnit> units = new ArrayList<>();
+        Map<SourceFile, List<Diagnostic>> perFile = new LinkedHashMap<>();
+        Map<SourceFile, CompilationUnit> units = new LinkedHashMap<>();
         for (SourceFile sourceFile : sourceFiles) {
+            List<Diagnostic> diagnostics = new ArrayList<>();
+            perFile.put(sourceFile, diagnostics);
             LexResult lexResult = new AccentLexer(sourceFile).lex();
             diagnostics.addAll(lexResult.diagnostics());
             if (!lexResult.successful()) continue;
             AccentParser parser = new AccentParser(sourceFile, lexResult.tokens());
-            units.add(parser.parse());
+            units.put(sourceFile, parser.parse());
             diagnostics.addAll(parser.diagnostics());
         }
-        if (diagnostics.stream().anyMatch(d -> d.severity() == DiagnosticSeverity.ERROR)) {
-            return new CompilationResult(Optional.empty(), diagnostics);
-        }
+        boolean syntaxErrors = perFile.values().stream().flatMap(List::stream)
+                .anyMatch(d -> d.severity() == DiagnosticSeverity.ERROR);
+        if (syntaxErrors) return new MultiCheck(perFile, Optional.empty());
         SymbolTable table = new SymbolTable();
-        units.forEach(table::addCompilationUnit);
-        for (CompilationUnit unit : units) {
+        Map<String, DeclarationSite> declaredTypes = new LinkedHashMap<>();
+        for (var entry : units.entrySet()) {
+            if (registerTypeNames(entry.getValue(), declaredTypes, perFile.get(entry.getKey()))) {
+                table.addCompilationUnit(entry.getValue());
+            }
+        }
+        if (perFile.values().stream().flatMap(List::stream).anyMatch(d -> d.severity() == DiagnosticSeverity.ERROR)) {
+            return new MultiCheck(perFile, Optional.empty());
+        }
+        CompilationUnit last = null;
+        for (var entry : units.entrySet()) {
             SemanticAnalyzer analyzer = new SemanticAnalyzer(table);
-            analyzer.analyze(unit);
-            diagnostics.addAll(analyzer.diagnostics());
+            analyzer.analyze(entry.getValue());
+            perFile.get(entry.getKey()).addAll(analyzer.diagnostics());
+            last = entry.getValue();
         }
-        if (diagnostics.stream().anyMatch(d -> d.severity() == DiagnosticSeverity.ERROR)) {
-            return new CompilationResult(Optional.empty(), diagnostics);
+        return new MultiCheck(perFile, Optional.ofNullable(last));
+    }
+
+    private record DeclarationSite(SourceFile sourceFile, TypeDeclaration declaration) {}
+
+    private static boolean registerTypeNames(CompilationUnit unit, Map<String, DeclarationSite> declaredTypes,
+                                             List<Diagnostic> diagnostics) {
+        boolean unique = true;
+        for (var declaration : unit.declarations()) {
+            String fullName = unit.packageName().map(pkg -> pkg + ".").orElse("") + declaration.name();
+            DeclarationSite previous = declaredTypes.putIfAbsent(fullName, new DeclarationSite(unit.sourceFile(), declaration));
+            if (previous != null) {
+                boolean extension = declaration instanceof ExtensionDecl || previous.declaration() instanceof ExtensionDecl;
+                if (declaration instanceof ExtensionDecl current && previous.declaration() instanceof ExtensionDecl earlier
+                        && unit.sourceFile().equals(previous.sourceFile()) && current.targetType().equals(earlier.targetType())) {
+                    continue; // Blocks in one source share an import scope and can become one helper.
+                }
+                String message = extension ? "Duplicate extension helper/type '" : "Duplicate type '";
+                message += fullName + "' in " + unit.sourceFile().path() + "; already declared in " + previous.sourceFile().path();
+                if (extension) message += ". Keep extensions for the same target in one source file and avoid names used by extension helpers.";
+                diagnostics.add(new Diagnostic(DiagnosticSeverity.ERROR, extension ? "ACCENT-C007" : "ACCENT-C006",
+                        message, 1, 1));
+                unique = false;
+            }
         }
-        return new CompilationResult(units.isEmpty() ? Optional.empty() : Optional.of(units.get(units.size() - 1)),
-                diagnostics);
+        return unique;
     }
 
     public CompilationResult compile(List<Path> sourcePaths, Path outputDir, List<String> classpath, Path generatedSourceDir, boolean saveJava) {
         List<Diagnostic> diagnostics = new ArrayList<>();
-        List<Path> allSourceFiles = new ArrayList<>();
+        Set<Path> allSourceFiles = new LinkedHashSet<>();
 
         // Find all source files recursively
         for (Path srcPath : sourcePaths) {
@@ -130,6 +188,8 @@ public final class AccentCompiler {
                         .filter(p -> !p.toAbsolutePath().normalize().startsWith(outputDir.toAbsolutePath().normalize()))
                         .filter(p -> generatedSourceDir == null || !p.toAbsolutePath().normalize().startsWith(generatedSourceDir.toAbsolutePath().normalize()))
                         .filter(p -> p.toString().endsWith(".accent") || p.toString().endsWith(".java"))
+                        .map(p -> p.toAbsolutePath().normalize())
+                        .sorted()
                         .forEach(allSourceFiles::add);
                 } catch (IOException e) {
                     diagnostics.add(new Diagnostic(DiagnosticSeverity.ERROR, "ACCENT-C002", "Failed to scan directory: " + srcPath + ". Error: " + e.getMessage(), 1, 1));
@@ -137,11 +197,15 @@ public final class AccentCompiler {
                 }
             } else if (Files.isRegularFile(srcPath)) {
                 if (srcPath.toString().endsWith(".accent") || srcPath.toString().endsWith(".java")) {
-                    allSourceFiles.add(srcPath);
+                    allSourceFiles.add(srcPath.toAbsolutePath().normalize());
                 } else {
                     diagnostics.add(new Diagnostic(DiagnosticSeverity.ERROR, "ACCENT-C001", "Source files must use .accent or .java extension.", 1, 1));
                     return new CompilationResult(Optional.empty(), diagnostics);
                 }
+            } else {
+                diagnostics.add(new Diagnostic(DiagnosticSeverity.ERROR, "ACCENT-C002",
+                        "Source path does not exist or is not a regular file or directory: " + srcPath, 1, 1));
+                return new CompilationResult(Optional.empty(), diagnostics);
             }
         }
 
@@ -160,6 +224,7 @@ public final class AccentCompiler {
             }
         }
         SymbolTable symbolTable = new SymbolTable(customClassLoader);
+        Map<String, DeclarationSite> declaredTypes = new LinkedHashMap<>();
         List<CompilationUnit> accentUnits = new ArrayList<>();
         List<Path> originalJavaFiles = new ArrayList<>();
 
@@ -177,6 +242,7 @@ public final class AccentCompiler {
                     CompilationUnit unit = parser.parse();
                     diagnostics.addAll(parser.diagnostics());
 
+                    if (!registerTypeNames(unit, declaredTypes, diagnostics)) continue;
                     symbolTable.addCompilationUnit(unit);
                     if (!isJava) {
                         accentUnits.add(unit);
@@ -215,7 +281,6 @@ public final class AccentCompiler {
 
             for (CompilationUnit unit : accentUnits) {
                 CompilationUnit lowered = lowerer.lower(unit);
-                String javaSource = emitter.emit(lowered);
 
                 // Determine output path based on package
                 Path packagePath = generatedSourceDir;
@@ -225,16 +290,27 @@ public final class AccentCompiler {
                 }
                 Files.createDirectories(packagePath);
 
-                // The file is named after its single top-level type (extensions ride along)
-                String filename = unit.declarations().stream()
-                        .filter(d -> !(d instanceof accent.ast.Ast.ExtensionDecl))
-                        .map(accent.ast.Ast.TypeDeclaration::name)
-                        .findFirst()
-                        .orElse(unit.declarations().isEmpty() ? "Module" : unit.declarations().get(0).name());
-                Path genFile = packagePath.resolve(filename + ".java");
-                Files.writeString(genFile, javaSource, StandardCharsets.UTF_8);
+                // Repeated extension blocks in a source share a helper and the source's import scope.
+                Map<String, TypeDeclaration> declarations = new LinkedHashMap<>();
+                for (var declaration : lowered.declarations()) {
+                    TypeDeclaration previous = declarations.get(declaration.name());
+                    if (declaration instanceof ExtensionDecl extension && previous instanceof ExtensionDecl earlier) {
+                        var members = new ArrayList<>(earlier.members());
+                        members.addAll(extension.members());
+                        declarations.put(declaration.name(), new ExtensionDecl(extension.targetType(), members));
+                    } else {
+                        declarations.put(declaration.name(), declaration);
+                    }
+                }
 
-                compiledJavaFiles.add(genFile);
+                // Public extension helpers need their own Java files, including when they accompany a type.
+                for (var declaration : declarations.values()) {
+                    CompilationUnit generatedUnit = new CompilationUnit(lowered.sourceFile(), lowered.packageName(),
+                            lowered.imports(), List.of(declaration), lowered.tokens());
+                    Path genFile = packagePath.resolve(declaration.name() + ".java");
+                    Files.writeString(genFile, emitter.emit(generatedUnit), StandardCharsets.UTF_8);
+                    compiledJavaFiles.add(genFile);
+                }
             }
         } catch (IOException e) {
             diagnostics.add(new Diagnostic(DiagnosticSeverity.ERROR, "ACCENT-C004", "Failed during code generation: " + e.getMessage(), 1, 1));

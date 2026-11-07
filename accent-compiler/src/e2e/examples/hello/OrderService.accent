@@ -1,0 +1,10 @@
+package example;
+
+import java.util.List;
+import java.util.UUID;
+
+class OrderService {
+    List<Order> findForCustomer(UUID! customerId) {
+        return List.of(new Order(" keyboard "), new Order("mouse"));
+    }
+}

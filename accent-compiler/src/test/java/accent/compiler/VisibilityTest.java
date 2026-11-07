@@ -168,7 +168,7 @@ class VisibilityTest {
     }
 
     @Test
-    void visibilityWordsCanStillBeUsedAsIdentifiers() {
+    void acceptsInternalAsAnOrdinaryIdentifier() {
         CompilationResult result = check("A.accent", "class A { int run() { var internal = 1; return internal; } }");
         assertTrue(result.successful(), () -> result.diagnostics().toString());
     }

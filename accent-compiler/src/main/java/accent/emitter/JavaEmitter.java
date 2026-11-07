@@ -51,8 +51,6 @@ public final class JavaEmitter {
                 }
             }
         }
-        extensionsPublic = primaryDeclName == null;
-
         for (TypeDeclaration decl : unit.declarations()) {
             emitTypeDeclaration(decl, primaryDeclName);
             sb.append("\n");
@@ -369,11 +367,9 @@ public final class JavaEmitter {
         currentClassName = savedClassName;
     }
 
-    private boolean extensionsPublic = true;
-
     private void emitExtensionDeclaration(ExtensionDecl ed) {
         printIndent();
-        sb.append(extensionsPublic ? "public class " : "class ").append(ed.name()).append(" {\n");
+        sb.append("public class ").append(ed.name()).append(" {\n");
         indentLevel++;
 
         isInsideExtension = true;
@@ -458,13 +454,10 @@ public final class JavaEmitter {
             printIndent();
             
             // Extension method modifier mapping: static helper
-            if (isInsideExtension) {
-                sb.append("public static ");
-            } else {
-                for (String mod : md.modifiers()) {
-                    sb.append(mod).append(" ");
-                }
+            for (String mod : md.modifiers()) {
+                sb.append(mod).append(" ");
             }
+            if (isInsideExtension && !md.modifiers().contains("static")) sb.append("static ");
 
             emitTypeParameters(md.typeParameters());
             if (!md.typeParameters().isEmpty()) sb.append(" ");

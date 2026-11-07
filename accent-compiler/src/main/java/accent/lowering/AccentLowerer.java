@@ -2,6 +2,7 @@ package accent.lowering;
 
 import accent.ast.Ast.*;
 import accent.symbol.SymbolTable;
+import accent.symbol.ExtensionResolver;
 import accent.symbol.SymbolTable.ResolvedType;
 import accent.symbol.SymbolTable.TypeInfo;
 import accent.symbol.SymbolTable.ConstructorInfo;
@@ -312,7 +313,11 @@ public final class AccentLowerer implements ImportResolver {
         } else if (stmt instanceof EmitStmt es) {
             result = new EmitStmt(lowerExpression(es.expression()));
         } else if (stmt instanceof ExprStmt es) {
-            result = new ExprStmt(lowerExpression(es.expression()));
+            if (es.expression() instanceof MethodCallExpr call && call.isOptional()) {
+                result = lowerOptionalCallStatement(call);
+            } else {
+                result = new ExprStmt(lowerExpression(es.expression()));
+            }
         } else {
             result = stmt;
         }
@@ -414,36 +419,13 @@ public final class AccentLowerer implements ImportResolver {
             return new MemberAccessExpr(lowerExpression(ma.receiver()), ma.memberName(), false, ma.token());
         } else if (expr instanceof MethodCallExpr mc) {
             if (mc.isOptional()) {
-                // receiver?.methodName(args)
-                Expression rec = lowerExpression(mc.receiver());
-                ResolvedType type = getTypeOf(rec);
-                String tempVarName = nextTempVar();
-                
-                Token checkOp = new Token(TokenType.BANG_EQUAL, "!=", mc.token().line(), mc.token().column());
-                Expression cond = new BinaryExpr(tempAssign(tempVarName, rec, type), checkOp, new LiteralExpr(null, null));
-                
-                List<Parameter> params = List.of();
-                if (type != null) {
-                    SymbolTable.MethodInfo mInfo = type.info().findMethod(mc.methodName(), symbolTable);
-                    if (mInfo != null) {
-                        params = mInfo.parameters();
-                    }
-                }
-                List<Expression> args = resolveArguments(params, mc.arguments());
-
-                BlockStmt thenBranch = new BlockStmt(List.of(new YieldStmt(
-                        new MethodCallExpr(new IdentifierExpr(tempVarName, null), mc.methodName(), mc.typeArguments(), args, false, mc.token())
-                )));
-                BlockStmt elseBranch = new BlockStmt(List.of(new YieldStmt(new LiteralExpr(null, null))));
-                
-                return lowerExpression(new IfExpr(cond, thenBranch, elseBranch, mc.token()));
+                return lowerOptionalCall(mc);
             }
 
             Expression rec = mc.receiver() != null ? lowerExpression(mc.receiver()) : null;
             List<Parameter> params = List.of();
             boolean isExtension = false;
             String extClassName = null;
-            MethodDecl extMethod = null;
             
             if (rec != null) {
                 ResolvedType recType = getTypeOf(rec);
@@ -458,22 +440,13 @@ public final class AccentLowerer implements ImportResolver {
                             return new MethodCallExpr(new IdentifierExpr(serializer, null), mc.methodName(),
                                     List.of(), List.of(rec), false, mc.token());
                         }
-                        // Check extension
-                        for (ExtensionDecl ext : symbolTable.extensions()) {
-                            ResolvedType extTarget = symbolTable.resolveTypeNode(ext.targetType(), this);
-                            if (recType.isCompatibleWith(extTarget, symbolTable)) {
-                                extMethod = ext.members().stream()
-                                        .filter(m -> m instanceof MethodDecl)
-                                        .map(m -> (MethodDecl) m)
-                                        .filter(m -> m.name().equals(mc.methodName()))
-                                        .findFirst().orElse(null);
-                                if (extMethod != null) {
-                                    isExtension = true;
-                                    extClassName = ext.name();
-                                    params = extMethod.parameters();
-                                    break;
-                                }
-                            }
+                        ExtensionResolver.Match extension = findExtension(mc, recType);
+                        if (extension != null) {
+                            isExtension = true;
+                            String extensionPackage = symbolTable.extensionPackage(extension.extension());
+                            String helperName = extension.extension().name();
+                            extClassName = extensionPackage.isEmpty() ? helperName : extensionPackage + "." + helperName;
+                            params = extension.method().parameters();
                         }
                     }
                 }
@@ -612,6 +585,75 @@ public final class AccentLowerer implements ImportResolver {
         return expr;
     }
 
+    private ExtensionResolver.Match findExtension(MethodCallExpr call, ResolvedType receiver) {
+        String packageName = currentUnit.packageName().orElse("");
+        List<ResolvedType> argumentTypes = call.arguments().stream().map(this::getTypeOf).toList();
+        return ExtensionResolver.find(symbolTable, receiver, call.methodName(), call.arguments(), argumentTypes,
+                match -> match.accessibleFrom(symbolTable, packageName));
+    }
+
+    private Expression lowerOptionalCall(MethodCallExpr call) {
+        Expression receiver = lowerExpression(call.receiver());
+        ResolvedType receiverType = getTypeOf(receiver);
+        String receiverName = nextTempVar();
+        Expression storedReceiver = tempAssign(receiverName, receiver, receiverType);
+        Token checkOp = new Token(TokenType.BANG_EQUAL, "!=", call.token().line(), call.token().column());
+        Expression condition = new BinaryExpr(storedReceiver, checkOp, new LiteralExpr(null, null));
+
+        ResolvedType resultType = getTypeOf(call).withNonNull(false);
+        if (resultType.isPrimitive()) {
+            resultType = symbolTable.resolveTypeNode(mapResolvedTypeToBoxedNode(resultType), this).withNonNull(false);
+        }
+        String resultName = nextTempVar();
+        pendingStatements.add(new LocalVarDeclStmt(false, false, Optional.of(mapResolvedTypeToNode(resultType)),
+                resultName, Optional.empty()));
+        scopes.getFirst().put(resultName, resultType);
+
+        IdentifierExpr guardedReceiver = new IdentifierExpr(receiverName, null);
+        expressionTypes.put(guardedReceiver, receiverType.withNonNull(true));
+        MethodCallExpr guardedCall = new MethodCallExpr(guardedReceiver, call.methodName(), call.typeArguments(),
+                call.arguments(), false, call.token());
+        expressionTypes.put(guardedCall, getTypeOf(call));
+
+        // Arguments and their lifted statements belong inside the non-null branch.
+        List<Statement> outer = new ArrayList<>(pendingStatements);
+        pendingStatements.clear();
+        Expression value = lowerExpression(guardedCall);
+        Token assign = new Token(TokenType.ASSIGN, "=", call.token().line(), call.token().column());
+        List<Statement> present = new ArrayList<>(pendingStatements);
+        present.add(new ExprStmt(new BinaryExpr(new IdentifierExpr(resultName, null), assign, value)));
+        pendingStatements.clear();
+        pendingStatements.addAll(outer);
+        BlockStmt absent = new BlockStmt(List.of(new ExprStmt(new BinaryExpr(new IdentifierExpr(resultName, null),
+                assign, new LiteralExpr(null, null)))));
+        pendingStatements.add(new IfStmt(condition, new BlockStmt(present), Optional.of(absent)));
+        return new IdentifierExpr(resultName, null);
+    }
+
+    private Statement lowerOptionalCallStatement(MethodCallExpr call) {
+        Expression receiver = lowerExpression(call.receiver());
+        ResolvedType receiverType = getTypeOf(receiver);
+        String receiverName = nextTempVar();
+        Expression storedReceiver = tempAssign(receiverName, receiver, receiverType);
+        Token checkOp = new Token(TokenType.BANG_EQUAL, "!=", call.token().line(), call.token().column());
+        Expression condition = new BinaryExpr(storedReceiver, checkOp, new LiteralExpr(null, null));
+
+        IdentifierExpr guardedReceiver = new IdentifierExpr(receiverName, null);
+        expressionTypes.put(guardedReceiver, receiverType.withNonNull(true));
+        MethodCallExpr guardedCall = new MethodCallExpr(guardedReceiver, call.methodName(), call.typeArguments(),
+                call.arguments(), false, call.token());
+        expressionTypes.put(guardedCall, getTypeOf(call));
+
+        List<Statement> outer = new ArrayList<>(pendingStatements);
+        pendingStatements.clear();
+        Expression invocation = lowerExpression(guardedCall);
+        List<Statement> present = new ArrayList<>(pendingStatements);
+        present.add(new ExprStmt(invocation));
+        pendingStatements.clear();
+        pendingStatements.addAll(outer);
+        return new IfStmt(condition, new BlockStmt(present), Optional.empty());
+    }
+
     private Expression tempAssign(String name, Expression val, ResolvedType type) {
         pendingStatements.add(new LocalVarDeclStmt(false, false, Optional.of(mapResolvedTypeToNode(type)), name, Optional.empty()));
         scopes.getFirst().put(name, type);
@@ -721,7 +763,7 @@ public final class AccentLowerer implements ImportResolver {
             // Lookup field on current class
             if (currentClass != null && !isStaticContext) {
                 SymbolTable.FieldInfo fInfo = currentClass.fields().stream().filter(f -> f.name().equals(id.name())).findFirst().orElse(null);
-                if (fInfo != null) return symbolTable.resolveTypeNode(fInfo.type(), this);
+                if (fInfo != null) return symbolTable.resolveFieldType(fInfo);
             }
             TypeInfo classInfo = resolve(id.name());
             if (classInfo != null) return new ResolvedType(classInfo, true, List.of(), 0);
@@ -757,7 +799,7 @@ public final class AccentLowerer implements ImportResolver {
             ResolvedType rec = getTypeOf(ma.receiver());
             if (rec != null) {
                 SymbolTable.FieldInfo fInfo = rec.info().findField(ma.memberName(), symbolTable);
-                if (fInfo != null) return symbolTable.resolveTypeNode(fInfo.type(), this);
+                if (fInfo != null) return symbolTable.resolveFieldType(fInfo);
             }
         } else if (expr instanceof MethodCallExpr mc) {
             ResolvedType rec = null;
@@ -773,7 +815,7 @@ public final class AccentLowerer implements ImportResolver {
                             && mc.methodName().equals("await") && !rec.typeArguments().isEmpty()) {
                         return rec.typeArguments().getFirst();
                     }
-                    return symbolTable.resolveTypeNode(mInfo.returnType(), this);
+                    return symbolTable.resolveReturnType(mInfo);
                 }
 
                 if (mc.typeArguments().isEmpty()
@@ -781,17 +823,10 @@ public final class AccentLowerer implements ImportResolver {
                     return new ResolvedType(symbolTable.getType("java.lang.String"), !mc.isOptional(), List.of(), 0);
                 }
 
-                // Extension methods
-                for (ExtensionDecl ext : symbolTable.extensions()) {
-                    ResolvedType extTarget = symbolTable.resolveTypeNode(ext.targetType(), this);
-                    if (rec.isCompatibleWith(extTarget, symbolTable)) {
-                        MethodDecl extMethod = ext.members().stream()
-                                .filter(m -> m instanceof MethodDecl)
-                                .map(m -> (MethodDecl) m)
-                                .filter(m -> m.name().equals(mc.methodName()))
-                                .findFirst().orElse(null);
-                        if (extMethod != null) return symbolTable.resolveTypeNode(extMethod.returnType(), this);
-                    }
+                ExtensionResolver.Match extension = findExtension(mc, mc.isOptional() ? rec.withNonNull(true) : rec);
+                if (extension != null) {
+                    ResolvedType returnType = extension.returnType(symbolTable);
+                    return mc.isOptional() ? returnType.withNonNull(false) : returnType;
                 }
             }
         } else if (expr instanceof NewObjectExpr no) {

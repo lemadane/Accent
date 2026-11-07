@@ -1,0 +1,9 @@
+package example;
+
+import java.util.UUID;
+
+class CustomerService {
+    Customer! findRequired(UUID! id) {
+        return new Customer(id, "Lem", true, new Address("Manila"));
+    }
+}

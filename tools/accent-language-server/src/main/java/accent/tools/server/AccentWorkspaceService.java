@@ -1,7 +1,5 @@
 package accent.tools.server;
 
-import accent.ast.Ast.CompilationUnit;
-import accent.tools.core.AccentLanguageService;
 import org.eclipse.lsp4j.*;
 import org.eclipse.lsp4j.services.WorkspaceService;
 
@@ -41,11 +39,7 @@ public final class AccentWorkspaceService implements WorkspaceService {
                             path = Paths.get(uriStr);
                         }
                         AccentTextDocumentService docService = (AccentTextDocumentService) server.getTextDocumentService();
-                        CompilationUnit unit = docService.getContext().getUnit(path);
-                        if (unit != null) {
-                            return AccentLanguageService.getGeneratedJava(unit, docService.getContext().getClassLoader());
-                        }
-                        return "// Source file not parsed or empty AST.";
+                        return docService.getContext().getGeneratedJava(path);
                     } catch (Exception e) {
                         return "// Error generating Java source: " + e.getMessage();
                     }

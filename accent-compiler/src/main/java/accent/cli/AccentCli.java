@@ -135,6 +135,9 @@ public final class AccentCli {
 
     private static int runCheck(String pathStr) {
         Path path = Path.of(pathStr);
+        if (Files.isDirectory(path)) {
+            return runCheckDirectory(path);
+        }
         CompilationResult result = new AccentCompiler().check(path);
 
         result.diagnostics().forEach(diagnostic ->
@@ -146,6 +149,39 @@ public final class AccentCli {
 
         int tokenCount = result.compilationUnit().orElseThrow().tokens().size();
         System.out.printf("Accent source is valid (%d tokens).%n", tokenCount);
+        return 0;
+    }
+
+    /** Checks every .accent file under {@code dir} together, so files can reference each other. */
+    private static int runCheckDirectory(Path dir) {
+        List<SourceFile> sources = new ArrayList<>();
+        try (var walk = Files.walk(dir)) {
+            for (Path file : walk.filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".accent")).sorted().toList()) {
+                sources.add(new SourceFile(file.toAbsolutePath().normalize(),
+                        Files.readString(file, StandardCharsets.UTF_8)));
+            }
+        } catch (IOException exception) {
+            System.err.println("Unable to read " + dir + ": " + exception.getMessage());
+            return 1;
+        }
+        if (sources.isEmpty()) {
+            System.err.println("No .accent files found in " + dir);
+            return 1;
+        }
+        var perFile = new AccentCompiler().checkEach(sources);
+        boolean failed = false;
+        for (var entry : perFile.entrySet()) {
+            String name = dir.toAbsolutePath().normalize().relativize(entry.getKey().path()).toString();
+            for (Diagnostic diagnostic : entry.getValue()) {
+                System.err.println(diagnostic.format(name));
+                failed |= diagnostic.severity() == accent.diagnostic.DiagnosticSeverity.ERROR;
+            }
+        }
+        if (failed) {
+            return 1;
+        }
+        System.out.printf("Accent sources are valid (%d files).%n", sources.size());
         return 0;
     }
 
@@ -188,7 +224,11 @@ public final class AccentCli {
             accent.ast.Ast.CompilationUnit unit = parser.parse();
 
             String pkg = unit.packageName().orElse("");
-            String simpleName = unit.declarations().isEmpty() ? "Main" : unit.declarations().get(0).name();
+            String simpleName = unit.declarations().stream()
+                    .filter(declaration -> !(declaration instanceof accent.ast.Ast.ExtensionDecl))
+                    .map(accent.ast.Ast.TypeDeclaration::name)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Run target must declare a main class."));
             mainClassName = pkg.isEmpty() ? simpleName : pkg + "." + simpleName;
         } else {
             mainClassName = target;
@@ -239,7 +279,7 @@ public final class AccentCli {
         System.err.println("Usage: accent [options] <command> <target>");
         System.err.println("Commands:");
         System.err.println("  tokens <file>                 Print all tokens of a Accent source file");
-        System.err.println("  check <file>                  Perform syntactic and semantic check on a file");
+        System.err.println("  check <file-or-dir>           Perform syntactic and semantic check on a file or directory");
         System.err.println("  compile <file-or-dir>         Compile Accent/Java files to class files");
         System.err.println("  run <main-file-or-class>      Compile and execute a main class");
         System.err.println("Options:");

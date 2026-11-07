@@ -32,8 +32,9 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
+    def testRuntimeClasspath = sourceSets.test.runtimeClasspath
     doFirst {
-        systemProperty 'accent.test.runtimeClasspath', sourceSets.test.runtimeClasspath.asPath
+        systemProperty 'accent.test.runtimeClasspath', testRuntimeClasspath.asPath
     }
 }
 
@@ -71,7 +72,7 @@ tasks.register('compileAccent', JavaExec) {
     
     args 'compile', 'src/main/accent', '-d', 'build/classes/java/main', '-cp', sourceSets.main.compileClasspath.asPath, '--save-java'
     
-    inputs.dir('src/main/accent').optional()
+    inputs.files(fileTree('src/main/accent') { include '**/*.accent', '**/*.java' }).skipWhenEmpty()
     outputs.dir('build/generated/sources/accent/main')
     
     dependsOn tasks.named('classes')
@@ -89,7 +90,7 @@ tasks.register('compileTestAccent', JavaExec) {
     
     args 'compile', 'src/test/accent', '-d', 'build/classes/java/test', '-cp', sourceSets.test.compileClasspath.asPath, '--save-java'
     
-    inputs.dir('src/test/accent').optional()
+    inputs.files(fileTree('src/test/accent') { include '**/*.accent', '**/*.java' }).skipWhenEmpty()
     outputs.dir('build/generated/sources/accent/test')
     
     dependsOn tasks.named('classes')
@@ -101,10 +102,10 @@ tasks.named('compileTestJava') {
 
 tasks.register('checkAccent', JavaExec) {
     group = 'verification'
-    description = 'Lexes and validates the example Accent source file.'
+    description = 'Lexes and validates the example Accent project.'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = application.mainClass
-    args 'check', 'examples/HelloAccent.accent'
+    args 'check', 'src/e2e/examples/hello'
     dependsOn tasks.named('classes')
 }
 
@@ -122,7 +123,7 @@ tasks.register('compileStringInterpolationTest', JavaExec) {
         classDir.mkdirs()
     }
     
-    args 'compile', "${rootDirDir}/accent-compiler/src/e2e/examples/StringInterpolationTest.accent", '-d', "${buildDirDir}/classes/java/demo", '-cp', sourceSets.main.compileClasspath.asPath, '--save-java'
+    args 'compile', "${rootDirDir}/accent-compiler/src/e2e/examples/StringInterpolationTest.accent", '-d', "${buildDirDir}/classes/java/demo", '-cp', sourceSets.main.runtimeClasspath.asPath, '--save-java'
     
     dependsOn tasks.named('classes')
 }
@@ -230,6 +231,23 @@ tasks.register('runSlugDemo', JavaExec) {
     classpath = files("${buildDirDir}/classes/java/demo") + sourceSets.main.runtimeClasspath
     mainClass = 'demo.SlugDemo'
     dependsOn tasks.named('compileSlugDemo')
+}
+
+tasks.register('compileJsonLiteralDemo', JavaExec) {
+    group = 'build'
+    description = 'Compiles the JSON literal demo and its record types.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    args 'compile', "${rootDirDir}/accent-compiler/src/e2e/examples/json", '-d', "${buildDirDir}/classes/java/demo", '-cp', sourceSets.main.runtimeClasspath.asPath, '--save-java'
+    dependsOn tasks.named('classes')
+}
+
+tasks.register('runJsonLiteralDemo', JavaExec) {
+    group = 'verification'
+    description = 'Runs the JSON literal demo.'
+    classpath = files("${buildDirDir}/classes/java/demo") + sourceSets.main.runtimeClasspath
+    mainClass = 'JsonLiteralDemo'
+    dependsOn tasks.named('compileJsonLiteralDemo')
 }
 
 

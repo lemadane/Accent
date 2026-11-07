@@ -132,9 +132,10 @@ class Counter {
 * The prefix is kept in the generated Java name (`_cache` stays `_cache`).
 * It applies to fields and methods only; parameters and locals are unaffected. Bare `_` / `__` are not valid member names.
 * Constructors and interface members are always public; a `_` prefix on an interface member is an error.
-* Every file declares **exactly one** top-level type (`class`, `interface`, `record`, `enum`, `model`, or a `singleton` variant), which is always public. Extensions may accompany it. Type names may not start with `_`.
+* Each file declares at most one ordinary top-level type (`class`, `interface`, `record`, `enum`, `model`, or a `singleton` variant), which is always public. Extension blocks may appear alone or accompany that type. Type names may not start with `_`.
 * Singletons may not declare constructors; the compiler generates a private one.
 * Using a removed keyword is a compile error with a fix hint, e.g. `'private' was removed; rename 'count' to '_count' for package-private`.
+* `public`, `private`, and `protected` cannot be used as identifier names because they remain reserved in the generated Java.
 
 ## Confirmed language features (that Java lacks)
 
@@ -1558,43 +1559,46 @@ JAVA_HOME=$PWD/jdk ./gradlew :accent-html-demo-sql:test
 Run the standalone feature demos:
 
 ```bash
-JAVA_HOME=$PWD/jdk ./gradlew runStringInterpolationTest runSymbolDemo runLoggingDemo runNamedArgsDemo runSlugDemo
+JAVA_HOME=$PWD/jdk ./gradlew runStringInterpolationTest runSymbolDemo runLoggingDemo runNamedArgsDemo runSlugDemo runJsonLiteralDemo
 ```
 
 
 ## Run the current CLI
 
-Check whether the example source is lexically valid:
+Check the example project, including references between its source files:
 
 ```bash
-gradle run --args="check examples/HelloAccent.accent"
+./gradlew :accent-compiler:run --args="check src/e2e/examples/hello"
 ```
 
 Print its token stream:
 
 ```bash
-gradle run --args="tokens examples/HelloAccent.accent"
+./gradlew :accent-compiler:run --args="tokens src/e2e/examples/hello/HelloAccent.accent"
 ```
 
 Run the convenience verification task:
 
 ```bash
-gradle checkAccent
+./gradlew :accent-compiler:checkAccent
 ```
 
 Current CLI usage:
 
 ```text
-accent <check|tokens> <source.accent>
+accent check <file-or-dir>
+accent tokens <source.accent>
+accent compile <file-or-dir> [-d output-dir] [-cp classpath]
+accent run <main-file-or-class> [-cp classpath]
 ```
 
-At this stage, `check` performs lexical validation only.
+`check` performs lexical, syntactic, and semantic validation. Pass a directory to check its `.accent` files together when types reference one another. `compile` also invokes Java compilation, and `run` compiles the main file's directory before starting the application.
 
 
 
 ## Mutability declaration
 
-The first visible Accent feature will be local mutability declarations:
+Accent supports local mutability declarations:
 
 ```java
 class Main {
@@ -1728,20 +1732,17 @@ class Main {
 }
 ```
 
-You can test this implementation via the included demo:
+Run the Java JSON demo from the repository root:
 ```bash
-# Compile and run the JSON Demo
-javac -cp accent-json/build/classes/java/main accent-compiler/src/e2e/examples/JsonDemo.java
-java -cp accent-json/build/classes/java/main:accent-compiler/src/e2e/examples JsonDemo
+./gradlew :accent-compiler:classes
+javac -cp accent-compiler/build/classes/java/main -d accent-compiler/build/classes/java/demo accent-compiler/src/e2e/examples/JsonDemo.java
+java -cp accent-compiler/build/classes/java/demo:accent-compiler/build/classes/java/main JsonDemo
 ```
 
 
-You can test this implementation via the included demo:
+The Accent JSON literal demo keeps `JsonLiteralDemo.accent`, `User.accent`, and `Address.accent` in `accent-compiler/src/e2e/examples/json/`, with one type per file. Compile and run them together:
 ```bash
-# Compile and run the JSON Literal Demo
-./gradlew :accent-compiler:classes
-java -cp accent-compiler/build/classes/java/main accent.cli.AccentCli compile accent-compiler/src/e2e/examples/JsonLiteralDemo.accent -d accent-compiler/build/classes/java/demo -cp accent-json/build/classes/java/main --save-java
-java -cp accent-compiler/build/classes/java/demo:accent-json/build/classes/java/main JsonLiteralDemo
+./gradlew :accent-compiler:runJsonLiteralDemo
 ```
 
 ## Project status
@@ -1757,10 +1758,10 @@ The repository already contains:
 - a **lowering** pass that transforms Accent AST constructs to Java-compatible forms
 - a **Java source emitter** for transpilation output
 - source-file and diagnostic abstractions
-- a CLI with `check`, `tokens`, and `checkAccent` commands
+- a CLI with `check`, `tokens`, `compile`, and `run` commands, plus the Gradle `checkAccent` task
 - a virtual-thread runtime with `async` / `await` shorthand and `Async.run()` / `.await()` methods
 - JUnit 5 tests (including end-to-end compiler tests)
-- an example `.accent` source file
+- example `.accent` projects and feature demos
 
 The compiler pipeline is functional from lexing through Java emission. Work continues on expanding language feature coverage and hardening the transpilation output.
 

@@ -6,6 +6,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.function.Predicate;
 
 public final class SymbolTable {
     private final Map<String, TypeInfo> typeCache = new HashMap<>();
@@ -13,6 +14,14 @@ public final class SymbolTable {
     private final ClassLoader classLoader;
     private final Set<String> singletonTypes = new HashSet<>();
     private final List<ExtensionDecl> extensions = new ArrayList<>();
+    private final Map<ExtensionDecl, String> extensionPackages = new IdentityHashMap<>();
+    private final Map<ExtensionDecl, CompilationUnit> extensionUnits = new IdentityHashMap<>();
+    private final Map<String, CompilationUnit> sourceUnits = new HashMap<>();
+    private final Map<FieldInfo, MemberOwner> fieldOwners = new IdentityHashMap<>();
+    private final Map<MethodInfo, MemberOwner> methodOwners = new IdentityHashMap<>();
+    private final Map<String, String> typePackages = new HashMap<>();
+
+    public record MemberOwner(String typeName, String packageName) {}
 
     public SymbolTable() {
         this(null);
@@ -61,8 +70,11 @@ public final class SymbolTable {
         for (TypeDeclaration decl : unit.declarations()) {
             if (decl instanceof ExtensionDecl ext) {
                 extensions.add(ext);
+                extensionPackages.put(ext, pkg);
+                extensionUnits.put(ext, unit);
             } else {
                 TypeInfo info = createSourceTypeInfo(pkg, decl, unit);
+                sourceUnits.put(info.fullName(), unit);
                 typeCache.put(info.fullName(), info);
                 if (decl.isSingleton()) singletonTypes.add(info.fullName());
                 packageTypes.computeIfAbsent(pkg, k -> new ArrayList<>()).add(info);
@@ -72,6 +84,191 @@ public final class SymbolTable {
 
     public List<ExtensionDecl> extensions() {
         return List.copyOf(extensions);
+    }
+
+    public String extensionPackage(ExtensionDecl extension) {
+        return extensionPackages.getOrDefault(extension, "");
+    }
+
+    public CompilationUnit extensionUnit(ExtensionDecl extension) {
+        return extensionUnits.get(extension);
+    }
+
+    public TypeInfo resolveInUnit(String name, CompilationUnit unit) {
+        if (unit == null) return getType(name);
+        TypeInfo info;
+        if (name.contains(".")) {
+            info = getType(name);
+            if (info != null) return info;
+        }
+        String pkg = unit.packageName().orElse("");
+        info = getType(pkg.isEmpty() ? name : pkg + "." + name);
+        if (info != null) return info;
+        for (String imp : unit.imports()) {
+            String imported = imp.startsWith("static ") ? imp.substring(7) : imp;
+            if (imported.equals(name) || imported.endsWith("." + name)) {
+                info = getType(imported);
+                if (info != null) return info;
+            }
+        }
+        for (String imp : unit.imports()) {
+            String imported = imp.startsWith("static ") ? imp.substring(7) : imp;
+            if (imported.endsWith(".*")) {
+                info = getType(imported.substring(0, imported.length() - 1) + name);
+                if (info != null) return info;
+            }
+        }
+        for (String implicit : List.of("java.lang.", "java.util.", "java.math.")) {
+            info = getType(implicit + name);
+            if (info != null) return info;
+        }
+        return getType(name);
+    }
+
+    public ResolvedType resolveTypeInUnit(TypeNode node, CompilationUnit unit) {
+        return resolveTypeNode(node, name -> resolveInUnit(name, unit));
+    }
+
+    private ResolvedType resolveMemberType(TypeNode node, MemberOwner owner) {
+        CompilationUnit unit = owner == null ? null : sourceUnits.get(owner.typeName());
+        return resolveTypeInUnit(node, unit);
+    }
+
+    public ResolvedType resolveFieldType(FieldInfo field) {
+        return resolveMemberType(field.type(), declaringOwner(field));
+    }
+
+    public ResolvedType resolveReturnType(MethodInfo method) {
+        return resolveMemberType(method.returnType(), declaringOwner(method));
+    }
+
+    public ResolvedType resolveParameterType(MethodInfo method, int index) {
+        return resolveMemberType(method.parameters().get(index).type(), declaringOwner(method));
+    }
+
+    public boolean isInvocationCompatible(ResolvedType argument, ResolvedType parameter) {
+        if (argument == null || parameter == null || argument.isCompatibleWith(parameter, this)) return true;
+        if (argument.isPrimitive() && !parameter.isPrimitive()) {
+            String boxed = switch (argument.info().fullName()) {
+                case "boolean" -> "java.lang.Boolean";
+                case "byte" -> "java.lang.Byte";
+                case "short" -> "java.lang.Short";
+                case "char" -> "java.lang.Character";
+                case "int" -> "java.lang.Integer";
+                case "long" -> "java.lang.Long";
+                case "float" -> "java.lang.Float";
+                case "double" -> "java.lang.Double";
+                default -> null;
+            };
+            return boxed != null && new ResolvedType(getType(boxed), true, List.of(), 0)
+                    .isCompatibleWith(parameter, this);
+        }
+        if (!argument.isPrimitive() && argument.arrayDimensions() == 0 && parameter.isPrimitive()) {
+            String unboxed = switch (argument.info().fullName()) {
+                case "java.lang.Boolean" -> "boolean";
+                case "java.lang.Byte" -> "byte";
+                case "java.lang.Short" -> "short";
+                case "java.lang.Character" -> "char";
+                case "java.lang.Integer" -> "int";
+                case "java.lang.Long" -> "long";
+                case "java.lang.Float" -> "float";
+                case "java.lang.Double" -> "double";
+                default -> null;
+            };
+            return unboxed != null && new ResolvedType(getType(unboxed), true, List.of(), 0)
+                    .isCompatibleWith(parameter, this);
+        }
+        return false;
+    }
+
+    public MemberOwner declaringOwner(FieldInfo field) {
+        return fieldOwners.get(field);
+    }
+
+    public MemberOwner declaringOwner(MethodInfo method) {
+        return methodOwners.get(method);
+    }
+
+    private TypeInfo registerMembers(TypeInfo type, String packageName) {
+        typePackages.put(type.fullName(), packageName);
+        MemberOwner owner = new MemberOwner(type.fullName(), packageName);
+        type.fields().forEach(field -> fieldOwners.put(field, owner));
+        type.methods().forEach(method -> methodOwners.put(method, owner));
+        return type;
+    }
+
+    public boolean isSubtype(TypeInfo type, TypeInfo target) {
+        if (type == null || target == null) return false;
+        if (target.fullName().equals("java.lang.Object") && !type.isPrimitive()) return true;
+        return hierarchy(type).stream().anyMatch(candidate -> candidate.fullName().equals(target.fullName()));
+    }
+
+    public List<TypeInfo> hierarchy(TypeInfo type) {
+        if (type == null) return List.of();
+        List<TypeInfo> hierarchy = new ArrayList<>();
+        Set<String> visited = new HashSet<>();
+        Deque<TypeInfo> pending = new ArrayDeque<>();
+        pending.add(type);
+        while (!pending.isEmpty()) {
+            TypeInfo candidate = pending.removeFirst();
+            if (!visited.add(candidate.fullName())) continue;
+            hierarchy.add(candidate);
+            List<String> parents = new ArrayList<>(candidate.interfaces());
+            candidate.superclass().ifPresent(parents::add);
+            for (String parent : parents) {
+                TypeInfo parentType = getTypeWithFallback(this, parent);
+                if (parentType != null) pending.addLast(parentType);
+            }
+        }
+        if (!type.isPrimitive() && visited.add("java.lang.Object")) {
+            TypeInfo object = getType("java.lang.Object");
+            if (object != null) hierarchy.add(object);
+        }
+        return hierarchy;
+    }
+
+    public boolean isMemberAccessible(FieldInfo field, TypeInfo receiver, TypeInfo accessingClass,
+                                      String accessingPackage, boolean superAccess) {
+        return isMemberAccessible(field.modifiers(), declaringOwner(field), receiver,
+                accessingClass, accessingPackage, superAccess);
+    }
+
+    public boolean isMemberAccessible(MethodInfo method, TypeInfo receiver, TypeInfo accessingClass,
+                                      String accessingPackage, boolean superAccess) {
+        MemberOwner owner = declaringOwner(method);
+        if (owner != null && method.modifiers().contains("static") && !receiver.fullName().equals(owner.typeName())) {
+            TypeInfo declaringType = getType(owner.typeName());
+            if (declaringType != null && declaringType.isInterface()) return false;
+        }
+        return isMemberAccessible(method.modifiers(), owner, receiver,
+                accessingClass, accessingPackage, superAccess);
+    }
+
+    private boolean isMemberAccessible(List<String> modifiers, MemberOwner owner, TypeInfo receiver,
+                                      TypeInfo accessingClass, String accessingPackage, boolean superAccess) {
+        if (owner == null || modifiers.contains("public")) return true;
+        if (modifiers.contains("private")) {
+            return accessingClass != null && accessingClass.fullName().equals(owner.typeName())
+                    && receiver.fullName().equals(owner.typeName());
+        }
+        boolean isProtected = modifiers.contains("protected");
+        if (!isProtected && !inheritsPackageMember(receiver, owner)) return false;
+        if (accessingPackage.equals(owner.packageName())) return true;
+        if (!isProtected || !isSubtype(accessingClass, getType(owner.typeName()))) return false;
+        // Protected instance access outside the package needs a receiver of the accessing
+        // subclass (or one of its subclasses), except for an explicit super access.
+        return modifiers.contains("static") || superAccess || isSubtype(receiver, accessingClass);
+    }
+
+    /** Package members cease to be inherited when a superclass crosses a package boundary. */
+    public boolean inheritsPackageMember(TypeInfo type, MemberOwner owner) {
+        Set<String> visited = new HashSet<>();
+        while (type != null && visited.add(type.fullName())) {
+            if (type.fullName().equals(owner.typeName())) return true;
+            if (!owner.packageName().equals(typePackages.get(type.fullName()))) return false;
+            type = type.superclass().map(name -> getTypeWithFallback(this, name)).orElse(null);
+        }
+        return false;
     }
 
     public TypeInfo getType(String fullName) {
@@ -263,9 +460,17 @@ public final class SymbolTable {
                         type = new BaseTypeNode("java.lang.Object", List.of(), false);
                     }
                 }
-                fields.add(new FieldInfo(fd.name(), fd.modifiers(), type));
+                List<String> modifiers = new ArrayList<>(fd.modifiers());
+                if (isInterface) {
+                    addImplicitPublic(modifiers);
+                    if (!modifiers.contains("static")) modifiers.add("static");
+                    if (!modifiers.contains("final")) modifiers.add("final");
+                }
+                fields.add(new FieldInfo(fd.name(), modifiers, type));
             } else if (member instanceof MethodDecl md) {
-                methods.add(new MethodInfo(md.name(), md.modifiers(), md.returnType(), md.parameters()));
+                List<String> modifiers = new ArrayList<>(md.modifiers());
+                if (isInterface) addImplicitPublic(modifiers);
+                methods.add(new MethodInfo(md.name(), modifiers, md.returnType(), md.parameters()));
             } else if (member instanceof ConstructorDecl cd) {
                 constructors.add(new ConstructorInfo(cd.modifiers(), cd.parameters()));
             }
@@ -296,7 +501,8 @@ public final class SymbolTable {
             }
         }
 
-        return new TypeInfo(fullName, isInterface, isRecord, isEnum, false, superclass, interfaces, methods, fields, constructors);
+        return registerMembers(new TypeInfo(fullName, isInterface, isRecord, isEnum, false,
+                superclass, interfaces, methods, fields, constructors), pkg);
     }
 
     private String getTypeName(TypeNode node) {
@@ -304,6 +510,12 @@ public final class SymbolTable {
         if (node instanceof PrimitiveTypeNode prim) return prim.name();
         if (node instanceof ArrayTypeNode arr) return getTypeName(arr.elementType()) + "[]";
         return "";
+    }
+
+    private static void addImplicitPublic(List<String> modifiers) {
+        if (!modifiers.contains("public") && !modifiers.contains("protected") && !modifiers.contains("private")) {
+            modifiers.add("public");
+        }
     }
 
     // --- Reflected TypeInfo Creation ---
@@ -326,23 +538,22 @@ public final class SymbolTable {
         List<ConstructorInfo> constructors = new ArrayList<>();
 
         // Map fields
-        for (Field f : clazz.getFields()) {
-            if (Modifier.isPublic(f.getModifiers()) || Modifier.isProtected(f.getModifiers())) {
-                fields.add(new FieldInfo(f.getName(), getModifiersList(f.getModifiers()), mapClassToTypeNode(f.getType())));
-            }
+        for (Field f : clazz.getDeclaredFields()) {
+            if (f.isSynthetic()) continue;
+            fields.add(new FieldInfo(f.getName(), getModifiersList(f.getModifiers()), mapClassToTypeNode(f.getType())));
         }
 
         // Map methods
-        for (Method m : clazz.getMethods()) {
+        for (Method m : clazz.getDeclaredMethods()) {
             if (m.isBridge() || m.isSynthetic()) continue;
-            if (Modifier.isPublic(m.getModifiers()) || Modifier.isProtected(m.getModifiers())) {
-                List<Parameter> params = new ArrayList<>();
-                int idx = 0;
-                for (Class<?> pType : m.getParameterTypes()) {
-                    params.add(new Parameter(mapClassToTypeNode(pType), "p" + idx++, false, Optional.empty()));
-                }
-                methods.add(new MethodInfo(m.getName(), getModifiersList(m.getModifiers()), mapClassToTypeNode(m.getReturnType()), params));
+            List<Parameter> params = new ArrayList<>();
+            int idx = 0;
+            for (Class<?> pType : m.getParameterTypes()) {
+                boolean varargs = m.isVarArgs() && idx == m.getParameterCount() - 1;
+                params.add(new Parameter(mapClassToTypeNode(varargs ? pType.getComponentType() : pType),
+                        "p" + idx++, varargs, Optional.empty()));
             }
+            methods.add(new MethodInfo(m.getName(), getModifiersList(m.getModifiers()), mapClassToTypeNode(m.getReturnType()), params));
         }
 
         // Map constructors
@@ -351,13 +562,16 @@ public final class SymbolTable {
                 List<Parameter> params = new ArrayList<>();
                 int idx = 0;
                 for (Class<?> pType : c.getParameterTypes()) {
-                    params.add(new Parameter(mapClassToTypeNode(pType), "p" + idx++, false, Optional.empty()));
+                    boolean varargs = c.isVarArgs() && idx == c.getParameterCount() - 1;
+                    params.add(new Parameter(mapClassToTypeNode(varargs ? pType.getComponentType() : pType),
+                            "p" + idx++, varargs, Optional.empty()));
                 }
                 constructors.add(new ConstructorInfo(getModifiersList(c.getModifiers()), params));
             }
         }
 
-        return new TypeInfo(fullName, isInterface, isRecord, isEnum, false, superclass, interfaces, methods, fields, constructors);
+        return registerMembers(new TypeInfo(fullName, isInterface, isRecord, isEnum, false,
+                superclass, interfaces, methods, fields, constructors), clazz.getPackageName());
     }
 
     private List<String> getModifiersList(int mod) {
@@ -502,7 +716,21 @@ public final class SymbolTable {
         }
 
         public MethodInfo findMethod(String name, List<ResolvedType> argTypes, SymbolTable symbolTable) {
-            List<MethodInfo> candidates = findAllMethods(name, symbolTable);
+            return findMethod(name, argTypes, symbolTable, method -> true);
+        }
+
+        public MethodInfo findMethod(String name, List<ResolvedType> argTypes, SymbolTable symbolTable,
+                                     Predicate<MethodInfo> accessible) {
+            List<MethodInfo> allCandidates = findAllMethods(name, symbolTable);
+            if (argTypes != null) {
+                List<MethodInfo> applicable = allCandidates.stream()
+                        .filter(method -> acceptsArguments(method, argTypes, symbolTable)).toList();
+                // Only use the permissive generic/varargs fallback when no signature is
+                // compatible. An accessible overload with the wrong signature must not
+                // hide an inaccessible overload that actually matches the arguments.
+                if (!applicable.isEmpty()) allCandidates = applicable;
+            }
+            List<MethodInfo> candidates = allCandidates.stream().filter(accessible).toList();
             if (candidates.isEmpty()) return null;
 
             if (argTypes != null) {
@@ -513,35 +741,13 @@ public final class SymbolTable {
                 if (!arityMatches.isEmpty()) {
                     // Try to find compatible type match with non-Object return type
                     for (MethodInfo m : arityMatches) {
-                        boolean compatible = true;
-                        for (int i = 0; i < argTypes.size(); i++) {
-                            ResolvedType paramType = symbolTable.resolveTypeNode(m.parameters().get(i).type(), symbolTable::getType);
-                            ResolvedType argType = argTypes.get(i);
-                            if (paramType != null && argType != null) {
-                                if (!argType.isCompatibleWith(paramType, symbolTable)) {
-                                    compatible = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if (compatible && !isObjectReturnType(m.returnType())) {
+                        if (acceptsArguments(m, argTypes, symbolTable) && !isObjectReturnType(m.returnType())) {
                             return m;
                         }
                     }
                     // Fallback to any compatible match
                     for (MethodInfo m : arityMatches) {
-                        boolean compatible = true;
-                        for (int i = 0; i < argTypes.size(); i++) {
-                            ResolvedType paramType = symbolTable.resolveTypeNode(m.parameters().get(i).type(), symbolTable::getType);
-                            ResolvedType argType = argTypes.get(i);
-                            if (paramType != null && argType != null) {
-                                if (!argType.isCompatibleWith(paramType, symbolTable)) {
-                                    compatible = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if (compatible) return m;
+                        if (acceptsArguments(m, argTypes, symbolTable)) return m;
                     }
                     // Arity match with non-object return type
                     MethodInfo nonObj = arityMatches.stream().filter(m -> !isObjectReturnType(m.returnType())).findFirst().orElse(null);
@@ -593,6 +799,26 @@ public final class SymbolTable {
                 return base.name().equals("java.lang.Object") || base.name().equals("Object");
             }
             return false;
+        }
+
+        private boolean acceptsArguments(MethodInfo method, List<ResolvedType> arguments, SymbolTable table) {
+            List<Parameter> parameters = method.parameters();
+            boolean varargs = !parameters.isEmpty() && parameters.getLast().isVarargs();
+            int fixedCount = parameters.size() - (varargs ? 1 : 0);
+            if (arguments.size() < fixedCount || !varargs && arguments.size() != fixedCount) return false;
+            for (int i = 0; i < fixedCount; i++) {
+                if (!table.isInvocationCompatible(arguments.get(i), table.resolveParameterType(method, i))) return false;
+            }
+            if (!varargs) return true;
+            ResolvedType element = table.resolveParameterType(method, fixedCount);
+            if (arguments.size() == parameters.size()) {
+                ResolvedType array = new ResolvedType(element.info(), false, element.typeArguments(), element.arrayDimensions() + 1);
+                if (table.isInvocationCompatible(arguments.get(fixedCount), array)) return true;
+            }
+            for (int i = fixedCount; i < arguments.size(); i++) {
+                if (!table.isInvocationCompatible(arguments.get(i), element)) return false;
+            }
+            return true;
         }
 
         public FieldInfo findField(String name, SymbolTable symbolTable) {

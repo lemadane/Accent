@@ -5,6 +5,7 @@ import accent.diagnostic.Diagnostic;
 import accent.diagnostic.DiagnosticSeverity;
 import accent.lexer.Token;
 import accent.symbol.SymbolTable;
+import accent.symbol.ExtensionResolver;
 import accent.symbol.SymbolTable.ResolvedType;
 import accent.symbol.SymbolTable.TypeInfo;
 import accent.symbol.SymbolTable.ConstructorInfo;
@@ -68,49 +69,7 @@ public final class SemanticAnalyzer implements ImportResolver {
 
     @Override
     public TypeInfo resolve(String simpleName) {
-        if (simpleName.contains(".")) {
-            TypeInfo directInfo = symbolTable.getType(simpleName);
-            if (directInfo != null) return directInfo;
-        }
-
-        // Resolve simple type name to full type name using package and imports
-        if (currentUnit == null) return symbolTable.getType(simpleName);
-
-        // 1. Same package
-        String pkg = currentUnit.packageName().orElse("");
-        String fullName = pkg.isEmpty() ? simpleName : pkg + "." + simpleName;
-        TypeInfo info = symbolTable.getType(fullName);
-        if (info != null) return info;
-
-        // 2. Explicit imports
-        for (String imp : currentUnit.imports()) {
-            String cleanImp = imp.startsWith("static ") ? imp.substring(7) : imp;
-            if (cleanImp.equals(simpleName) || cleanImp.endsWith("." + simpleName)) {
-                info = symbolTable.getType(cleanImp);
-                if (info != null) return info;
-            }
-        }
-
-        // 3. Wildcard imports
-        for (String imp : currentUnit.imports()) {
-            String cleanImp = imp.startsWith("static ") ? imp.substring(7) : imp;
-            if (cleanImp.endsWith(".*")) {
-                String pkgName = cleanImp.substring(0, cleanImp.length() - 2);
-                info = symbolTable.getType(pkgName + "." + simpleName);
-                if (info != null) return info;
-            }
-        }
-
-        // 4. Implicit java.lang, java.util, java.math
-        info = symbolTable.getType("java.lang." + simpleName);
-        if (info != null) return info;
-        info = symbolTable.getType("java.util." + simpleName);
-        if (info != null) return info;
-        info = symbolTable.getType("java.math." + simpleName);
-        if (info != null) return info;
-
-        // 5. Raw fallback
-        return symbolTable.getType(simpleName);
+        return symbolTable.resolveInUnit(simpleName, currentUnit);
     }
 
     public void analyze(CompilationUnit unit) {
@@ -529,9 +488,25 @@ public final class SemanticAnalyzer implements ImportResolver {
                 .filter(method -> !method.modifiers().contains("static"))
                 .toList();
         if (methods.size() != 1 || methods.getFirst().parameters().size() != lambda.parameters().size()) return false;
-        lambdaParameterTypes.put(lambda, methods.getFirst().parameters().stream()
-                .map(parameter -> symbolTable.resolveTypeNode(parameter.type(), this)).toList());
+        SymbolTable.MethodInfo method = methods.getFirst();
+        List<ResolvedType> parameters = new ArrayList<>();
+        for (int i = 0; i < method.parameters().size(); i++) parameters.add(symbolTable.resolveParameterType(method, i));
+        lambdaParameterTypes.put(lambda, parameters);
         return true;
+    }
+
+    private boolean isAccessible(SymbolTable.FieldInfo field, ResolvedType receiver, Expression receiverExpression) {
+        return symbolTable.isMemberAccessible(field, receiver.info(), currentClass,
+                currentUnit.packageName().orElse(""), receiverExpression instanceof SuperExpr);
+    }
+
+    private boolean isAccessible(SymbolTable.MethodInfo method, ResolvedType receiver, Expression receiverExpression) {
+        return symbolTable.isMemberAccessible(method, receiver.info(), currentClass,
+                currentUnit.packageName().orElse(""), receiverExpression instanceof SuperExpr);
+    }
+
+    private void inaccessibleMember(Token token, String kind, String name, SymbolTable.MemberOwner owner) {
+        error(token, "Cannot access " + kind + " '" + name + "' declared in '" + owner.typeName() + "' from this context.");
     }
 
     private void verifyCondition(ResolvedType type, Token token) {
@@ -542,9 +517,34 @@ public final class SemanticAnalyzer implements ImportResolver {
 
 
     public final Map<Expression, ResolvedType> resolvedTypes = new java.util.IdentityHashMap<>();
+    private record AccessContext(TypeInfo accessingClass, String packageName) {}
+    private final Map<Expression, AccessContext> accessContexts = new IdentityHashMap<>();
+
+    /** Accessible members for editor queries after the analyzer has left the enclosing type. */
+    public List<SymbolTable.MethodInfo> accessibleMethods(Expression receiver) {
+        ResolvedType type = resolvedTypes.get(receiver);
+        AccessContext context = accessContexts.get(receiver);
+        if (type == null || context == null) return List.of();
+        return symbolTable.hierarchy(type.info()).stream().flatMap(owner -> owner.methods().stream())
+                .filter(method -> symbolTable.isMemberAccessible(method, type.info(), context.accessingClass(),
+                        context.packageName(), receiver instanceof SuperExpr)).toList();
+    }
+
+    public List<SymbolTable.FieldInfo> accessibleFields(Expression receiver) {
+        ResolvedType type = resolvedTypes.get(receiver);
+        AccessContext context = accessContexts.get(receiver);
+        if (type == null || context == null) return List.of();
+        Map<String, SymbolTable.FieldInfo> fields = new LinkedHashMap<>();
+        for (TypeInfo owner : symbolTable.hierarchy(type.info())) {
+            owner.fields().forEach(field -> fields.putIfAbsent(field.name(), field));
+        }
+        return fields.values().stream().filter(field -> symbolTable.isMemberAccessible(field, type.info(),
+                context.accessingClass(), context.packageName(), receiver instanceof SuperExpr)).toList();
+    }
 
     private ResolvedType checkExpression(Expression expr) {
         if (expr == null) return null;
+        accessContexts.put(expr, new AccessContext(currentClass, currentUnit.packageName().orElse("")));
         ResolvedType type = checkExpressionInternal(expr);
         if (type != null) {
             resolvedTypes.put(expr, type);
@@ -582,12 +582,15 @@ public final class SemanticAnalyzer implements ImportResolver {
 
             // Check field access on current class (missing this. check)
             if (currentClass != null && !isStaticContext) {
-                boolean hasField = currentClass.fields().stream().anyMatch(f -> f.name().equals(id.name()));
-                if (hasField) {
+                SymbolTable.FieldInfo fInfo = currentClass.findField(id.name(), symbolTable);
+                if (fInfo != null) {
+                    ResolvedType receiver = new ResolvedType(currentClass, true, List.of(), 0);
+                    if (!isAccessible(fInfo, receiver, null)) {
+                        inaccessibleMember(id.token(), "field", id.name(), symbolTable.declaringOwner(fInfo));
+                    }
                     error(id.token(), "Access to field '" + id.name() + "' must be explicitly qualified with 'this.'.");
                     // Recover type
-                    SymbolTable.FieldInfo fInfo = currentClass.fields().stream().filter(f -> f.name().equals(id.name())).findFirst().get();
-                    return symbolTable.resolveTypeNode(fInfo.type(), this);
+                    return symbolTable.resolveFieldType(fInfo);
                 }
             }
             
@@ -707,7 +710,10 @@ public final class SemanticAnalyzer implements ImportResolver {
                 // Resolve member
                 SymbolTable.FieldInfo fInfo = rec.info().findField(ma.memberName(), symbolTable);
                 if (fInfo != null) {
-                    ResolvedType fType = symbolTable.resolveTypeNode(fInfo.type(), this);
+                    if (!isAccessible(fInfo, rec, ma.receiver())) {
+                        inaccessibleMember(ma.token(), "field", ma.memberName(), symbolTable.declaringOwner(fInfo));
+                    }
+                    ResolvedType fType = symbolTable.resolveFieldType(fInfo);
                     if (ma.isOptional()) {
                         return fType.withNonNull(false); // Optional chain result is nullable
                     }
@@ -722,7 +728,8 @@ public final class SemanticAnalyzer implements ImportResolver {
             } else {
                 // Implicit method call (must verify if it's an instance method of this)
                 if (currentClass != null && !isStaticContext) {
-                    boolean hasMethod = currentClass.methods().stream().anyMatch(m -> m.name().equals(mc.methodName()));
+                    boolean hasMethod = currentClass.findAllMethods(mc.methodName(), symbolTable).stream()
+                            .anyMatch(m -> !m.modifiers().contains("static"));
                     if (hasMethod) {
                         error(mc.token(), "Call to instance method '" + mc.methodName() + "' must be explicitly qualified with 'this.'.");
                     }
@@ -735,8 +742,9 @@ public final class SemanticAnalyzer implements ImportResolver {
                 Expression arg = mc.arguments().get(index);
                 if (arg instanceof LambdaExpr lambda && rec != null) {
                     for (var candidate : rec.info().findAllMethods(mc.methodName(), symbolTable)) {
+                        if (!isAccessible(candidate, rec, mc.receiver())) continue;
                         if (candidate.parameters().size() == mc.arguments().size()) {
-                            ResolvedType target = symbolTable.resolveTypeNode(candidate.parameters().get(index).type(), this);
+                            ResolvedType target = symbolTable.resolveParameterType(candidate, index);
                             if (contextualizeLambda(lambda, target)) break;
                         }
                     }
@@ -792,13 +800,21 @@ public final class SemanticAnalyzer implements ImportResolver {
                 }
 
                 // 1. Resolve normal instance/static methods
-                SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), argTypes, symbolTable);
+                ResolvedType receiver = rec;
+                SymbolTable.MethodInfo mInfo = rec.info().findMethod(mc.methodName(), argTypes, symbolTable,
+                        method -> isAccessible(method, receiver, mc.receiver()));
+                if (mInfo == null) {
+                    mInfo = rec.info().findMethod(mc.methodName(), argTypes, symbolTable);
+                    if (mInfo != null) {
+                        inaccessibleMember(mc.token(), "method", mc.methodName(), symbolTable.declaringOwner(mInfo));
+                    }
+                }
 
                 if (mInfo != null) {
                     ResolvedType retType = rec.info().fullName().equals("accent.runtime.Async")
                             && mc.methodName().equals("await") && !rec.typeArguments().isEmpty()
                             ? rec.typeArguments().getFirst()
-                            : symbolTable.resolveTypeNode(mInfo.returnType(), this);
+                            : symbolTable.resolveReturnType(mInfo);
                     if (mc.isOptional()) {
                         retType = retType.withNonNull(false);
                     }
@@ -810,31 +826,28 @@ public final class SemanticAnalyzer implements ImportResolver {
                     return new ResolvedType(symbolTable.getType("java.lang.String"), !mc.isOptional(), List.of(), 0);
                 }
 
-                // 2. Resolve extension methods
-                for (ExtensionDecl ext : symbolTable.extensions()) {
-                    ResolvedType extTarget = symbolTable.resolveTypeNode(ext.targetType(), this);
-                    if (rec.isCompatibleWith(extTarget, symbolTable)) {
-                        SymbolTable.MethodInfo extMethod = ext.members().stream()
-                                .filter(m -> m instanceof MethodDecl)
-                                .map(m -> (MethodDecl) m)
-                                .filter(m -> m.name().equals(mc.methodName()))
-                                .map(m -> new SymbolTable.MethodInfo(m.name(), m.modifiers(), m.returnType(), m.parameters()))
-                                .findFirst().orElse(null);
-
-                        if (extMethod != null) {
-                            ResolvedType retType = symbolTable.resolveTypeNode(extMethod.returnType(), this);
-                            if (mc.isOptional()) {
-                                retType = retType.withNonNull(false);
-                            }
-                            return retType;
-                        }
+                // 2. Resolve extensions using their own imports and the matching signature.
+                ResolvedType extensionReceiver = mc.isOptional() ? rec.withNonNull(true) : rec;
+                String packageName = currentUnit.packageName().orElse("");
+                ExtensionResolver.Match extension = ExtensionResolver.find(symbolTable, extensionReceiver,
+                        mc.methodName(), mc.arguments(), argTypes, match -> match.accessibleFrom(symbolTable, packageName));
+                if (extension == null) {
+                    extension = ExtensionResolver.find(symbolTable, extensionReceiver, mc.methodName(),
+                            mc.arguments(), argTypes, match -> true);
+                    if (extension != null) {
+                        error(mc.token(), "Cannot access extension method '" + mc.methodName()
+                                + "' declared in package '" + symbolTable.extensionPackage(extension.extension()) + "' from this context.");
                     }
+                }
+                if (extension != null) {
+                    ResolvedType retType = extension.returnType(symbolTable);
+                    return mc.isOptional() ? retType.withNonNull(false) : retType;
                 }
 
                 error(mc.token(), "Cannot resolve method '" + mc.methodName() + "' on type " + rec);
             }
         } else if (expr instanceof NewObjectExpr no) {
-            ResolvedType type = symbolTable.resolveTypeNode(no.type(), this);
+            ResolvedType type = symbolTable.resolveTypeNode(no.type(), this).withNonNull(true);
             if (symbolTable.isSingletonType(type.info())) {
                 error(no.token(), "Cannot construct singleton '" + type.info().fullName() + "'; use .instance().");
             }

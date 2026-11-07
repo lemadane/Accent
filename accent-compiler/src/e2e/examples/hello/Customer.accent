@@ -1,0 +1,9 @@
+package example;
+
+import java.util.UUID;
+
+record Customer(UUID! id, String! name, boolean active, Address address) {
+    boolean isActive() {
+        return this.active;
+    }
+}

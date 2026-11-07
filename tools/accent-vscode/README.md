@@ -9,6 +9,8 @@ Standard IDE support for the Accent programming language in VS Code.
 - **Code Formatting**: Automatic formatting with 2-space base indent and 4-space continuation indent.
 - **Generated Java Code View**: Side-by-side read-only transpile preview.
 
+Accent uses member names for visibility: `name` is public, `_name` is package-private, and `__name` is protected. The removed visibility modifiers `public`, `private`, and `protected` cannot be used as identifier names because generated Java reserves them. Declare at most one ordinary top-level type per `.accent` file; extension blocks may appear alone or accompany it.
+
 ## Getting Started
 1. Run `./gradlew :tools:accent-language-server:installDist` to build and package the Language Server executable.
 2. Launch VS Code or package using `vsce package`.
@@ -42,7 +44,7 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.6.vsix` for the current syntax: `async` and `await` are shorthand for `Async.run()` and `.await()`. Install it from the repository root:
+Use `accent-vscode-0.1.6.vsix` for the current syntax, including name-based visibility and `async` / `await` shorthand for `Async.run()` / `.await()`. Install it from the repository root:
 
 ```bash
 code --install-extension tools/accent-vscode/accent-vscode-0.1.6.vsix --force

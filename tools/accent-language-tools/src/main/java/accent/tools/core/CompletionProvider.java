@@ -10,7 +10,9 @@ import accent.lexer.Token;
 import accent.lexer.TokenType;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class CompletionProvider {
 
@@ -56,16 +58,18 @@ public final class CompletionProvider {
                 ResolvedType type = analyzer != null ? analyzer.resolvedTypes.get(expr) : null;
                 if (type != null && type.info() != null) {
                     TypeInfo info = type.info();
-                    // Add methods
-                    for (MethodInfo m : info.methods()) {
+                    // Include inherited members using the same access rules as semantic checks.
+                    Set<String> methodDetails = new HashSet<>();
+                    for (MethodInfo m : analyzer.accessibleMethods(expr)) {
                         String resultType = info.fullName().equals("accent.runtime.Async")
                                 && m.name().equals("await") && !type.typeArguments().isEmpty()
                                 ? type.typeArguments().getFirst().toString()
                                 : m.returnType().toString();
-                        items.add(new CompletionItem(m.name(), "Method", resultType));
+                        if (methodDetails.add(m.name() + ":" + resultType)) {
+                            items.add(new CompletionItem(m.name(), "Method", resultType));
+                        }
                     }
-                    // Add fields
-                    for (FieldInfo f : info.fields()) {
+                    for (FieldInfo f : analyzer.accessibleFields(expr)) {
                         items.add(new CompletionItem(f.name(), "Field", f.type().toString()));
                     }
                     return items;
