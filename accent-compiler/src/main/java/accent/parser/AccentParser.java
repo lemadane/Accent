@@ -1003,7 +1003,7 @@ public final class AccentParser {
                 if (check(TokenType.ARROW)) {
                     advance(); // consume ->
                     Node body = check(TokenType.LEFT_BRACE) ? parseStatement() : parseExpression(Precedence.NONE);
-                    yield new LambdaExpr(List.of(new Parameter(new BaseTypeNode("Object", List.of(), false), token.lexeme(), false, Optional.empty())), body, token);
+                    yield new LambdaExpr(List.of(new Parameter(new BaseTypeNode("var", List.of(), false), token.lexeme(), false, Optional.empty())), body, token);
                 }
                 yield new IdentifierExpr(token.lexeme(), token);
             }
@@ -1030,7 +1030,11 @@ public final class AccentParser {
                     List<Parameter> parameters = new ArrayList<>();
                     if (!check(TokenType.RIGHT_PAREN)) {
                         do {
-                            parameters.add(parseParameter());
+                            if (check(TokenType.IDENTIFIER)
+                                    && (lookAhead(1).type() == TokenType.COMMA || lookAhead(1).type() == TokenType.RIGHT_PAREN)) {
+                                parameters.add(new Parameter(new BaseTypeNode("var", List.of(), false),
+                                        advance().lexeme(), false, Optional.empty()));
+                            } else parameters.add(parseParameter());
                         } while (match(TokenType.COMMA));
                     }
                     consume(TokenType.RIGHT_PAREN, "Expected ')' after lambda parameters.");

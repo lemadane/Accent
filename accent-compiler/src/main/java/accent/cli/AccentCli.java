@@ -194,18 +194,17 @@ public final class AccentCli {
             mainClassName = target;
         }
 
-        // Launch in a separate JVM process using our local JDK!
+        // Launch with the same JDK that compiled the application.
         List<String> cmd = new ArrayList<>();
-        String javaBinary = Path.of("").toAbsolutePath().resolve("jdk/bin/java").toString();
-        if (!Files.exists(Path.of(javaBinary))) {
-            javaBinary = "java"; // Fallback to path if local jdk not found
-        }
+        String executable = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
+        String javaBinary = Path.of(System.getProperty("java.home"), "bin", executable).toString();
         cmd.add(javaBinary);
 
         List<String> cpList = new ArrayList<>(classpath);
         cpList.add(outputDir.toString());
         // Also add runtime classes if any are needed
-        cpList.add(Path.of("build/classes/java/main").toString()); // Main project runtime (for Async etc)
+        // Carry the installed Accent runtime and its server dependencies into the child JVM.
+        cpList.addAll(List.of(System.getProperty("java.class.path").split(System.getProperty("path.separator"))));
 
         cmd.add("-cp");
         cmd.add(String.join(System.getProperty("path.separator"), cpList));
@@ -218,7 +217,22 @@ public final class AccentCli {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.inheritIO();
         Process p = pb.start();
-        return p.waitFor();
+        Thread shutdown = new Thread(() -> {
+            p.destroy();
+            try {
+                if (!p.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)) p.destroyForcibly();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                p.destroyForcibly();
+            }
+        }, "accent-child-shutdown");
+        Runtime.getRuntime().addShutdownHook(shutdown);
+        try { return p.waitFor(); }
+        finally {
+            if (p.isAlive()) p.destroy();
+            try { Runtime.getRuntime().removeShutdownHook(shutdown); }
+            catch (IllegalStateException exception) { /* JVM shutdown is already forwarding termination. */ }
+        }
     }
 
     private static void printUsage() {

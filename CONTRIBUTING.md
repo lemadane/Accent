@@ -42,6 +42,16 @@ Run the runtime and compiled-language concurrency tests:
 
 The E2E suite covers virtual-thread overlap, inferred and explicit result types, nested and void operations, repeated and simultaneous awaits, failures, timed waits, cancellation, interruption, invalid operations, and interoperability between shorthand and method syntax. `AsyncSyntaxEquivalenceEndToEndTest` runs a shared behavioral contract against both forms, including captures, evaluation order, short-circuiting, generic identity, and failure propagation. Use latches and bounded waits to test overlap rather than timing-based speed comparisons. `AsyncDocumentationEndToEndTest` reads the actual README and VS Code guide snippets, compiles them, and executes them.
 
+## Testing Standalone HTTP
+
+Undertow is included in the compiler/runtime distribution. Run real-socket and compiled-Accent HTTP tests with:
+
+```bash
+./gradlew :accent-compiler:test --tests accent.http.HttpEndToEndTest
+```
+
+The suite covers routing, inferred handler and middleware parameters, JSON and HTML, encoded URLs, body limits, HTTP methods, virtual-thread concurrency, graceful shutdown, and repeated CLI execution with bundled dependencies. Use ephemeral ports and close every application to avoid leaked listeners.
+
 ## Making Changes
 
 1. **Fork** the repository and create a feature branch from `main`.

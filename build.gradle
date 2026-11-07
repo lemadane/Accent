@@ -1,3 +1,6 @@
+// Keep the standalone engine and optional Spring Servlet adapter on the same compatible release.
+ext.undertowVersion = '2.3.27.Final'
+
 allprojects {
     group = 'accent'
     version = '0.1.0-alpha.2'

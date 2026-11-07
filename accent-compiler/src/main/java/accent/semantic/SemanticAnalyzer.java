@@ -24,6 +24,7 @@ public final class SemanticAnalyzer implements ImportResolver {
     private final List<Map<String, LocalVar>> scopes = new ArrayList<>();
     
     private final Deque<List<ResolvedType>> lambdaReturns = new ArrayDeque<>();
+    private final Map<LambdaExpr, List<ResolvedType>> lambdaParameterTypes = new IdentityHashMap<>();
     private final Map<LambdaExpr, ResolvedType> lambdaResults = new IdentityHashMap<>();
 
     // Stack of expression contexts for yield checks
@@ -397,6 +398,7 @@ public final class SemanticAnalyzer implements ImportResolver {
 
             ResolvedType initType = null;
             if (varDecl.initializer().isPresent()) {
+                if (varDecl.initializer().get() instanceof LambdaExpr lambda && type != null) contextualizeLambda(lambda, type);
                 initType = checkExpression(varDecl.initializer().get());
                 if (type == null) {
                     type = initType; // Type inference
@@ -520,6 +522,17 @@ public final class SemanticAnalyzer implements ImportResolver {
                 warning(es.expression().token(), "ACCENT-W001", "Unobserved or ignored Async result. Consider assigning it to a variable or calling .await().");
             }
         }
+    }
+
+    private boolean contextualizeLambda(LambdaExpr lambda, ResolvedType target) {
+        if (target == null || target.info() == null) return false;
+        var methods = target.info().methods().stream()
+                .filter(method -> !method.modifiers().contains("static"))
+                .toList();
+        if (methods.size() != 1 || methods.getFirst().parameters().size() != lambda.parameters().size()) return false;
+        lambdaParameterTypes.put(lambda, methods.getFirst().parameters().stream()
+                .map(parameter -> symbolTable.resolveTypeNode(parameter.type(), this)).toList());
+        return true;
     }
 
     private void verifyCondition(ResolvedType type, Token token) {
@@ -719,7 +732,16 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
 
             List<ResolvedType> argTypes = new ArrayList<>();
-            for (Expression arg : mc.arguments()) {
+            for (int index = 0; index < mc.arguments().size(); index++) {
+                Expression arg = mc.arguments().get(index);
+                if (arg instanceof LambdaExpr lambda && rec != null) {
+                    for (var candidate : rec.info().findAllMethods(mc.methodName(), symbolTable)) {
+                        if (candidate.parameters().size() == mc.arguments().size()) {
+                            ResolvedType target = symbolTable.resolveTypeNode(candidate.parameters().get(index).type(), this);
+                            if (contextualizeLambda(lambda, target)) break;
+                        }
+                    }
+                }
                 argTypes.add(checkExpression(arg));
             }
 
@@ -842,8 +864,11 @@ public final class SemanticAnalyzer implements ImportResolver {
         } else if (expr instanceof LambdaExpr le) {
             lambdaReturns.push(new ArrayList<>());
             pushScope();
-            for (Parameter param : le.parameters()) {
+            for (int index = 0; index < le.parameters().size(); index++) {
+                Parameter param = le.parameters().get(index);
                 ResolvedType pType = symbolTable.resolveTypeNode(param.type(), this);
+                if (param.type() instanceof BaseTypeNode base && base.name().equals("var")
+                        && lambdaParameterTypes.containsKey(le)) pType = lambdaParameterTypes.get(le).get(index);
                 scopes.getFirst().put(param.name(), new LocalVar(param.name(), pType, true, true));
             }
             if (le.body() instanceof Expression bodyExpr) {

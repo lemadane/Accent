@@ -10,6 +10,68 @@
 
 
 
+## Standalone HTTP — Undertow by Default
+
+Accent includes `accent.http` in its core runtime, backed by Undertow. A standalone HTTP application needs no Spring annotations, application context, or separate server dependency.
+
+**Main.accent**:
+
+```accent
+import accent.http.App;
+import accent.http.Response;
+import java.util.Map;
+
+public class Main {
+    public static void main(String[] args) {
+        final app = new App();
+        app.get("/health", req -> Response.text("ok"));
+        app.get("/users/:id", (req) -> Response.json(Map.of("id", req.path("id"))));
+        app.post("/echo", req -> Response.json(req.json()));
+        final port = Integer.parseInt(System.getenv("PORT") ?? "8080");
+        app.listen(port);
+        System.out.println("Accent HTTP listening on " + app.port());
+    }
+}
+```
+
+`app.listen(port)` starts the server and binds on all network interfaces. Use `app.listen("127.0.0.1", port)` for a local-only listener. Each handler runs on a virtual thread, so ordinary blocking SQL or service calls can be used directly. The server keeps the application running and closes gracefully on JVM shutdown.
+
+From this checkout, install the CLI and run the included example:
+
+```bash
+./gradlew :accent-compiler:installDist
+accent-compiler/build/install/accent/bin/accent run accent-compiler/src/e2e/standalone-http/Main.accent
+```
+
+With the installed `accent` executable on your `PATH`, run your own application with `accent run Main.accent`. The distribution includes Undertow and its runtime dependencies. Set `PORT` to change the example's default port of 8080.
+
+```bash
+curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/users/42
+curl -X POST -H 'Content-Type: application/json' -d '{"message":"hello"}' http://127.0.0.1:8080/echo
+```
+
+| API | Behavior |
+| --- | --- |
+| `app.get/post/put/patch/delete(path, handler)` | Register routes; `:name` captures one path segment. Literal routes take precedence over parameter routes; trailing slashes are normalized. |
+| `app.head/options(path, handler)` | Optional explicit handlers. GET routes provide HEAD automatically; OPTIONS and 405 responses include `Allow`. |
+| `app.use((req, next) -> next.handle(req))` | Register middleware in nesting order; return a response directly to short-circuit. |
+| `req.path("id")`, `req.query("q")`, `req.queryValues("q")` | Read decoded path/query parameters; repeated query values are preserved. |
+| `req.header("name")`, `req.body()`, `req.bodyBytes()` | Read case-insensitive headers and the buffered request body. Text bodies use UTF-8. |
+| `req.json()`, `req.json(User.class)` | Parse JSON as ordinary values or a typed record/model; malformed JSON returns 400. |
+| `Response.json(value)` | Serialize records, models, lists, maps, scalars, or null using Accent's JSON runtime. |
+| `Response.html(component)`, `Response.html(html)` | Render Accent components or `Html` values; existing HTML escaping rules apply. |
+| `Response.text(text)`, `Response.bytes(bytes, contentType)` | Return text or binary content. |
+| `response.status(201).header("X-Name", "value")` | Create a response with a custom final status and headers. Response objects are immutable. |
+| `app.maxBodyBytes(bytes)` | Configure the body limit before startup; the default is 1 MiB, and oversized bodies return 413. |
+| `app.shutdownTimeout(Duration.ofSeconds(5))`, `app.close()` | Configure graceful shutdown and release listener/executor resources. Closing is idempotent. |
+
+Route handlers may use either `(req) -> ...`, `req -> ...`, or `(Request req) -> ...`. Middleware parameter types are also inferred. Unknown paths return 404, a null handler result becomes 204, and unexpected handler failures return a generic 500 response without exposing exception details. Use `new HttpException(status, message)` for an intentional client-visible error.
+
+Configure routes, middleware, and limits before `listen()`. Configuration is frozen at startup; an `App` cannot be restarted after closing. Request objects belong to individual requests. Shared handler or service state still needs coordination across concurrent requests. The initial API serves HTTP; HTTPS, WebSockets, multipart parsing, and standalone file-based routing are not exposed yet.
+
+Spring Boot remains an optional integration for applications that need it; standalone `App` uses Undertow directly. The optional Spring starter includes the matching Undertow Servlet adapter so Boot can start a complete Servlet server when another container has not been supplied.
+
 ## A first look
 
 ```accent
@@ -1130,7 +1192,7 @@ Add this task to the same `build.gradle`. It compiles `.accent` files and saves 
 tasks.register('compileAccent', JavaExec) {
     group = 'build'
     description = 'Compiles main Accent source files to Java.'
-    classpath = configurations.compileClasspath
+    classpath = configurations.runtimeClasspath
     mainClass = 'accent.cli.AccentCli'
     workingDir = projectDir
 

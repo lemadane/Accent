@@ -1,0 +1,15 @@
+import accent.http.App;
+import accent.http.Response;
+import java.util.Map;
+
+public class Main {
+    public static void main(String[] args) {
+        final app = new App();
+        app.get("/health", req -> Response.text("ok"));
+        app.get("/users/:id", (req) -> Response.json(Map.of("id", req.path("id"))));
+        app.post("/echo", req -> Response.json(req.json()));
+        final port = Integer.parseInt(System.getenv("PORT") ?? "8080");
+        app.listen(port);
+        System.out.println("Accent HTTP listening on " + app.port());
+    }
+}

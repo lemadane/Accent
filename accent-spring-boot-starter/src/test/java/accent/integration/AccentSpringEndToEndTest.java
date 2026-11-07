@@ -305,6 +305,27 @@ class AccentSpringEndToEndTest {
     }
 
     @Test
+    void bootStartsARealUndertowServerWithTheOptionalServletAdapter() throws Exception {
+        var application = new org.springframework.boot.SpringApplication(BootConfiguration.class, endpoint);
+        application.setDefaultProperties(Map.of(
+                "server.port", "0", "server.address", "127.0.0.1",
+                "server.undertow.threads.io", "2", "server.undertow.threads.worker", "8",
+                "spring.main.banner-mode", "off"));
+        try (var context = application.run()) {
+            var web = (org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext) context;
+            assertInstanceOf(org.springframework.boot.web.embedded.undertow.UndertowWebServer.class, web.getWebServer());
+            try (var client = java.net.http.HttpClient.newHttpClient()) {
+                var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(
+                        "http://127.0.0.1:" + web.getWebServer().getPort() + "/html"))
+                        .timeout(java.time.Duration.ofSeconds(5)).build();
+                var response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+                assertEquals(200, response.statusCode());
+                assertEquals("<p>Hello HTML</p>", response.body());
+            }
+        }
+    }
+
+    @Test
     void bootAutoDiscoveryInstallsHtmlHandlerForRestControllers() {
         new WebApplicationContextRunner().withUserConfiguration(BootConfiguration.class)
                 .withInitializer(context -> ((BeanDefinitionRegistry) context.getBeanFactory())

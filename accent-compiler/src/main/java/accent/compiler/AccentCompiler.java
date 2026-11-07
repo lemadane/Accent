@@ -94,6 +94,8 @@ public final class AccentCompiler {
             if (Files.isDirectory(srcPath)) {
                 try (Stream<Path> walk = Files.walk(srcPath)) {
                     walk.filter(Files::isRegularFile)
+                        .filter(p -> !p.toAbsolutePath().normalize().startsWith(outputDir.toAbsolutePath().normalize()))
+                        .filter(p -> generatedSourceDir == null || !p.toAbsolutePath().normalize().startsWith(generatedSourceDir.toAbsolutePath().normalize()))
                         .filter(p -> p.toString().endsWith(".accent") || p.toString().endsWith(".java"))
                         .forEach(allSourceFiles::add);
                 } catch (IOException e) {
