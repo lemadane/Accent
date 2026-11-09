@@ -375,7 +375,7 @@ class HttpEndToEndTest {
     @Timeout(40)
     void readmeExampleRunsThroughCliAndStopsItsServerChildOnTermination() throws Exception {
         String readme = Files.readString(Path.of("../README.md"));
-        String section = readme.split("## Standalone HTTP — Undertow by Default", 2)[1];
+        String section = readme.split("(?m)^### [0-9]+[.] Standalone HTTP with Undertow", 2)[1];
         String example = section.split("```accent\\n", 2)[1].split("```", 2)[0];
         Path sources = Files.createDirectories(directory.resolve("readme-source"));
         Path source = sources.resolve("Main.accent");

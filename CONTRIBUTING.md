@@ -6,15 +6,15 @@ Thank you for your interest in contributing to Accent! This guide will help you 
 
 ### Prerequisites
 
-- **JDK 21** or later
-- **Gradle 9.6.1** (or use the included Gradle wrapper)
+- **Java 21 toolchain** (the compiler targets `--release 21`)
+- The included **Gradle 9.6.1 wrapper**
 
 ### Building from Source
 
 ```bash
 # Clone the repository
 git clone https://github.com/accent-lang/accent.git
-cd accent-lang
+cd accent
 
 # Build and run tests
 ./gradlew clean build
@@ -30,7 +30,40 @@ cd accent-lang
 ./gradlew :accent-compiler:run --args="tokens src/e2e/examples/hello/HelloAccent.accent"
 ```
 
-Use at most one ordinary top-level type per `.accent` file; extension blocks may appear alone or accompany it. Member names determine visibility: unprefixed members are public, `_name` is package-private, and `__name` is protected. Check a directory when a feature spans several source files, and compile it to verify the generated Java as well.
+Use at most one ordinary top-level type per `.accent` file; extension blocks may appear alone or accompany it. Explicit member visibility maps `public` to Java public, `protected` to Java protected (same package plus subclasses), and `private` to Java package-private. Without an explicit modifier, unprefixed members are public, `_name` is package-private, and `__name` is protected. Top-level types, declared constructors, and interface members remain public. Check a directory when a feature spans several source files, and compile it to verify the generated Java as well.
+
+## Repository map
+
+| Area | Location |
+| --- | --- |
+| Compiler frontend, lowering, Java emitter, CLI, and runtime libraries | `accent-compiler` |
+| Spring HTML routing, SQL datasource wiring, and logging configuration | `accent-spring-boot-starter` |
+| Shared completion, hover, definition, and diagnostic services | `tools/accent-language-tools` |
+| LSP server | `tools/accent-language-server` |
+| VS Code client, grammar, formatter, and package tests | `tools/accent-vscode` |
+| Spring routing and SQL demo applications | `accent-compiler/src/e2e` |
+
+The IntelliJ module has source in `tools/accent-intellij` but is disabled in `settings.gradle`; it is excluded from the root build.
+
+## Verifying language and documentation changes
+
+Run compiler and editor tests when changing syntax or visibility:
+
+```bash
+./gradlew :accent-compiler:test :tools:accent-language-tools:test
+```
+
+Visibility changes must cover generated JVM modifiers, same-package access, cross-package subclasses, unrelated callers, Java interoperability, and editor completion filtering. Preserve the distinction between Accent `private` (package-private) and Java source `private` (class-private).
+
+The README prioritizes broadly useful features before specialized utilities. Describe implemented behavior and limitations; frontend acceptance alone does not prove an example compiles to executable bytecode. Keep CLI paths, module names, and editor instructions aligned with the checkout.
+
+The Spring setup snippets have an independent consumer check:
+
+```bash
+python3 scripts/test-readme-spring.py
+```
+
+For editor changes, rebuild the server and follow the [extension build and package checks](tools/accent-vscode/README.md#building-updated-editor-support). Existing VSIX archives retain their embedded grammar and documentation until rebuilt.
 
 ## Testing Concurrency Changes
 

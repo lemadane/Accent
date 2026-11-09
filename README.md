@@ -8,69 +8,24 @@
 
 > **Accent is Java reflected, refined, and completed.**
 
+## Start here
 
+Read the features from broadest day-to-day usefulness to more specialized use cases:
 
-## Standalone HTTP — Undertow by Default
+| Priority | Features | Developer benefit |
+| --- | --- | --- |
+| 1 | [Java interoperability](#java-interoperability) and [visibility](#visibility) | Use existing libraries and understand API access |
+| 2 | [Nullability](#1-nullable-and-non-null-reference-types), [optional chaining](#2-optional-chaining), and [null coalescing](#3-null-coalescing) | Express null contracts and handle missing values |
+| 3 | [Data models](#4-data-models-model) | Reduce repetitive data-class code |
+| 4 | [Virtual-thread concurrency](#5-virtual-thread-concurrency) | Run independent blocking operations concurrently |
+| 5 | [JSON/XML serialization and parsing](#6-native-json-and-xml-serialization) | Exchange application data with less mapping code |
+| 6 | [Local bindings](#7-immutable-and-mutable-locals), [parameters](#8-immutable-parameters), [named arguments](#9-named-arguments--parameter-default-values), and [strings](#10-interpolated-strings) | Make everyday code easier to write and maintain |
+| 7 | [Control-flow expressions](#11-if-expression), [boolean operators](#15-textual-boolean-operators), and [extensions](#18-class-extensions) | Simplify logic and reusable behavior |
+| 8 | [Annotations](#19-native-annotations-and-3rd-party-annotation-support) and [logging](#20-logging-annotation) | Integrate frameworks and diagnose application behavior |
+| 9 | [HTTP](#21-standalone-http-with-undertow), [SQL](#22-direct-sql-query-templating), and [HTML components](#26-native-server-side-html-components) | Build backend services and server-rendered applications |
+| 10 | [Singletons](#27-native-singleton-declarations-kotlin-object-equivalence), [slugs](#28-slugs-accentweb), and [symbols](#29-js-like-symbols) | Address specialized state, URL, and metadata needs |
 
-Accent includes `accent.http` in its core runtime, backed by Undertow. A standalone HTTP application needs no Spring annotations, application context, or separate server dependency.
-
-**Main.accent**:
-
-```accent
-import accent.http.App;
-import accent.http.Response;
-import java.util.Map;
-
-class Main {
-    static void main(String[] args) {
-        final app = new App();
-        app.get("/health", req -> Response.text("ok"));
-        app.get("/users/:id", (req) -> Response.json(Map.of("id", req.path("id"))));
-        app.post("/echo", req -> Response.json(req.json()));
-        final port = Integer.parseInt(System.getenv("PORT") ?? "8080");
-        app.listen(port);
-        System.out.println("Accent HTTP listening on " + app.port());
-    }
-}
-```
-
-`app.listen(port)` starts the server and binds on all network interfaces. Use `app.listen("127.0.0.1", port)` for a local-only listener. Each handler runs on a virtual thread, so ordinary blocking SQL or service calls can be used directly. The server keeps the application running and closes gracefully on JVM shutdown.
-
-From this checkout, install the CLI and run the included example:
-
-```bash
-./gradlew :accent-compiler:installDist
-accent-compiler/build/install/accent/bin/accent run accent-compiler/src/e2e/standalone-http/Main.accent
-```
-
-With the installed `accent` executable on your `PATH`, run your own application with `accent run Main.accent`. The distribution includes Undertow and its runtime dependencies. Set `PORT` to change the example's default port of 8080.
-
-```bash
-curl http://127.0.0.1:8080/health
-curl http://127.0.0.1:8080/users/42
-curl -X POST -H 'Content-Type: application/json' -d '{"message":"hello"}' http://127.0.0.1:8080/echo
-```
-
-| API | Behavior |
-| --- | --- |
-| `app.get/post/put/patch/delete(path, handler)` | Register routes; `:name` captures one path segment. Literal routes take precedence over parameter routes; trailing slashes are normalized. |
-| `app.head/options(path, handler)` | Optional explicit handlers. GET routes provide HEAD automatically; OPTIONS and 405 responses include `Allow`. |
-| `app.use((req, next) -> next.handle(req))` | Register middleware in nesting order; return a response directly to short-circuit. |
-| `req.path("id")`, `req.query("q")`, `req.queryValues("q")` | Read decoded path/query parameters; repeated query values are preserved. |
-| `req.header("name")`, `req.body()`, `req.bodyBytes()` | Read case-insensitive headers and the buffered request body. Text bodies use UTF-8. |
-| `req.json()`, `req.json(User.class)` | Parse JSON as ordinary values or a typed record/model; malformed JSON returns 400. |
-| `Response.json(value)` | Serialize records, models, lists, maps, scalars, or null using Accent's JSON runtime. |
-| `Response.html(component)`, `Response.html(html)` | Render Accent components or `Html` values; existing HTML escaping rules apply. |
-| `Response.text(text)`, `Response.bytes(bytes, contentType)` | Return text or binary content. |
-| `response.status(201).header("X-Name", "value")` | Create a response with a custom final status and headers. Response objects are immutable. |
-| `app.maxBodyBytes(bytes)` | Configure the body limit before startup; the default is 1 MiB, and oversized bodies return 413. |
-| `app.shutdownTimeout(Duration.ofSeconds(5))`, `app.close()` | Configure graceful shutdown and release listener/executor resources. Closing is idempotent. |
-
-Route handlers may use either `(req) -> ...`, `req -> ...`, or `(Request req) -> ...`. Middleware parameter types are also inferred. Unknown paths return 404, a null handler result becomes 204, and unexpected handler failures return a generic 500 response without exposing exception details. Use `new HttpException(status, message)` for an intentional client-visible error.
-
-Configure routes, middleware, and limits before `listen()`. Configuration is frozen at startup; an `App` cannot be restarted after closing. Request objects belong to individual requests. Shared handler or service state still needs coordination across concurrent requests. The initial API serves HTTP; HTTPS, WebSockets, multipart parsing, and standalone file-based routing are not exposed yet.
-
-Spring Boot remains an optional integration for applications that need it; standalone `App` uses Undertow directly. The optional Spring starter includes the matching Undertow Servlet adapter so Boot can start a complete Servlet server when another container has not been supplied.
+To try Accent, jump to [requirements](#requirements), [the CLI quick start](#quick-start-and-cli), or [IDE support](#ide-support). [Spring integration](#using-accent-in-your-project) is optional. See [project status](#project-status) for limitations and [CONTRIBUTING.md](CONTRIBUTING.md) for development and verification.
 
 ## A first look
 
@@ -108,37 +63,50 @@ record DashboardService(
 }
 ```
 
+## Java interoperability
+
+Accent compiles to Java source and then ordinary JVM bytecode targeting Java 21. Java APIs are callable from Accent, and Java code can use the generated classes with ordinary JVM tooling. Classes, interfaces, records, enums, annotations, generics, packages, and imports form the language's foundation.
+
+The compiler/runtime lives in `accent-compiler`; mixed Java and Accent builds can produce ordinary JARs. Class extensions lower to static Java helpers. Accent non-null types use compiler checks and generated parameter guards; the `!` suffix is not part of a JVM type descriptor.
+
+Accent has deliberate differences from Java, including [visibility](#visibility), explicit `this.` for instance members, and textual boolean operators. Third-party libraries must be present on the compilation and execution classpaths.
+
 ## Visibility
 
-Accent has no `public`, `private` or `protected` keywords. A member's visibility comes from its name:
+Accent supports explicit visibility on fields and methods:
 
-| Accent name | Java visibility |
-|---|---|
-| `count`, `load()` | `public` (default) |
-| `_count`, `_load()` | package-private |
-| `__count`, `__load()` | `protected` |
+| Accent modifier | Generated Java | Access |
+| --- | --- | --- |
+| `public` | `public` | Everywhere the declaring type is accessible |
+| `protected` | `protected` | Same package, plus subclasses in other packages under Java's protected-access rules |
+| `private` | No visibility modifier (package-private) | Same package only |
 
 ```accent
 class Counter {
-    int total;            // public
-    int _cache;           // package-private: visible to tests in the same package
-    int __step = 1;       // protected: visible to subclasses
+    public int total;
+    protected int step = 1;
+    private int cache;
 
-    void inc() { this.total = this.total + this.__step; }
-    void _reset() { this.total = 0; }
+    public void increment() { this.total = this.total + this.step; }
+    protected void grow() { this.step++; }
+    private void reset() { this.total = 0; }
 }
 ```
 
-* The prefix is kept in the generated Java name (`_cache` stays `_cache`).
-* It applies to fields and methods only; parameters and locals are unaffected. Bare `_` / `__` are not valid member names.
-* Constructors and interface members are always public; a `_` prefix on an interface member is an error.
-* Each file declares at most one ordinary top-level type (`class`, `interface`, `record`, `enum`, `model`, or a `singleton` variant), which is always public. Extension blocks may appear alone or accompany that type. Type names may not start with `_`.
-* Singletons may not declare constructors; the compiler generates a private one.
-* Using a removed keyword is a compile error with a fix hint, e.g. `'private' was removed; rename 'count' to '_count' for package-private`.
-* `public`, `private`, and `protected` cannot be used as identifier names because they remain reserved in the generated Java.
+Accent `private` does not restrict access to the declaring class: neighboring classes in the same package can access it. Outside the package, a subclass can access protected instance members through `this`, `super`, or a suitable subclass receiver; it cannot access them through an arbitrary base-class instance.
 
-## Confirmed language features (that Java lacks)
+Explicit modifiers override name-based visibility. Existing declarations without a modifier keep their defaults: `name` is public, `_name` is package-private, and `__name` is protected. Prefixes remain part of generated member names. For example, `public int _count` is public, while `private int count` is package-private. Parameters and locals are unaffected.
 
+* Only one visibility modifier is allowed per declaration.
+* Top-level types and declared constructors remain public; an explicit `public` is optional. Interface members are always public and reject `private` or `protected`.
+* Without an explicit modifier, interface members cannot start with `_`. Bare underscore-only member names are rejected.
+* Each `.accent` file declares at most one ordinary top-level type (`class`, `interface`, `record`, `enum`, `model`, or a `singleton` variant). Extension blocks may appear alone or accompany it. Type names cannot start with `_`.
+* Singletons cannot declare constructors; the compiler generates a private constructor for them. Generated implementation fields may also use Java `private`.
+* `public`, `protected`, and `private` cannot be used as identifiers. Imported `.java` sources retain Java's original visibility semantics.
+
+## Features in developer priority order
+
+Features are ordered for developers adopting Accent in Java/JVM projects: prevent common errors, reduce everyday boilerplate, handle concurrency and data, then build specialized services. Related features stay together so each section can be read as a unit. Java interoperability and visibility are introduced above because they apply throughout the language.
 
 ### 1. Nullable and non-null reference types
 
@@ -180,7 +148,65 @@ final city = customer.address()?.city() ?? "Unknown";
 
 The right-hand expression is evaluated only when the left-hand value is `null`.
 
-### 4. Virtual Thread concurrency
+### 4. Data models (`model`)
+
+Accent provides native support for data classes via the `model` keyword (`model User(final String! id, String! name, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
+
+```java
+model User(
+    final String! id,   // final     -> Immutable (getter id() ONLY, no setter)
+    String! name,       // default   -> Mutable   (getter name(), setter name(...))
+    int age             // default   -> Mutable   (getter age(), setter age(...))
+) {}
+```
+
+#### Usage Example
+
+```java
+final user = new User("U101", "Lemuel", 42);
+
+// Access getters
+final id = user.id();
+final name = user.name();
+
+// Setters for mutable fields
+user.name("Lemuel A.");
+user.age(43);
+
+// user.id("U102"); // Compile-time error: 'id' is final!
+
+// Kotlin-style copy method
+final userCopy = user.copy("U101", "Lemuel A.", 43);
+
+// Formatted toString output
+System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
+```
+
+#### Model Features & Semantics
+
+Getters and setters share the field name: `user.name()` reads it, and `user.name("Ann")` updates it. Setters return `void`; no `set`-prefixed methods are generated.
+
+* **Default Mutability**: Fields without `final` are **mutable** by default, generating getters (`name()`, `age()`) AND setters (`name(...)`, `age(...)`).
+* **Explicit Immutability (`final`)**: Fields prefixed with `final` are **immutable** (`private final String id;`), generating a getter only (`id()`) and NO setter (`id(...)`). Calling a setter on a `final` field results in a compile-time error.
+* **Kotlin-style `copy(...)` Method**: Automatically generates a `copy(...)` method for convenient object cloning.
+* **Value-based `equals()` and `hashCode()`**: Generates value-based equality and hashing implementations.
+* **Automatic `toString()`**: Emits formatted string representation (`User[id=..., name=..., age=...]`).
+* **Built-in `java.io.Serializable`**: Implements `java.io.Serializable` with `serialVersionUID = 1L` out of the box.
+
+#### `model` vs `record` Comparison
+
+| Feature | Accent `record` | Accent `model` |
+| :--- | :--- | :--- |
+| **Primary Purpose** | Data holder with final components | Kotlin-style Data Class |
+| **Java Target** | Java `record` | `public final class` |
+| **Field Mutability** | Final component bindings (shallow immutability) | Mutable by default (or Immutable with `final`) |
+| **Setters Generated** | None | Yes (for non-final fields) |
+| **`copy()` Method** | None | Yes |
+| **Serialization** | `toJson()`, `toXml()` | `toJson()`, `toXml()`, `java.io.Serializable` |
+
+Record components and `final` model fields may still reference mutable objects. `copy(...)` takes all component values; it is a shallow copy.
+
+### 5. Virtual Thread concurrency
 
 Accent provides two compiler shorthands for the `Async<T>` methods:
 
@@ -295,62 +321,6 @@ final customer =
     this.customerService.findRequired(id);
 ```
 
-### 5. Kotlin-Style Data Class Model Declarations (`model`)
-
-Accent provides native support for data classes via the `model` keyword (`model User(final String! id, String! name, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
-
-```java
-model User(
-    final String! id,   // final     -> Immutable (getter id() ONLY, no setter)
-    String! name,       // default   -> Mutable   (getter name(), setter name(...))
-    int age             // default   -> Mutable   (getter age(), setter age(...))
-) {}
-```
-
-#### Usage Example
-
-```java
-final user = new User("U101", "Lemuel", 42);
-
-// Access getters
-final id = user.id();
-final name = user.name();
-
-// Setters for mutable fields
-user.name("Lemuel A.");
-user.age(43);
-
-// user.id("U102"); // Compile-time error: 'id' is final!
-
-// Kotlin-style copy method
-final userCopy = user.copy("U101", "Lemuel A.", 43);
-
-// Formatted toString output
-System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
-```
-
-#### Model Features & Semantics
-
-Getters and setters share the field name: `user.name()` reads it, and `user.name("Ann")` updates it. Setters return `void`; no `set`-prefixed methods are generated.
-
-* **Default Mutability**: Fields without `final` are **mutable** by default, generating getters (`name()`, `age()`) AND setters (`name(...)`, `age(...)`).
-* **Explicit Immutability (`final`)**: Fields prefixed with `final` are **immutable** (`private final String id;`), generating a getter only (`id()`) and NO setter (`id(...)`). Calling a setter on a `final` field results in a compile-time error.
-* **Kotlin-style `copy(...)` Method**: Automatically generates a `copy(...)` method for convenient object cloning.
-* **Value-based `equals()` and `hashCode()`**: Generates value-based equality and hashing implementations.
-* **Automatic `toString()`**: Emits formatted string representation (`User[id=..., name=..., age=...]`).
-* **Built-in `java.io.Serializable`**: Implements `java.io.Serializable` with `serialVersionUID = 1L` out of the box.
-
-#### `model` vs `record` Comparison
-
-| Feature | Accent `record` | Accent `model` |
-| :--- | :--- | :--- |
-| **Primary Purpose** | 100% Immutable Tuple / Data Holder | Kotlin-style Data Class |
-| **Java Target** | Java `record` | `public final class` |
-| **Field Mutability** | Always 100% Immutable | Mutable by default (or Immutable with `final`) |
-| **Setters Generated** | None | Yes (for non-final fields) |
-| **`copy()` Method** | None | Yes |
-| **Serialization** | `toJson()`, `toXml()` | `toJson()`, `toXml()`, `java.io.Serializable` |
-
 ### 6. Native JSON and XML serialization
 
 Accent records and models automatically receive public `toJson()` and `toXml()` methods:
@@ -386,65 +356,122 @@ final optionalJson = nullableProfiles?.toJson(); // null when the list is null
 
 An explicit zero-argument `toJson()` or `toXml()` method takes precedence over the corresponding generated method. These methods require the Accent runtime on the Java classpath.
 
-### 7. Native Singleton Declarations (Kotlin `object` Equivalence)
+#### JSON Standard Library (`accent.json`)
 
-Use `singleton` before `class`, `record`, or `model` to declare one lazily initialized instance. The previous standalone `singleton Name` syntax is no longer accepted:
+Accent provides JSON parsing through `accent.json.Json` and native serialization through `toJson()` on records, models, and supported typed containers.
+
+##### Key Features
+- **Untyped or typed parsing**: `Json.parse(text)` returns Maps, Lists, and JSON scalar values. `Json.parse(text, Type.class)` maps objects into records or Accent models and rejects ordinary Java classes.
+- **Constructor Validation**: Typed parsing invokes the record canonical constructor or the model constructor.
+- **Zero-Dependency**: No Jackson, no Gson. It is built natively into Accent, perfectly avoiding large shaded JAR issues.
+- **Deep Compatibility**: Supports primitives, `java.time.*` (ISO-8601), `java.util.UUID`, Enums, `Optional<T>`, generic lists/maps, and deeply nested generic records.
+- **Customizable**: Control serialization with `JsonOptions` and override property names via `@JsonName`.
+
+
+##### Parsing objects, Lists, and Maps
 
 ```java
-singleton class CacheManager {
-    final Map<String, Object> _cache = new HashMap<>();
+import accent.json.Json;
+import accent.xml.Xml;
 
-    void put(String key, Object val) {
-        this._cache.put(key, val);
+Object jsonTree = Json.parse(text); // JSON object -> Map; array -> List
+Object xmlTree = Xml.parse(xmlText); // XML data object -> Map; <List> -> List; <Map> -> Map
+
+Profile profile = Json.parse(profileJson, Profile.class);
+List<Profile> profiles = Json.parseList(profilesJson, Profile.class);
+Map<String, Profile> indexed = Json.parseMap(indexedJson, Profile.class);
+
+Profile xmlProfile = Xml.parse(profileXml, Profile.class);
+List<Profile> xmlProfiles = Xml.parseList(profilesXml, Profile.class);
+Map<String, Profile> xmlIndexed = Xml.parseMap(indexedXml, Profile.class);
+```
+
+Both parsers also accept `Object.class`, `List.class`, and `Map.class` targets. A List or Map target must match the input shape. Typed objects and container values may be records or Accent models; nested records/models, lists, maps, arrays, and primitive values are mapped recursively. Use native `toJson()` / `toXml()` to serialize again.
+
+Untyped JSON preserves boolean, numeric, string, and null values. Untyped XML preserves scalar text as strings, because the XML format carries no scalar type metadata; typed XML parsing converts text using the target field types. XML parsing follows the serializer's `<item>` and `<entry><key>...</key><value>...</value></entry>` conventions. XML attributes, mixed text and elements, duplicate fields/keys, DTDs, and external entities are rejected. Null properties omitted during XML serialization cannot be distinguished from missing properties on parsing. Empty nested XML elements are ambiguous without a target type; typed parsing distinguishes empty strings, containers, and data objects using their declared fields.
+
+#### Native JSON Literals
+
+Accent extends standard JSON support with language-level **Native JSON Literals**, allowing you to write JSON structures directly inline with string interpolation!
+
+This leverages Accent's template string syntax (`json<Target>"""..."""`) and lowers to `accent.json.Json.parse` calls that parse the resulting text at runtime.
+
+```accent
+// 1. Define your strict target Record
+record User(
+    String id,
+    String firstName,
+    String lastName
+) {}
+
+// 2. Write JSON natively!
+String inputId = "123e4567-e89b-12d3-a456-426614174000";
+String firstName = "Lemuel";
+
+User parsedUser = json<User>"""
+{
+    "id": "${inputId}",
+    "firstName": "${firstName.toUpperCase()}",
+    "lastName": "Adane"
+}
+""";
+```
+
+##### Quick Start
+
+```java
+// User.accent
+import java.util.UUID;
+import java.time.LocalDate;
+
+record User(
+    UUID id,
+    String firstName,
+    String lastName,
+    LocalDate birthDate
+) {
+    User {
+        // Will be executed when parsed from JSON!
+        if (firstName == null or firstName.isBlank()) {
+            throw new IllegalArgumentException("firstName cannot be blank");
+        }
     }
+}
 
-    Object get(String key) {
-        return this._cache.get(key);
+// Main.accent (one top-level type per file)
+import accent.json.Json;
+import java.util.UUID;
+import java.time.LocalDate;
+
+class Main {
+    static void main(String[] args) {
+        User user = new User(UUID.randomUUID(), "Lemuel", "Adane", LocalDate.of(2000, 1, 1));
+
+        // Serialize
+        String json = user.toJson();
+
+        // Parse directly into a strongly-typed record!
+        User parsedUser = Json.parse(json, User.class);
+
+        System.out.println(parsedUser.firstName());
     }
 }
 ```
 
-#### Singleton Usage
-
-```java
-final cache = CacheManager.instance();
-cache.put("user_1", "Lemuel");
-
-// Or direct method call:
-final user = CacheManager.instance().get("user_1");
+Run the Java JSON demo from the repository root:
+```bash
+./gradlew :accent-compiler:classes
+javac -cp accent-compiler/build/classes/java/main -d accent-compiler/build/classes/java/demo accent-compiler/src/e2e/examples/JsonDemo.java
+java -cp accent-compiler/build/classes/java/demo:accent-compiler/build/classes/java/main JsonDemo
 ```
 
-#### Singleton Features & Semantics
-* **Kotlin `object` Equivalent**: Provides direct language-level singleton semantics (`singleton class CacheManager { ... }`).
-* **Zero Boilerplate**: The compiler automatically generates a private constructor (`private CacheManager() {}`) and single static `.instance()` accessor method.
-* **Thread-Safe Lazy Loading**: Emits the **Initialization-on-Demand Holder** JVM idiom, guaranteeing lazy, thread-safe initialization with zero synchronization overhead.
-* **Forbidden `new` Instantiation**: Attempting to call `new CacheManager()` produces a compile-time error.
-* **Accent & Java Interop**: Access the single instance via `CacheManager.instance()` in both Accent and Java codebase.
 
-#### Singleton records and models
-
-```java
-singleton record Defaults(
-    String! theme = "light",
-    int retryLimit = 3
-) {}
-
-singleton model AppState(
-    final String! id = "app",
-    String! theme = "light",
-    int attempts = 0
-) {}
-
-final defaults = Defaults.instance(); // immutable component bindings
-final state = AppState.instance();
-state.theme("dark");                 // shared mutable state
+The Accent JSON literal demo keeps `JsonLiteralDemo.accent`, `User.accent`, and `Address.accent` in `accent-compiler/src/e2e/examples/json/`, with one type per file. Compile and run them together:
+```bash
+./gradlew :accent-compiler:runJsonLiteralDemo
 ```
 
-Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Singletons may not declare constructors: the compiler generates a private one for every variant, so initialize state with field initializers. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `$accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
-
-A singleton record compiles to a final immutable class rather than a JVM record, so its constructor can be private. It retains component accessors, value methods, native `toJson()`/`toXml()`, and typed List/Map serialization support. Its runtime `Class.isRecord()` is false, and it is not a subtype of `java.lang.Record`. Singleton model/record Java serialization resolves back to the shared instance; JSON/XML typed parsing rejects singleton targets to avoid constructing duplicates. Untyped parsing of their serialized data remains available.
-
-### 8. Immutable and mutable locals
+### 7. Immutable and mutable locals
 
 Use `final var` or the `final` shorthand for immutable local bindings (not reassignable):
 
@@ -460,8 +487,7 @@ var attempts = 0;
 attempts++; // Reassignable
 ```
 
-
-### 9. Immutable parameters
+### 8. Immutable parameters
 
 Method and constructor parameters are implicitly immutable bindings:
 
@@ -474,7 +500,7 @@ void rename(String! name) {
 
 Reassigning `name` is a compile-time error. The referenced object may still be mutable.
 
-### 10. Named Arguments & Parameter Default Values
+### 9. Named Arguments & Parameter Default Values
 
 Method and constructor parameters can define default values, which can then be invoked optionally or using named arguments.
 
@@ -497,7 +523,7 @@ final res2 = calculate(offset: 5, base: 10); // 10 * 2 + 5 = 25
 final res3 = calculate(10, multiplier: 3); // 10 * 3 + 1 = 31
 ```
 
-### 11. Interpolated Strings
+### 10. Interpolated Strings
 
 Accent includes native support for type-safe, evaluated string interpolation expressions (C#-style `{expr}`) using the leading `$` prefix (`$"..."`, `$``...``$`, or `$"""..."""`).
 
@@ -539,8 +565,7 @@ Accent includes native support for type-safe, evaluated string interpolation exp
 * **Null Handling**: If an evaluated expression resolves to `null`, it renders as the string `"null"` (equivalent to `String.valueOf(value)`). No `NullPointerException` is thrown from the string mapping itself.
 * **Type Behavior**: The entire interpolated string expression resolves to type `java.lang.String`. Void-returning expressions are rejected at compile-time.
 
-
-### 12. `if` expression
+### 11. `if` expression
 
 ```java
 final status = if (order.isPaid()) {
@@ -552,7 +577,7 @@ final status = if (order.isPaid()) {
 
 Every reachable branch must yield a compatible result.
 
-### 13. `try` expression
+### 12. `try` expression
 
 ```java
 final port = try {
@@ -562,7 +587,7 @@ final port = try {
 };
 ```
 
-### 14. `for` statements and expressions with `else`
+### 13. `for` statements and expressions with `else`
 
 Accent uses Java's existing `for` keyword for both enhanced and traditional loops in statement and expression positions. Accent supports an optional `else` branch on `for` loops (`for/else`).
 
@@ -599,7 +624,7 @@ for (var i = 0; i < maxAttempts; i++) {
 
 #### `for/else` Expression
 
-Each executed `yield` contributes an element to the resulting collection. When combined with `else`, if the iterable is empty/falsy, the `else` branch evaluates and yields fallback elements:
+Each executed `yield` contributes an element to the resulting collection. With `else`, the branch also contributes values whenever the loop completes without `break`, including when it was empty. In the example below, `"Guest"` is appended after normal iteration as well as for an empty iterable:
 
 ```java
 final names = for (Customer! customer : customers) {
@@ -609,7 +634,7 @@ final names = for (Customer! customer : customers) {
 };
 ```
 
-### 15. `while` and `do-while` expressions
+### 14. `while` and `do-while` expressions
 
 ```java
 final values = while (iterator.hasNext()) {
@@ -623,50 +648,7 @@ final values = do {
 } while (this.hasMore());
 ```
 
-### 16. Class extensions
-
-Accent can extend an existing Java or Accent class without changing the original class or creating a subclass:
-
-```java
-extension String! {
-    String! normalized() {
-        return this.trim().toUpperCase();
-    }
-}
-```
-
-Usage:
-
-```java
-final normalizedName = name.normalized();
-```
-
-Class extensions are expected to lower to ordinary static Java helper methods. Real instance members take precedence over extension members.
-
-### 17. Generator functions
-
-Accent supports generator functions to produce lazy, streamable sequences of values.
-* Declare the method with the `generator` modifier.
-* The method return type must be `Iterable<Type>` (or primitive/boxed types which lower to `Iterable`).
-* Inside the method, use `emit <value>` to yield items to the sequence.
-
-```java
-generator int numbers(int limit) {
-    for (var i = 0; i < limit; i++) {
-        emit i;
-    }
-}
-```
-
-Usage:
-```java
-for (int val : numbers(5)) {
-    System.out.println(val); // prints 0, 1, 2, 3, 4
-}
-```
-
-
-### 18. Textual boolean operators
+### 15. Textual boolean operators
 
 Accent supports three textual boolean operators.
 
@@ -777,7 +759,7 @@ boolean haveSameStatus(
 final val = condition ? "Zack" : "Guest";
 ```
 
-### 19. Truthy and falsy conditions
+### 16. Truthy and falsy conditions
 
 Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`not`, `and`, `or`).
 
@@ -819,7 +801,7 @@ if (not count) {
 }
 ```
 
-### 20. Explicit `this.`
+### 17. Explicit `this.`
 
 Instance field access and instance method calls inside a class must use `this.`:
 
@@ -836,7 +818,27 @@ customer.name();
 order.calculateTotal();
 ```
 
-### 21. Native Annotations and 3rd Party Annotation Support
+### 18. Class extensions
+
+Accent can extend an existing Java or Accent class without changing the original class or creating a subclass:
+
+```java
+extension String! {
+    String! normalized() {
+        return this.trim().toUpperCase();
+    }
+}
+```
+
+Usage:
+
+```java
+final normalizedName = name.normalized();
+```
+
+Class extensions lower to ordinary static Java helper methods. Real instance members take precedence over extension members.
+
+### 19. Native Annotations and 3rd Party Annotation Support
 
 Accent fully supports standard Java and framework annotations (such as Spring Boot's `@RestController`, `@Autowired`, etc.) on classes, fields, methods, constructors, and method parameters:
 
@@ -855,100 +857,7 @@ class ProductController {
 }
 ```
 
-### 22. Direct SQL Query Templating
-
-Accent includes native support for SQL template query expressions (using backticks) that automatically parameterize dynamic variables to prevent SQL injection and map results directly to Java record types:
-
-* **Typed Select Query** (returns a `List<User>` mapped by column name):
-  ```java
-  List<User> list = sql<User>`SELECT name, email FROM users WHERE name = {name}`;
-  ```
-* **Untyped Select Query** (returns a list of row maps: `List<Map<String, Object>>`):
-  ```java
-  List<Map<String, Object>> rows = sql`SELECT * FROM users WHERE active = {isActive}`;
-  ```
-* **Insert/Update/Delete Query** (returns query update count `int`):
-  ```java
-  int updated = sql`UPDATE users SET email = {newEmail} WHERE name = {name}`;
-  ```
-
-Dynamic interpolation expressions (like `{name}`) are parsed and validated by the compiler, translating the template query directly into standard prepared statement execution at runtime.
-
-
-### 23. Compile-Time SQL Query Syntax Checking
-
-The compiler automatically parses and validates the SQL syntax of all query literals at compile-time:
-* **Mismatched delimiters**: Detects unclosed quotes or mismatched parentheses in the SQL text.
-* **Keyword validation**: Enforces correct keyword structure (e.g. `SELECT` requiring `FROM`, `INSERT` requiring `INTO`, `UPDATE` requiring `SET`, and `DELETE` requiring `FROM`).
-
-Any syntax mistakes will immediately halt compilation and raise detailed compiler errors before code is deployed.
-
-
-### 24. Zero-Boilerplate S  SQL to Record Mapping (ORM)
-
-The runtime automatically maps database result set columns to Java records using constructor reflection:
-* **Name-Based Matching**: Maps columns directly to record constructor parameters with matching names (case-insensitive).
-* **Positional Fallback**: If compile parameter reflection names are unavailable (e.g., compiled without the `-parameters` flag) or a name match fails, it maps columns to parameters sequentially by select position.
-* **Recursive Nested Mapping**: If a record constructor contains a nested record type (e.g., `User(String name, Contact contact)` where `Contact` is `record Contact(String email)`), the mapper recursively instantiates the nested record matching the query columns.
-
-
-### 25. Synchronous SQL Query Execution for Virtual Threads
-
-Use `Async.run()` to execute a SQL query on a virtual thread, then call `.await()` on its `Async<T>` result:
-
-```accent
-import accent.runtime.Async;
-
-final usersAsync = Async.run(() -> sql<User>`SELECT * FROM users`);
-// ... concurrent operations ...
-final users = usersAsync.await();
-```
-
-The query runs on the operation's virtual thread. Actual I/O behavior depends on the JDBC driver and JVM. Database connection-pool limits still apply, and starting more operations does not increase the number of available connections.
-
-
-### 26. Native Server-Side HTML Components
-
-Accent includes native support for server-side HTML templating via JSX-like markup tags directly integrated into the language.
-
-#### Syntax & Rules
-* **HTML Elements**: Lowercase tags (e.g. `<div class="card">`) represent standard HTML elements. Real HTML attribute names (`class`, `for`) are used instead of React-specific names (`className`, `htmlFor`).
-* **Accent Components**: Capitalized tags (e.g. `<UserCard user={user} />`) represent custom component classes or records that implement the `accent.html.Component` interface.
-* **Property Injection**: Component properties are matched to constructor parameters at compile-time. Property types, names, and presence of required attributes are checked at compile-time.
-* **Control Flow**: You can write conditionals (`{if (cond) { ... } else { ... }}`) and loops (`{for (var item : list) { ... }}`) directly inside the markup block to control structure dynamically.
-* **Rendering Scope**: Dynamic expressions run when the `Html` is written. Unselected conditional branches are not evaluated, and loop expressions are evaluated within each iteration. Nested components may contain further components and control flow.
-* **Boolean Attributes**: `disabled={false}` and `checked={null}` omit the attribute; `disabled={true}` emits `disabled`. Ordinary attributes retain their values, so `title={true}` emits `title="true"`.
-* **Fragments**: Use empty tags (`<> ... </>`) to group multiple elements without adding wrapping nodes to the DOM.
-* **Compile-Time Optimization**: Adjacent static elements, attributes, and text nodes are merged at compile-time into single static string writes (e.g. `<article class="user-card"><h2>` is optimized to one literal write). There is zero Virtual DOM or runtime overhead.
-* **Security & Escaping**: All dynamic text interpolations and standard attribute values are automatically HTML-escaped to prevent XSS. Dynamic URL attributes (like `href` or `src`) are automatically validated at runtime to filter out unsafe protocols (such as `javascript:`). Raw unescaped HTML can be injected using the `TrustedHtml` wrapper class. URL validation removes ASCII tabs and newlines before checking the scheme and uses locale-independent case matching.
-
-#### Example Component:
-```java
-package accent.html.demo;
-
-import accent.html.Component;
-import accent.html.Html;
-
-record UserCard(User user) implements Component {
-    @Override
-    Html render() {
-        return (
-            <article class="user-card">
-                <h2>{this.user.name()}</h2>
-                <p>{this.user.email()}</p>
-            </article>
-        );
-    }
-}
-```
-
-#### Ternary conditional operator for ReactJS-like HTML template control flow
-
-Accent supports standard Java ternary expressions (`{condition ? thenExpr : elseExpr}`). It is fully compatible with Java's standard ternary operator:
-
-
-
-### 27. @Logging Annotation
+### 20. @Logging Annotation
 
 Accent provides a native logging system integrated directly into the language via the `@Logging` annotation, without requiring Lombok, SLF4J, or any external bytecode manipulation.
 
@@ -963,7 +872,7 @@ class BookingService {
         log.debug($"Creating booking for {request.customerName()}");
 
         try {
-            Booking booking = save(request);
+            Booking booking = this.save(request);
             log.info($"Booking {booking.id()} was created");
             return booking;
         } catch (Exception exception) {
@@ -1062,67 +971,221 @@ Unexpected exceptions from handlers, middleware, and awaited async tasks are log
 A Spring Boot starter module is available to seamlessly integrate Accent logging with your Spring environment:
 
 ```groovy
-implementation 'accent:accent-logging-spring-boot-starter:1.0.0'
+implementation 'accent:accent-spring-boot-starter:0.1.0-alpha.2'
 ```
 
-It maps Spring Boot profiles and active environments so that `accent.logging` levels automatically align with your `application.yml` properties. In environments without Spring Boot, it seamlessly falls back to reading `accent-logging.properties`.
+The starter binds `accent.logging.root-level`, `accent.logging.console-enabled`, `accent.logging.file-enabled`, and `accent.logging.file-path` from Spring configuration. Spring profile-specific configuration may set these properties. Standalone applications use `accent-logging.properties` in the working directory. See [the local Gradle setup](#using-accent-in-your-project) to resolve the starter from this checkout.
 
+### 21. Standalone HTTP with Undertow
 
-### 28. JS-like Symbols
+Accent includes `accent.http` in its core runtime, backed by Undertow. A standalone HTTP application needs no Spring annotations, application context, or separate server dependency.
 
-Accent provides a JavaScript-like `Symbol` type in the standard library (`accent.lang.Symbol<T>`) to serve as unique, identity-based keys for metadata, component contexts, and registries without the risk of collisions.
-
-#### Core Semantics
-1. **Identity-Based Equality**: Two unique symbols are never equal, even if they share the same description.
-2. **Optional Descriptions**: Descriptions exist only for debugging and `toString()` representation.
-3. **Generic Type Safety**: Symbols define the type of value they are associated with (e.g., `Symbol<UUID>`).
-4. **SymbolMap**: A typed container mapping `Symbol<T>` to `T` with full compile-time type safety.
-5. **Thread-Safe Global Registry**: Symbols can be registered globally via `Symbol.forKey("key")`.
-
-#### Unique Symbols
-A unique symbol is created with `create(...)`. Identical descriptions still produce completely separate symbol objects.
+**Main.accent**:
 
 ```accent
-static final Symbol<User> CURRENT_USER = Symbol.create("currentUser");
-static final Symbol<UUID> TENANT_ID = Symbol.create("tenantId");
+import accent.http.App;
+import accent.http.Response;
+import java.util.Map;
 
-Symbol<String> first = Symbol.create("name");
-Symbol<String> second = Symbol.create("name");
-
-assert first != second;
+class Main {
+    static void main(String[] args) {
+        final app = new App();
+        app.get("/health", req -> Response.text("ok"));
+        app.get("/users/:id", (req) -> Response.json(Map.of("id", req.path("id"))));
+        app.post("/echo", req -> Response.json(req.json()));
+        final port = Integer.parseInt(System.getenv("PORT") ?? "8080");
+        app.listen(port);
+        System.out.println("Accent HTTP listening on " + app.port());
+    }
+}
 ```
 
-#### Global Registered Symbols
-If you need a shared symbol across components by a string key, use the global registry:
+`app.listen(port)` starts the server and binds on all network interfaces. Use `app.listen("127.0.0.1", port)` for a local-only listener. Each handler runs on a virtual thread, so ordinary blocking SQL or service calls can be used directly. The server keeps the application running and closes gracefully on JVM shutdown.
+
+From this checkout, install the CLI and run the included example:
+
+```bash
+./gradlew :accent-compiler:installDist
+accent-compiler/build/install/accent/bin/accent run accent-compiler/src/e2e/standalone-http/Main.accent
+```
+
+With the installed `accent` executable on your `PATH`, run your own application with `accent run Main.accent`. The distribution includes Undertow and its runtime dependencies. Set `PORT` to change the example's default port of 8080.
+
+```bash
+curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/users/42
+curl -X POST -H 'Content-Type: application/json' -d '{"message":"hello"}' http://127.0.0.1:8080/echo
+```
+
+| API | Behavior |
+| --- | --- |
+| `app.get/post/put/patch/delete(path, handler)` | Register routes; `:name` captures one path segment. Literal routes take precedence over parameter routes; trailing slashes are normalized. |
+| `app.head/options(path, handler)` | Optional explicit handlers. GET routes provide HEAD automatically; OPTIONS and 405 responses include `Allow`. |
+| `app.use((req, next) -> next.handle(req))` | Register middleware in nesting order; return a response directly to short-circuit. |
+| `req.path("id")`, `req.query("q")`, `req.queryValues("q")` | Read decoded path/query parameters; repeated query values are preserved. |
+| `req.header("name")`, `req.body()`, `req.bodyBytes()` | Read case-insensitive headers and the buffered request body. Text bodies use UTF-8. |
+| `req.json()`, `req.json(User.class)` | Parse JSON as ordinary values or a typed record/model; malformed JSON returns 400. |
+| `Response.json(value)` | Serialize records, models, lists, maps, scalars, or null using Accent's JSON runtime. |
+| `Response.html(component)`, `Response.html(html)` | Render Accent components or `Html` values; existing HTML escaping rules apply. |
+| `Response.text(text)`, `Response.bytes(bytes, contentType)` | Return text or binary content. |
+| `response.status(201).header("X-Name", "value")` | Create a response with a custom final status and headers. Response objects are immutable. |
+| `app.maxBodyBytes(bytes)` | Configure the body limit before startup; the default is 1 MiB, and oversized bodies return 413. |
+| `app.shutdownTimeout(Duration.ofSeconds(5))`, `app.close()` | Configure graceful shutdown and release listener/executor resources. Closing is idempotent. |
+
+Route handlers may use either `(req) -> ...`, `req -> ...`, or `(Request req) -> ...`. Middleware parameter types are also inferred. Unknown paths return 404, a null handler result becomes 204, and unexpected handler failures return a generic 500 response without exposing exception details. Use `new HttpException(status, message)` for an intentional client-visible error.
+
+Configure routes, middleware, and limits before `listen()`. Configuration is frozen at startup; an `App` cannot be restarted after closing. Request objects belong to individual requests. Shared handler or service state still needs coordination across concurrent requests. The initial API serves HTTP; HTTPS, WebSockets, multipart parsing, and standalone file-based routing are not exposed yet.
+
+Spring Boot remains an optional integration for applications that need it; standalone `App` uses Undertow directly. The optional Spring starter includes the matching Undertow Servlet adapter so Boot can start a complete Servlet server when another container has not been supplied.
+
+### 22. Direct SQL Query Templating
+
+Accent includes native support for SQL template query expressions (using backticks) that automatically parameterize dynamic variables to prevent SQL injection and map results directly to Java record types:
+
+* **Typed Select Query** (returns a `List<User>` mapped by column name):
+  ```java
+  List<User> list = sql<User>`SELECT name, email FROM users WHERE name = {name}`;
+  ```
+* **Untyped Select Query** (returns a list of row maps: `List<Map<String, Object>>`):
+  ```java
+  List<Map<String, Object>> rows = sql`SELECT * FROM users WHERE active = {isActive}`;
+  ```
+* **Insert/Update/Delete Query** (returns query update count `int`):
+  ```java
+  int updated = sql`UPDATE users SET email = {newEmail} WHERE name = {name}`;
+  ```
+
+Dynamic interpolation expressions (like `{name}`) are parsed and validated by the compiler, translating the template query directly into standard prepared statement execution at runtime.
+
+Before standalone execution, configure a JDBC `DataSource` with `accent.sql.Sql.setDataSource(dataSource)` and include your database driver. The optional Spring starter connects a single Spring `DataSource` through a transaction-aware proxy. Interpolations bind values; they do not substitute table or column identifiers.
+
+### 23. Compile-Time SQL Query Syntax Checking
+
+The compiler performs basic structural checks on SQL query literals:
+* **Mismatched delimiters**: Detects unclosed quotes or mismatched parentheses in the SQL text.
+* **Keyword validation**: Checks selected keyword structure, such as `INSERT INTO`, `UPDATE ... SET`, and `DELETE FROM`, and missing expressions or table names around a present `SELECT ... FROM`.
+
+These checks do not validate database schemas, column types, or every SQL dialect. The JDBC driver and database perform the final validation at execution time.
+
+### 24. SQL result mapping to records
+
+The runtime automatically maps database result set columns to Java records using constructor reflection:
+* **Name-Based Matching**: Maps columns directly to record constructor parameters with matching names (case-insensitive).
+* **Positional Fallback**: If compile parameter reflection names are unavailable (e.g., compiled without the `-parameters` flag) or a name match fails, it maps columns to parameters sequentially by select position.
+* **Recursive Nested Mapping**: If a record constructor contains a nested record type (e.g., `User(String name, Contact contact)` where `Contact` is `record Contact(String email)`), the mapper recursively instantiates the nested record matching the query columns.
+
+### 25. Synchronous SQL Query Execution for Virtual Threads
+
+Use `Async.run()` to execute a SQL query on a virtual thread, then call `.await()` on its `Async<T>` result:
 
 ```accent
-Symbol<Object> first = Symbol.forKey("application.user");
-Symbol<Object> second = Symbol.forKey("application.user");
+import accent.runtime.Async;
 
-assert first == second;
-```
-The registry is thread-safe and scoped to the class loader. `Symbol.keyFor(...)` retrieves a registered symbol's registry key.
-
-#### Typed Metadata using SymbolMap
-To avoid String-based key collisions in metadata contexts, use `SymbolMap`:
-
-```accent
-SymbolMap context = new SymbolMap();
-
-context.put(CURRENT_USER, user);
-context.put(TENANT_ID, tenantId);
-
-User currentUser = context.get(CURRENT_USER);
-UUID currentTenantId = context.get(TENANT_ID);
+final usersAsync = Async.run(() -> sql<User>`SELECT * FROM users`);
+// ... concurrent operations ...
+final users = usersAsync.await();
 ```
 
-#### Best Practices
-* Symbols **are** excellent for cross-module metadata, plugin extensions, framework context, and request attributes.
-* Symbols **are not** UUIDs or persistent database primary keys. They should not automatically survive serialization.
-* The `symbol` word is not a reserved keyword and remains valid as an ordinary variable name.
+The query runs on the operation's virtual thread. Actual I/O behavior depends on the JDBC driver and JVM. Database connection-pool limits still apply, and starting more operations does not increase the number of available connections.
 
+### 26. Native Server-Side HTML Components
 
-### 29. Slugs (`accent.web`)
+Accent includes native support for server-side HTML templating via JSX-like markup tags directly integrated into the language.
+
+#### Syntax & Rules
+* **HTML Elements**: Lowercase tags (e.g. `<div class="card">`) represent standard HTML elements. Real HTML attribute names (`class`, `for`) are used instead of React-specific names (`className`, `htmlFor`).
+* **Accent Components**: Capitalized tags (e.g. `<UserCard user={user} />`) represent custom component classes or records that implement the `accent.html.Component` interface.
+* **Property Injection**: Component properties are matched to constructor parameters at compile-time. Property types, names, and presence of required attributes are checked at compile-time.
+* **Control Flow**: You can write conditionals (`{if (cond) { ... } else { ... }}`) and loops (`{for (var item : list) { ... }}`) directly inside the markup block to control structure dynamically.
+* **Rendering Scope**: Dynamic expressions run when the `Html` is written. Unselected conditional branches are not evaluated, and loop expressions are evaluated within each iteration. Nested components may contain further components and control flow.
+* **Boolean Attributes**: `disabled={false}` and `checked={null}` omit the attribute; `disabled={true}` emits `disabled`. Ordinary attributes retain their values, so `title={true}` emits `title="true"`.
+* **Fragments**: Use empty tags (`<> ... </>`) to group multiple elements without adding wrapping nodes to the DOM.
+* **Compile-Time Optimization**: Adjacent static elements, attributes, and text nodes are merged at compile-time into single static string writes (e.g. `<article class="user-card"><h2>` is optimized to one literal write). There is zero Virtual DOM or runtime overhead.
+* **Security & Escaping**: All dynamic text interpolations and standard attribute values are automatically HTML-escaped to prevent XSS. Dynamic URL attributes (like `href` or `src`) are automatically validated at runtime to filter out unsafe protocols (such as `javascript:`). Raw unescaped HTML can be injected using the `TrustedHtml` wrapper class. URL validation removes ASCII tabs and newlines before checking the scheme and uses locale-independent case matching.
+
+#### Example Component:
+```java
+package accent.html.demo;
+
+import accent.html.Component;
+import accent.html.Html;
+
+record UserCard(User user) implements Component {
+    @Override
+    Html render() {
+        return (
+            <article class="user-card">
+                <h2>{this.user.name()}</h2>
+                <p>{this.user.email()}</p>
+            </article>
+        );
+    }
+}
+```
+
+#### Ternary conditional operator for ReactJS-like HTML template control flow
+
+Accent supports standard Java ternary expressions (`{condition ? thenExpr : elseExpr}`). It is fully compatible with Java's standard ternary operator:
+
+### 27. Native Singleton Declarations (Kotlin `object` Equivalence)
+
+Use `singleton` before `class`, `record`, or `model` to declare one lazily initialized instance. The previous standalone `singleton Name` syntax is no longer accepted:
+
+```java
+singleton class CacheManager {
+    final Map<String, Object> _cache = new HashMap<>();
+
+    void put(String key, Object val) {
+        this._cache.put(key, val);
+    }
+
+    Object get(String key) {
+        return this._cache.get(key);
+    }
+}
+```
+
+#### Singleton Usage
+
+```java
+final cache = CacheManager.instance();
+cache.put("user_1", "Lemuel");
+
+// Or direct method call:
+final user = CacheManager.instance().get("user_1");
+```
+
+#### Singleton Features & Semantics
+* **Kotlin `object` Equivalent**: Provides direct language-level singleton semantics (`singleton class CacheManager { ... }`).
+* **Zero Boilerplate**: The compiler automatically generates a private constructor (`private CacheManager() {}`) and single static `.instance()` accessor method.
+* **Thread-Safe Lazy Loading**: Emits the **Initialization-on-Demand Holder** JVM idiom, guaranteeing lazy, thread-safe initialization with zero synchronization overhead.
+* **Forbidden `new` Instantiation**: Attempting to call `new CacheManager()` produces a compile-time error.
+* **Accent & Java Interop**: Access the single instance via `CacheManager.instance()` in both Accent and Java codebase.
+
+#### Singleton records and models
+
+```java
+singleton record Defaults(
+    String! theme = "light",
+    int retryLimit = 3
+) {}
+
+singleton model AppState(
+    final String! id = "app",
+    String! theme = "light",
+    int attempts = 0
+) {}
+
+final defaults = Defaults.instance(); // immutable component bindings
+final state = AppState.instance();
+state.theme("dark");                 // shared mutable state
+```
+
+Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Singletons may not declare constructors: the compiler generates a private one for every variant, so initialize state with field initializers. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `$accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
+
+A singleton record compiles to a final immutable class rather than a JVM record, so its constructor can be private. It retains component accessors, value methods, native `toJson()`/`toXml()`, and typed List/Map serialization support. Its runtime `Class.isRecord()` is false, and it is not a subtype of `java.lang.Record`. Singleton model/record Java serialization resolves back to the shared instance; JSON/XML typed parsing rejects singleton targets to avoid constructing duplicates. Untyped parsing of their serialized data remains available.
+
+### 28. Slugs (`accent.web`)
 
 Java does not provide a built-in slug type or standard slugification utility. Developers often have to use third-party libraries or build custom logic combining `Normalizer`, regular expressions, and locales. Accent fills this gap by providing a standardized, immutable value type: `accent.web.Slug`.
 
@@ -1220,32 +1283,123 @@ You can test this implementation via the included demo:
 ./gradlew :accent-compiler:runSlugDemo
 ```
 
+### 29. JS-like Symbols
 
-## Java interoperability
+Accent provides a JavaScript-like `Symbol` type in the standard library (`accent.lang.Symbol<T>`) to serve as unique, identity-based keys for metadata, component contexts, and registries without the risk of collisions.
 
-Java interoperability is a first-class requirement.
+#### Core Semantics
+1. **Identity-Based Equality**: Two unique symbols are never equal, even if they share the same description.
+2. **Optional Descriptions**: Descriptions exist only for debugging and `toString()` representation.
+3. **Generic Type Safety**: Symbols define the type of value they are associated with (e.g., `Symbol<UUID>`).
+4. **SymbolMap**: A typed container mapping `Symbol<T>` to `T` with full compile-time type safety.
+5. **Thread-Safe Global Registry**: Symbols can be registered globally via `Symbol.forKey("key")`.
 
-The target guarantees are:
+#### Unique Symbols
+A unique symbol is created with `create(...)`. Identical descriptions still produce completely separate symbol objects.
 
-1. Java APIs are directly callable from Accent.
-2. Public Accent classes compile to ordinary JVM classes.
-3. Java code can instantiate, call, extend, annotate, and reflect on Accent classes.
-4. Accent annotations and generic signatures are preserved.
-5. Accent nullability is retained as metadata while remaining compatible with JVM descriptors.
-6. Class extensions lower to normal static Java methods.
-7. `Async.run(() -> expression)` can run ordinary Java or Accent expressions.
-8. Accent requires no modified JVM.
-9. Mixed Java and Accent projects produce normal JAR files.
-10. Frameworks should not need to know whether a class originated from Java or Accent.
+```accent
+static final Symbol<User> CURRENT_USER = Symbol.create("currentUser");
+static final Symbol<UUID> TENANT_ID = Symbol.create("tenantId");
 
+Symbol<String> first = Symbol.create("name");
+Symbol<String> second = Symbol.create("name");
+
+assert first != second;
+```
+
+#### Global Registered Symbols
+If you need a shared symbol across components by a string key, use the global registry:
+
+```accent
+Symbol<Object> first = Symbol.forKey("application.user");
+Symbol<Object> second = Symbol.forKey("application.user");
+
+assert first == second;
+```
+The registry is thread-safe and scoped to the class loader. `Symbol.keyFor(...)` retrieves a registered symbol's registry key.
+
+#### Typed Metadata using SymbolMap
+To avoid String-based key collisions in metadata contexts, use `SymbolMap`:
+
+```accent
+SymbolMap context = new SymbolMap();
+
+context.put(CURRENT_USER, user);
+context.put(TENANT_ID, tenantId);
+
+User currentUser = context.get(CURRENT_USER);
+UUID currentTenantId = context.get(TENANT_ID);
+```
+
+#### Best Practices
+* Symbols **are** excellent for cross-module metadata, plugin extensions, framework context, and request attributes.
+* Symbols **are not** UUIDs or persistent database primary keys. They should not automatically survive serialization.
+* The `symbol` word is not a reserved keyword and remains valid as an ordinary variable name.
 
 ## Requirements
 
-- JDK 21
-- Gradle 9.6.1 or a compatible Gradle installation
+- A Java 21 toolchain, used with `--release 21`.
+- The included Gradle 9.6.1 wrapper (`./gradlew`, or `gradlew.bat` on Windows).
 
-The build uses a Java 21 toolchain and compiles with `--release 21`.
+Set `JAVA_HOME` to a suitable installed JDK when needed. The repository's `jdk/` directory is a local convenience, not a prerequisite for using Accent.
 
+## Quick start and CLI
+
+From the repository root, build the CLI distribution and run the bundled example:
+
+```bash
+./gradlew :accent-compiler:installDist
+accent-compiler/build/install/accent/bin/accent run accent-compiler/src/e2e/examples/json/JsonLiteralDemo.accent
+```
+
+The distribution bundles runtime dependencies, including Undertow. Add `accent-compiler/build/install/accent/bin` to `PATH` to invoke `accent` directly. Windows uses the corresponding `.bat` launchers.
+
+Check the example project, including references between its source files:
+
+```bash
+./gradlew :accent-compiler:run --args="check src/e2e/examples/hello"
+```
+
+Print its token stream:
+
+```bash
+./gradlew :accent-compiler:run --args="tokens src/e2e/examples/hello/HelloAccent.accent"
+```
+
+Run the convenience verification task:
+
+```bash
+./gradlew :accent-compiler:checkAccent
+```
+
+Current CLI usage:
+
+```text
+accent check <file-or-dir>
+accent tokens <source.accent>
+accent compile <file-or-dir> [-d output-dir] [-cp classpath] [--save-java java-dir]
+accent run <main-file-or-class> [-cp classpath]
+```
+
+`check` performs lexical, syntactic, and semantic validation. Pass a directory to check its `.accent` files together when types reference one another. `compile` also invokes Java compilation, and `run` compiles the main file's directory before starting the application.
+
+Use `--verbose` for compiler failure details and `--help` for usage. Generated Java defaults to `build/generated/sources/accent`; class files default to `build/classes/accent`. Gradle `:accent-compiler:run` examples resolve source paths from the compiler module; installed CLI examples resolve them from the current directory.
+
+## IDE support
+
+For day-to-day development, the shared language tools and LSP server provide diagnostics, completion, hover, and definition lookup. VS Code adds syntax highlighting and document formatting. Code actions are not currently advertised by the server.
+
+Build the language server from the repository root:
+
+```bash
+./gradlew :tools:accent-language-server:installDist --no-configuration-cache
+```
+
+Install or rebuild the VS Code extension using [the extension guide](tools/accent-vscode/README.md). For application workspaces outside this checkout, set `accent.languageServer.path` to the absolute path of the installed server launcher. The server distribution is built separately from the extension.
+
+The server exposes generated Java through `accent.showGeneratedJava`; the extension includes an **Accent: Show Generated Java** command. Compiler `--save-java` output is also available for inspecting generated code.
+
+`tools/accent-intellij` contains plugin source, but it is excluded from `settings.gradle` because of the recorded Kotlin/JDK compatibility issue. It is not part of the supported root build.
 
 ## Using Accent in Your Project
 
@@ -1405,6 +1559,7 @@ record Page(User user) implements Component {
             <h1>Hello, {this.user.name()}!</h1>
         );
     }
+}
 ```
 
 #### Nested Layouts (`Layout.accent`)
@@ -1460,9 +1615,9 @@ class Loader {
 
 The returned object of type `User` is then passed to the constructor of `Page(User user)` dynamically.
 
-#### Static Site Generation & Prerendering (`@Prerender`)
+#### Startup prerendering (`@Prerender`)
 
-Annotate any `Page` component with `@Prerender` to enable Compile-Time Static Site Generation (SSG). 
+Annotate a no-argument `Page` component with `@Prerender` to render and cache its HTML during Spring application startup. This is an in-memory startup cache, not a compile-time static-site export.
 ```accent
 package com.example.demo.routes;
 
@@ -1480,18 +1635,18 @@ record Page() implements Component {
     }
 }
 ```
-* **Performance optimization**: Pages marked with `@Prerender` are compiled, rendered, and cached as static HTML templates once at startup. Subsequent visits stream the cached literals immediately, bypassing constructor instantiation and layout wrapping.
+The router renders the page and its layouts once, then serves the cached HTML on subsequent requests without running loaders or reconstructing components. Pages requiring constructor arguments are skipped; failed prerendering falls back to request-time rendering.
 
 ### 6. Running the Demo Applications Locally
 
 The project includes two end-to-end demo applications under their respective modules. You can try them by running the following commands:
 
 #### Running the Routing & Layouts Demo
-Runs a clean, database-less application showing layouts, file routing, decoupled loaders, and SSG:
+Runs a clean, database-less application showing layouts, file routing, decoupled loaders, and startup prerendering:
 ```bash
 ./gradlew :accent-html-demo-routing:runRoutingDemo
 ```
-* **Root landing page (SSG / File-based routes):** [http://localhost:8080/](http://localhost:8080/)
+* **Root landing page (prerendered / file-based routes):** [http://localhost:8080/](http://localhost:8080/)
 * **Dynamic parameter page (File-based routes):** [http://localhost:8080/users/Alice](http://localhost:8080/users/Alice)
 * **Raw HTML Fragment rendering:** [http://localhost:8080/fragment](http://localhost:8080/fragment)
 
@@ -1528,7 +1683,7 @@ Runs a simple console application demonstrating the use of parameter default val
 Build the compiler, runtime, starter, and tooling with the included Gradle wrapper:
 
 ```bash
-JAVA_HOME=$PWD/jdk ./gradlew clean build
+./gradlew clean build
 ```
 
 On Windows:
@@ -1542,7 +1697,7 @@ gradlew.bat clean build
 Run the complete unit and integration test suite:
 
 ```bash
-JAVA_HOME=$PWD/jdk ./gradlew check test
+./gradlew check test
 ```
 
 ### Running E2E Demo Tests
@@ -1550,8 +1705,8 @@ JAVA_HOME=$PWD/jdk ./gradlew check test
 Run the Spring Boot web routing and SQL database E2E tests:
 
 ```bash
-JAVA_HOME=$PWD/jdk ./gradlew :accent-html-demo-routing:test
-JAVA_HOME=$PWD/jdk ./gradlew :accent-html-demo-sql:test
+./gradlew :accent-html-demo-routing:test
+./gradlew :accent-html-demo-sql:test
 ```
 
 ### Running Standalone Demos
@@ -1559,248 +1714,22 @@ JAVA_HOME=$PWD/jdk ./gradlew :accent-html-demo-sql:test
 Run the standalone feature demos:
 
 ```bash
-JAVA_HOME=$PWD/jdk ./gradlew runStringInterpolationTest runSymbolDemo runLoggingDemo runNamedArgsDemo runSlugDemo runJsonLiteralDemo
+./gradlew runStringInterpolationTest runSymbolDemo runLoggingDemo runNamedArgsDemo runSlugDemo runJsonLiteralDemo
 ```
 
+## Experimental features
 
-## Run the current CLI
+### Generator syntax
 
-Check the example project, including references between its source files:
+The parser and emitter recognize `generator` methods and `emit` statements. The declared return type is the element type: `generator int numbers(...)` emits a Java method returning `Iterable<Integer>`.
 
-```bash
-./gradlew :accent-compiler:run --args="check src/e2e/examples/hello"
-```
-
-Print its token stream:
-
-```bash
-./gradlew :accent-compiler:run --args="tokens src/e2e/examples/hello/HelloAccent.accent"
-```
-
-Run the convenience verification task:
-
-```bash
-./gradlew :accent-compiler:checkAccent
-```
-
-Current CLI usage:
-
-```text
-accent check <file-or-dir>
-accent tokens <source.accent>
-accent compile <file-or-dir> [-d output-dir] [-cp classpath]
-accent run <main-file-or-class> [-cp classpath]
-```
-
-`check` performs lexical, syntactic, and semantic validation. Pass a directory to check its `.accent` files together when types reference one another. `compile` also invokes Java compilation, and `run` compiles the main file's directory before starting the application.
-
-
-
-## Mutability declaration
-
-Accent supports local mutability declarations:
-
-```java
-class Main {
-    static void main(String[] args) {
-        final message = "Hello from Accent"; // 'final' (or 'final var') for immutable variable
-
-        var count = 1;  // 'var' for mutable variable
-        count++;
-        System.out.println(message);
-        System.out.println(count);
-    }
-}
-```
-
-Expected Java lowering:
-
-```java
-public class Main {
-    public static void main(String[] args) {
-        final var message = "Hello from Accent";
-        var count = 1;
-
-        count++;
-
-        System.out.println(message);
-        System.out.println(count);
-    }
-}
-```
-
-
-## JSON Standard Library (`accent.json`)
-
-Accent provides JSON parsing through `accent.json.Json` and native serialization through `toJson()` on records, models, and supported typed containers.
-
-### Key Features
-- **Untyped or typed parsing**: `Json.parse(text)` returns Maps, Lists, and JSON scalar values. `Json.parse(text, Type.class)` maps objects into records or Accent models and rejects ordinary Java classes.
-- **Constructor Validation**: Typed parsing invokes the record canonical constructor or the model constructor.
-- **Zero-Dependency**: No Jackson, no Gson. It is built natively into Accent, perfectly avoiding large shaded JAR issues.
-- **Deep Compatibility**: Supports primitives, `java.time.*` (ISO-8601), `java.util.UUID`, Enums, `Optional<T>`, generic lists/maps, and deeply nested generic records.
-- **Customizable**: Control serialization with `JsonOptions` and override property names via `@JsonName`.
-
-
-### Parsing objects, Lists, and Maps
-
-```java
-import accent.json.Json;
-import accent.xml.Xml;
-
-Object jsonTree = Json.parse(text); // JSON object -> Map; array -> List
-Object xmlTree = Xml.parse(xmlText); // XML data object -> Map; <List> -> List; <Map> -> Map
-
-Profile profile = Json.parse(profileJson, Profile.class);
-List<Profile> profiles = Json.parseList(profilesJson, Profile.class);
-Map<String, Profile> indexed = Json.parseMap(indexedJson, Profile.class);
-
-Profile xmlProfile = Xml.parse(profileXml, Profile.class);
-List<Profile> xmlProfiles = Xml.parseList(profilesXml, Profile.class);
-Map<String, Profile> xmlIndexed = Xml.parseMap(indexedXml, Profile.class);
-```
-
-Both parsers also accept `Object.class`, `List.class`, and `Map.class` targets. A List or Map target must match the input shape. Typed objects and container values may be records or Accent models; nested records/models, lists, maps, arrays, and primitive values are mapped recursively. Use native `toJson()` / `toXml()` to serialize again.
-
-Untyped JSON preserves boolean, numeric, string, and null values. Untyped XML preserves scalar text as strings, because the XML format carries no scalar type metadata; typed XML parsing converts text using the target field types. XML parsing follows the serializer's `<item>` and `<entry><key>...</key><value>...</value></entry>` conventions. XML attributes, mixed text and elements, duplicate fields/keys, DTDs, and external entities are rejected. Null properties omitted during XML serialization cannot be distinguished from missing properties on parsing. Empty nested XML elements are ambiguous without a target type; typed parsing distinguishes empty strings, containers, and data objects using their declared fields.
-
-## Native JSON Literals
-
-Accent extends standard JSON support with language-level **Native JSON Literals**, allowing you to write JSON structures directly inline with string interpolation!
-
-This leverages Accent's template string syntax (`json<Target>"""..."""`) and lowers directly into highly-optimized `accent.json.Json.parse` calls at compile time.
-
-```accent
-// 1. Define your strict target Record
-record User(
-    String id,
-    String firstName,
-    String lastName
-) {}
-
-// 2. Write JSON natively!
-String inputId = "123e4567-e89b-12d3-a456-426614174000";
-String firstName = "Lemuel";
-
-User parsedUser = json<User>"""
-{
-    "id": "${inputId}",
-    "firstName": "${firstName.toUpperCase()}",
-    "lastName": "Adane"
-}
-""";
-```
-
-### Quick Start
-
-```java
-// User.accent
-import java.util.UUID;
-import java.time.LocalDate;
-
-record User(
-    UUID id, 
-    String firstName, 
-    String lastName,
-    LocalDate birthDate
-) {
-    User {
-        // Will be executed when parsed from JSON!
-        if (firstName == null or firstName.isBlank()) {
-            throw new IllegalArgumentException("firstName cannot be blank");
-        }
-    }
-}
-
-// Main.accent (one top-level type per file)
-import accent.json.Json;
-import java.util.UUID;
-import java.time.LocalDate;
-
-class Main {
-    static void main(String[] args) {
-        User user = new User(UUID.randomUUID(), "Lemuel", "Adane", LocalDate.of(2000, 1, 1));
-        
-        // Serialize
-        String json = user.toJson();
-        
-        // Parse directly into a strongly-typed record!
-        User parsedUser = Json.parse(json, User.class);
-        
-        System.out.println(parsedUser.firstName());
-    }
-}
-```
-
-Run the Java JSON demo from the repository root:
-```bash
-./gradlew :accent-compiler:classes
-javac -cp accent-compiler/build/classes/java/main -d accent-compiler/build/classes/java/demo accent-compiler/src/e2e/examples/JsonDemo.java
-java -cp accent-compiler/build/classes/java/demo:accent-compiler/build/classes/java/main JsonDemo
-```
-
-
-The Accent JSON literal demo keeps `JsonLiteralDemo.accent`, `User.accent`, and `Address.accent` in `accent-compiler/src/e2e/examples/json/`, with one type per file. Compile and run them together:
-```bash
-./gradlew :accent-compiler:runJsonLiteralDemo
-```
+The emitter currently calls `accent.runtime.AccentGenerator.of(...)`, but that helper is absent from this checkout. Frontend checks and Java-emission tests do not establish runnable generator support. Treat generators as incomplete until the runtime and execution tests are supplied.
 
 ## Project status
 
-Accent is currently in the **compiler-foundation stage**.
+Accent is **alpha** (`0.1.0-alpha.2`). The repository includes a working compiler and CLI, runtime libraries, a standalone HTTP server, optional Spring integration, and editor tooling. JUnit tests cover compiler semantics, compiled programs, HTTP, serialization, concurrency, logging, and Spring demos.
 
-The repository already contains:
-
-- a Java 21 Gradle project
-- a **lexer** for Accent keywords and operators
-- a **parser** producing a full abstract syntax tree
-- **semantic analysis** with symbol resolution and type checking
-- a **lowering** pass that transforms Accent AST constructs to Java-compatible forms
-- a **Java source emitter** for transpilation output
-- source-file and diagnostic abstractions
-- a CLI with `check`, `tokens`, `compile`, and `run` commands, plus the Gradle `checkAccent` task
-- a virtual-thread runtime with `async` / `await` shorthand and `Async.run()` / `.await()` methods
-- JUnit 5 tests (including end-to-end compiler tests)
-- example `.accent` projects and feature demos
-
-The compiler pipeline is functional from lexing through Java emission. Work continues on expanding language feature coverage and hardening the transpilation output.
-
-## IDE Support & Tooling
-
-Accent includes complete, production-ready IDE support for standard editor features (syntax highlighting, completions, hover info, definition lookup, diagnostics, and code actions):
-
-### 1. `accent-language-tools` (Shared Tooling Core)
-The backend service layer that leverages the compiler frontend to provide editor services.
-* **Error-Tolerant Parsing**: Recovers gracefully from syntax errors (e.g. trailing dots `obj.`, unclosed braces) to keep giving completions and structure.
-* **Semantic Analysis**: Stores type mappings on AST expressions to answer hover and type-check queries.
-* **Transpiler Bridge**: Emits generated Java source in-memory.
-
-### 2. `accent-language-server` (Language Server Protocol)
-An LSP-compliant server built with LSP4J communicating via `stdin`/`stdout`.
-* Writes server logs clean of LSP protocol strictly to `stderr`.
-* Built and run via Gradle:
-  ```bash
-  ./gradlew :tools:accent-language-server:installDist --no-configuration-cache
-  ```
-  The packaged script is located at:
-  `tools/accent-language-server/build/install/accent-language-server/bin/accent-language-server`
-
-### 3. `accent-vscode` (VS Code Extension)
-Provides out-of-the-box support for VS Code:
-* **Syntax Highlighting**: Custom TextMate grammar (`.accent` language mode) highlighting interpolated strings, JSX HTML tags, and both `async` / `await` shorthand and `Async.run()` / `.await()` calls.
-* **LSP Client**: Boots the Language Server from local Gradle build automatically.
-* **Updated syntax package**: Install [accent-vscode-0.1.6.vsix](tools/accent-vscode/accent-vscode-0.1.6.vsix) for `async` / `await` shorthand alongside `Async.run()` / `.await()` methods. Older archives retain their original grammar. See the [VS Code installation and build instructions](tools/accent-vscode/README.md#building-updated-editor-support).
-* **Commands**: Run command `Accent: Show Generated Java` to transpile on-the-fly and display raw Java side-by-side.
-
-### 4. `accent-intellij` (IntelliJ Plugin)
-A native custom-language plugin built using Gradle IntelliJ Platform SDK Plugin 2.x:
-* Custom file type registration (`.accent` files and icon).
-* Code commenter and brace matcher.
-* Connects completion providers and diagnostics directly to `accent-language-tools` for consistent, compiler-accurate Intellisense.
-* Compile and test via:
-  ```bash
-  ./gradlew :tools:accent-intellij:compileKotlin --no-configuration-cache
-  ```
+Feature support varies. SQL checking is structural rather than schema-aware; standalone HTTP does not expose HTTPS, WebSockets, multipart parsing, or file-based routing. Spring file-based routing is a separate integration. IntelliJ support is disabled in the root Gradle settings. Generator syntax currently emits calls to a runtime helper missing from this checkout; see [experimental features](#experimental-features).
 
 ## Design goal
 
@@ -1821,7 +1750,3 @@ Accent adds focused syntax while preserving Java-shaped code.
 ## Guiding principle
 
 > **Accent should remove Java's accidental complexity without hiding the programmer's intention.**
-
-
-
-

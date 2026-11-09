@@ -149,22 +149,89 @@ class VisibilityTest {
     }
 
     @Test
-    void privateKeywordIsRejectedWithHint() {
-        assertError(check("A.accent", "class A { private int count = 0; }"),
-                "'private' was removed; rename 'count' to '_count' for package-private");
+    void explicitPublicAndPrivateOverrideNameVisibility() throws Exception {
+        write("vis/Explicit.accent", """
+                package vis;
+                public class Explicit {
+                    public Explicit() {}
+                    public int _visible = 1;
+                    private int hidden = 2;
+                    private static final int __shared = 3;
+                    public int _read() { return this.hidden; }
+                    private int read() { return this.hidden; }
+                }
+                """);
+        write("vis/Neighbor.accent", """
+                package vis;
+                class Neighbor {
+                    int read(Explicit! value) { return value.hidden + value.read(); }
+                }
+                """);
+        CompilationResult result = compileAll();
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        try (var loader = new URLClassLoader(new java.net.URL[]{tempDir.resolve("classes").toUri().toURL()})) {
+            Class<?> type = loader.loadClass("vis.Explicit");
+            assertVisibility(type.getDeclaredField("_visible").getModifiers(), "public");
+            assertVisibility(type.getDeclaredField("hidden").getModifiers(), "package");
+            assertVisibility(type.getDeclaredField("__shared").getModifiers(), "package");
+            assertVisibility(type.getDeclaredMethod("_read").getModifiers(), "public");
+            assertVisibility(type.getDeclaredMethod("read").getModifiers(), "package");
+        }
     }
 
     @Test
-    void publicKeywordIsRejectedWithHint() {
-        assertError(check("A.accent", "class A { public void run() {} }"),
-                "'public' was removed; members are public by default");
-        assertError(check("A.accent", "public class A {}"), "'public' was removed; types are always public");
+    void explicitProtectedAllowsPackageAndSubclassAccess() throws Exception {
+        write("vis/Base.accent", """
+                package vis;
+                class Base {
+                    protected int value = 2;
+                    protected int read() { return this.value; }
+                }
+                """);
+        write("vis/Neighbor.accent", """
+                package vis;
+                class Neighbor { int read(Base! base) { return base.value + base.read(); } }
+                """);
+        write("other/Child.accent", """
+                package other;
+                import vis.Base;
+                class Child extends Base { int total() { return this.value + this.read(); } }
+                """);
+        CompilationResult result = compileAll();
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        try (var loader = new URLClassLoader(new java.net.URL[]{tempDir.resolve("classes").toUri().toURL()})) {
+            Class<?> base = loader.loadClass("vis.Base");
+            assertVisibility(base.getDeclaredField("value").getModifiers(), "protected");
+            assertVisibility(base.getDeclaredMethod("read").getModifiers(), "protected");
+            Class<?> child = loader.loadClass("other.Child");
+            assertEquals(4, child.getMethod("total").invoke(child.getConstructor().newInstance()));
+        }
     }
 
     @Test
-    void protectedKeywordIsRejectedWithHint() {
-        assertError(check("A.accent", "class A { protected int x = 0; }"),
-                "'protected' was removed; rename 'x' to '__x'");
+    void explicitPrivateIsHiddenFromOtherPackages() throws Exception {
+        write("vis/Secret.accent", "package vis; class Secret { private int value = 1; }");
+        write("other/Reader.accent", """
+                package other;
+                import vis.Secret;
+                class Reader { int read(Secret! secret) { return secret.value; } }
+                """);
+        assertFalse(compileAll().successful());
+    }
+
+    @Test
+    void conflictingVisibilityModifiersAreRejected() {
+        assertError(check("A.accent", "class A { public private int value; }"),
+                "Only one visibility modifier is allowed");
+        assertError(check("A.accent", "public public class A {}"),
+                "Only one visibility modifier is allowed");
+    }
+
+    @Test
+    void interfaceMembersMustRemainPublic() {
+        assertTrue(check("A.accent", "public interface A { public int value(); }").successful());
+        assertError(check("A.accent", "interface A { private int value(); }"),
+                "Interface members are always public");
     }
 
     @Test

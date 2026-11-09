@@ -155,7 +155,7 @@
       "patterns": [
         {
           "name": "storage.modifier.accent",
-          "match": "\\b(static|transient|volatile|synchronized|native|abstract|strictfp|package|import)\\b"
+          "match": "\\b(public|protected|private|static|transient|volatile|synchronized|native|abstract|strictfp|package|import)\\b"
         }
       ]
     },

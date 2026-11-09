@@ -10,3 +10,10 @@ assert.equal(isKeyword('Async.run(() -> service.findRequired(id))'), false);
 console.log('Async syntax regression checks passed');
 assert.equal(isKeyword('async service.findRequired(id)'), true);
 assert.equal(isKeyword('await ordersAsync'), true);
+
+const modifierRules = grammar.repository['storage-modifiers'].patterns.map(rule => new RegExp(rule.match));
+for (const keyword of ['public', 'protected', 'private']) {
+    assert.equal(modifierRules.some(rule => rule.test(keyword)), true);
+    assert.equal(modifierRules.some(rule => rule.test(keyword + 'Count')), false);
+}
+console.log('Visibility modifier highlighting checks passed');

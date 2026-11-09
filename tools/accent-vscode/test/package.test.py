@@ -24,7 +24,7 @@ with zipfile.ZipFile(archive) as package:
     assert not any(re.search(pattern, "ordersAsync.await()") for pattern in patterns)
     modifiers = [rule["match"] for rule in grammar["repository"]["storage-modifiers"]["patterns"]]
     for name in ("public", "private", "protected"):
-        assert not any(re.search(pattern, name) for pattern in modifiers), f"Removed visibility keyword is still highlighted: {name}"
+        assert any(re.search(pattern, name) for pattern in modifiers), f"Missing visibility modifier highlighting: {name}"
     assert package.read("extension/readme.md") == (root / "README.md").read_bytes()
     assert package.read("extension/dist/extension.js") == (root / "dist/extension.js").read_bytes()
-print(f"Verified {archive.name}: name-based visibility and async/await syntax supported; version and contents match source")
+print(f"Verified {archive.name}: explicit visibility and async/await syntax supported; version and contents match source")

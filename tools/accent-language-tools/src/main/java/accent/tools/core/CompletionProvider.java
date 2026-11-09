@@ -90,7 +90,7 @@ public final class CompletionProvider {
         // 2. Default Keyword completions
         String[] keywords = {
             "class", "interface", "record", "model", "singleton", "enum", "extension",
-            "static", "final",
+            "public", "protected", "private", "static", "final",
             "void", "return", "if", "else", "for", "while", "do",
             "try", "catch", "finally", "throw", "yield", "break",
             "continue", "async", "await", "generator", "emit"

@@ -15,13 +15,13 @@ class SemanticVisibilityTest {
             package vis;
             class Counter {
                 int total = 0;
-                int _cache = 0;
-                int __step = 1;
-                static int __shared = 0;
+                private int _cache = 0;
+                protected int __step = 1;
+                protected static int __shared = 0;
                 void inc() {}
-                void _reset() {}
-                void __grow() {}
-                static void __touch() {}
+                private void _reset() {}
+                protected void __grow() {}
+                protected static void __touch() {}
             }
             """);
 

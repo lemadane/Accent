@@ -166,10 +166,7 @@ public final class AccentParser {
         }
     }
 
-    /**
-     * The words public/protected/private are no longer Accent keywords. They are still recognized in modifier
-     * position (so .java sources parse and Accent sources get a helpful error).
-     */
+    /** Recognizes visibility modifiers while preserving identifier diagnostics. */
     private boolean checkVisibilityWord() {
         if (!check(TokenType.IDENTIFIER) || !VISIBILITY_WORDS.contains(peek().lexeme())) return false;
         TokenType next = lookAhead(1).type();
@@ -177,21 +174,21 @@ public final class AccentParser {
                 && next != TokenType.DOT && next != TokenType.COMMA && next != TokenType.RIGHT_PAREN;
     }
 
-    /** Parses static/final and (legacy) visibility words. Returns the legacy visibility tokens found. */
+    /** Parses static/final and collects explicit Accent visibility modifiers. */
     private List<Token> parseKeywordModifiers(List<String> modifiers) {
-        List<Token> removed = new ArrayList<>();
+        List<Token> explicitVisibility = new ArrayList<>();
         while (true) {
             if (match(TokenType.STATIC, TokenType.FINAL)) {
                 modifiers.add(previous().lexeme());
             } else if (checkVisibilityWord()) {
                 Token t = advance();
                 if (isJava) modifiers.add(t.lexeme());
-                else removed.add(t);
+                else explicitVisibility.add(t);
             } else {
                 break;
             }
         }
-        return removed;
+        return explicitVisibility;
     }
 
     private static int annotationCount(List<String> modifiers) {
@@ -220,18 +217,26 @@ public final class AccentParser {
     private String currentTypeKind = "";
 
     /**
-     * Validates an Accent field/method name and inserts the Java visibility derived from it:
-     * {@code x} → public, {@code _x} → package-private, {@code __x} → protected.
+     * Explicit Accent modifiers override name-based defaults. Accent private is
+     * represented by the absence of a Java visibility modifier.
      */
-    private void applyMemberVisibility(List<String> modifiers, List<Token> removed, String name, Token nameToken) {
-        for (Token t : removed) {
-            String hint = switch (t.lexeme()) {
-                case "private" -> "rename '" + name + "' to '" + withPrefix(name, "_") + "' for package-private";
-                case "protected" -> "rename '" + name + "' to '" + withPrefix(name, "__") + "'";
-                default -> "members are public by default";
-            };
-            if (currentTypeKind.equals("interface")) hint = "interface members are always public";
-            report(t, "'" + t.lexeme() + "' was removed; " + hint);
+    private void applyMemberVisibility(List<String> modifiers, List<Token> explicitVisibility, String name, Token nameToken) {
+        if (explicitVisibility.size() > 1) {
+            report(explicitVisibility.get(1), "Only one visibility modifier is allowed");
+        }
+        if (!explicitVisibility.isEmpty()) {
+            Token visibility = explicitVisibility.getFirst();
+            if (currentTypeKind.equals("interface") && !visibility.lexeme().equals("public")) {
+                report(visibility, "Interface members are always public");
+            }
+            switch (visibility.lexeme()) {
+                case "public" -> modifiers.add(annotationCount(modifiers), "public");
+                case "private" -> { /* Accent private means Java package-private. */ }
+                case "protected" -> modifiers.add(annotationCount(modifiers), "protected");
+                default -> throw new IllegalStateException("Unknown visibility: " + visibility.lexeme());
+            }
+            if (isOnlyUnderscores(name)) report(nameToken, "'" + name + "' is not a valid member name");
+            return;
         }
         if (isOnlyUnderscores(name)) {
             report(nameToken, "'" + name + "' is not a valid member name");
@@ -313,9 +318,10 @@ public final class AccentParser {
             modifiers.add(parseAnnotationAsString());
         }
         
-        List<Token> removed = parseKeywordModifiers(modifiers);
-        for (Token t : removed) {
-            report(t, "'" + t.lexeme() + "' was removed; types are always public");
+        List<Token> explicitVisibility = parseKeywordModifiers(modifiers);
+        if (explicitVisibility.size() > 1) report(explicitVisibility.get(1), "Only one visibility modifier is allowed");
+        for (Token t : explicitVisibility) {
+            if (!t.lexeme().equals("public")) report(t, "Top-level types are always public");
         }
         if (!isJava && !check(TokenType.EXTENSION)) {
             modifiers.add(annotationCount(modifiers), "public");
@@ -547,15 +553,16 @@ public final class AccentParser {
         while (check(TokenType.AT)) {
             modifiers.add(parseAnnotationAsString());
         }
-        List<Token> removed = parseKeywordModifiers(modifiers);
+        List<Token> explicitVisibility = parseKeywordModifiers(modifiers);
 
         List<TypeParameter> typeParams = parseTypeParameters();
 
         // Check if it's a constructor: name matches enclosingClassName, followed by '('
         if (check(TokenType.IDENTIFIER) && peek().lexeme().equals(enclosingClassName) && lookAhead(1).type() == TokenType.LEFT_PAREN) {
             String name = advance().lexeme();
-            for (Token t : removed) {
-                report(t, "'" + t.lexeme() + "' was removed; constructors are always public");
+            if (explicitVisibility.size() > 1) report(explicitVisibility.get(1), "Only one visibility modifier is allowed");
+            for (Token t : explicitVisibility) {
+                if (!t.lexeme().equals("public")) report(t, "Constructors are always public");
             }
             if (!isJava && (currentTypeKind.equals("class") || currentTypeKind.equals("record"))) {
                 modifiers.add(annotationCount(modifiers), "public");
@@ -594,7 +601,7 @@ public final class AccentParser {
                     : consume(TokenType.IDENTIFIER, "Expected member name.").lexeme();
         }
         if (!isJava) {
-            applyMemberVisibility(modifiers, removed, name, previous());
+            applyMemberVisibility(modifiers, explicitVisibility, name, previous());
         }
 
         if (match(TokenType.LEFT_PAREN)) {

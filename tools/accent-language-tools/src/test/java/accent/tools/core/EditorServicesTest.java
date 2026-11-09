@@ -17,11 +17,11 @@ class EditorServicesTest {
             package owner;
             class Base {
                 int visibleField;
-                int _packageField;
-                int __protectedField;
+                private int _packageField;
+                protected int __protectedField;
                 void visibleMethod() {}
-                void _packageMethod() {}
-                void __protectedMethod() {}
+                private void _packageMethod() {}
+                protected void __protectedMethod() {}
             }
             """;
 
@@ -106,6 +106,10 @@ class EditorServicesTest {
         assertTrue(members.stream().filter(item -> item.label().equals("await"))
                 .allMatch(item -> item.detail().contains("String")), "await completion should expose the result type");
         List<CompletionItem> keywords = CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1);
+        for (String visibility : List.of("public", "protected", "private")) {
+            assertTrue(keywords.stream().anyMatch(item -> item.label().equals(visibility)
+                    && item.kind().equals("Keyword")), visibility);
+        }
         assertTrue(keywords.stream().anyMatch(item -> item.label().equals("async") && item.kind().equals("Keyword")));
         assertTrue(keywords.stream().anyMatch(item -> item.label().equals("await") && item.kind().equals("Keyword")));
     }
