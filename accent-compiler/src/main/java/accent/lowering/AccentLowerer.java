@@ -382,6 +382,9 @@ public final class AccentLowerer implements ImportResolver {
             if (value instanceof MemberAccessExpr member)
                 return new MemberAccessExpr(member.receiver(), member.memberName(), member.isOptional(), member.token(), false, member.nonNullElements());
             return value;
+        } else if (expr instanceof StaticExpr st) {
+            ResolvedType type = expressionTypes.get(st);
+            return new IdentifierExpr(type.info().fullName(), st.token());
         } else if (expr instanceof IdentifierExpr id) {
             ResolvedType type = expressionTypes.get(id);
             return type == null ? id : new IdentifierExpr(id.name(), id.token(), type.isNonNull() && !type.isPrimitive(), type.nonNullElements());

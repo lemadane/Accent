@@ -26,6 +26,25 @@ class EditorServicesTest {
             """;
 
     @Test
+    void staticCompletionOnlyOffersOwnStaticMembers() {
+        String code = """
+                class Counter {
+                    static int count = 0;
+                    static void increment() {}
+                    int value;
+                    void inspect() { static.<caret> }
+                }
+                """;
+        var members = complete(new ProjectContext(List.of()), "Counter.accent", code);
+        assertMembersPresent(members, "count", "increment");
+        assertMembersAbsent(members, "value", "inspect", "getClass()?");
+        var instanceMembers = complete(new ProjectContext(List.of()), "Counter.accent",
+                code.replace("static.<caret>", "this.<caret>"));
+        assertMembersPresent(instanceMembers, "value", "inspect");
+        assertMembersAbsent(instanceMembers, "count", "increment");
+    }
+
+    @Test
     void completionPreservesNonNullMethodSuffix() {
         List<CompletionItem> members = complete(new ProjectContext(List.of()), "Sample.accent", """
                 class Sample {

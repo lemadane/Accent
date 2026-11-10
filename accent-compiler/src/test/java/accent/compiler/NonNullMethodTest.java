@@ -36,7 +36,7 @@ class NonNullMethodTest {
         rejects("class Sample { void save?() {} }", "Primitive and void");
         rejects("class Sample { String name?() { return null; } String run?() { return this.name(); } }", "Nullable result requires");
         rejects("class Sample { String name() { return \"John\"; } String run?() { return this.name()?; } }", "Non-null result");
-        accepts("class Sample { static String name() { return \"John\"; } String run() { return name(); } }");
+        accepts("class Sample { static String name() { return \"John\"; } String run() { return static.name(); } }");
     }
 
     @Test void nullableReturnsAndFallthroughAreErrors() {
@@ -92,7 +92,7 @@ class NonNullMethodTest {
     @Test void generatedAccessorsAndFactoriesExposeTheirContracts() {
         rejects("record Customer(String name?) {} class Sample { String read(Customer customer) { return customer.name(); } }", "Nullable result requires");
         accepts("model Customer(String name) {} class Sample { String read(Customer customer) { return customer.name(); } void change(Customer customer) { customer.name(\"Jane\"); } }");
-        accepts("singleton class Sample { static Sample read() { return Sample.instance(); } }");
+        accepts("singleton class Sample { static Sample read() { return static.instance(); } }");
     }
 
     @Test void conditionalAssignmentsCannotInventANonNullGuarantee() {

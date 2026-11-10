@@ -1216,6 +1216,10 @@ public final class AccentParser {
             }
             case THIS -> new ThisExpr(token);
             case SUPER -> new SuperExpr(token);
+            case STATIC -> {
+                if (!check(TokenType.DOT)) throw error(peek(), "Use 'static.' to access a static member of the current class.");
+                yield new StaticExpr(token);
+            }
             case LEFT_PAREN -> {
                 // Could be a lambda parameter list: (String s!, int i) -> body
                 // Let's do a scan-ahead to see if we have an ARROW after the matching right paren.

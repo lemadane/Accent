@@ -154,9 +154,9 @@ class HtmlRenderingEndToEndTest {
         try (var compiled = compile("""
                 class Demo {
                     static int calls = 0;
-                    static String value?() { Demo.calls++; return null; }
+                    static String value?() { static.calls++; return null; }
                     static Html render(boolean show) {
-                        return (<div>{if (show) {<b title={Demo.value()? ?: "tip"}>{Demo.value()? ?: "none"}</b>}}</div>);
+                        return (<div>{if (show) {<b title={static.value()? ?: "tip"}>{static.value()? ?: "none"}</b>}}</div>);
                     }
                 }
                 """)) {

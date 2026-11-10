@@ -34,7 +34,7 @@ class AsyncConcurrencyEndToEndTest {
                 class Program {
                     static Async<String?> start(AsyncConcurrencyProbe probe) { return Async.run(() -> probe.run()); }
                     static Async<Void?> startVoid(AsyncConcurrencyProbe probe) { return Async.run(() -> probe.runVoid()); }
-                    static Async<String?> nested(AsyncConcurrencyProbe probe) { return Async.run(() -> start(probe).await()); }
+                    static Async<String?> nested(AsyncConcurrencyProbe probe) { return Async.run(() -> static.start(probe).await()); }
                     static Object finishVoid?(Async<Void?> valueAsync) { return valueAsync.await(); }
                     static String finish?(Async<String?> valueAsync) { return valueAsync.await(); }
                     static String timed?(Async<String?> valueAsync, Duration timeout) { return valueAsync.await(timeout); }

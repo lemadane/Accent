@@ -19,7 +19,7 @@ class AsyncDocumentationEndToEndTest {
     void readmeAndEditorGuideExamplesCompileAndExecute() throws Exception {
         Path root = Path.of("..").toAbsolutePath().normalize();
         String readme = Files.readString(root.resolve("README.md"));
-        String section = readme.split("(?m)^### [0-9]+[.] Virtual Thread concurrency", 2)[1].split("(?m)^### ", 2)[0];
+        String section = readme.split("(?m)^### [0-9]+[.] Concurrency with virtual threads", 2)[1].split("(?m)^### ", 2)[0];
         String editor = Files.readString(root.resolve("tools/accent-vscode/README.md"));
         Path sources = Files.createDirectories(directory.resolve("source"));
         Files.writeString(sources.resolve("Customer.accent"), "record Customer(String name) {}");

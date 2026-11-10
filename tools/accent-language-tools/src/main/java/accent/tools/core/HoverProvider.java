@@ -24,7 +24,9 @@ public final class HoverProvider {
             ResolvedType type = analyzer.resolvedTypes.get(expr);
             if (type != null) {
                 StringBuilder sb = new StringBuilder();
-                if (expr instanceof IdentifierExpr id) {
+                if (expr instanceof StaticExpr) {
+                    sb.append("Static receiver for declaring class\n\n");
+                } else if (expr instanceof IdentifierExpr id) {
                     sb.append("Local variable/symbol: `").append(id.name()).append(!type.isNonNull() && !type.isPrimitive() ? "?" : "").append("`\n\n");
                 } else if (expr instanceof MethodCallExpr call) {
                     sb.append("Method call: `").append(call.methodName())

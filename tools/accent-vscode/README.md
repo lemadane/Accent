@@ -22,7 +22,7 @@ Ordered by day-to-day developer usefulness:
 
 Protected and private declarations require an underscore prefix (`protected int _step`, `private int _cache`). The modifier determines access; an underscore is a visual marker. Members without a modifier are public, even if their names begin with `_` or `__`. Accent `private` remains package-private. Top-level types, declared constructors, and interface members remain public.
 
-Use `this.member` / `this.method()` for declarations and overrides in the current class. Use `super.member` / `super.method()` for inherited instance members on the current object or to call a parent implementation. Calls through another object remain normal virtual calls. `super` bypasses overrides; `this` retains virtual dispatch. Completion filters `this.` and `super.` to follow these rules. Static members use their class name, and extension blocks keep `this` as their target receiver.
+Use `this.member` / `this.method()` for declarations and overrides in the current class. Use `super.member` / `super.method()` for inherited instance members on the current object or to call a parent implementation. Calls through another object remain normal virtual calls. `super` bypasses overrides; `this` retains virtual dispatch. Completion filters `this.` and `super.` to follow these rules. Static members declared in the current class require `static.member` / `static.method()`. External and inherited static members use the declaring class name. Bare static calls and static access through object references are rejected. Completion after `static.` offers only static members declared in the current class. Extension blocks keep `this` as their target receiver.
 
 Migrate old name-based declarations by adding `private` or `protected`; rename unprefixed non-public declarations and their references to include `_`. Change inherited `this.member` access to `super.member`. Keep Java library names unchanged; generated storage is exempt from the prefix rule.
 
@@ -75,13 +75,13 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.13.vsix` for the current syntax, with required non-public prefixes, `this`/`super` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
+Use `accent-vscode-0.1.14.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
 
 ```bash
-code --install-extension tools/accent-vscode/accent-vscode-0.1.13.vsix --force
+code --install-extension tools/accent-vscode/accent-vscode-0.1.14.vsix --force
 ```
 
-Reload VS Code after installation. Archives through `0.1.12` retain their previous documentation. Rebuild the language server and install `0.1.13` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
+Reload VS Code after installation. Archives through `0.1.13` retain their previous documentation. Rebuild the language server and install `0.1.14` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
 
 To rebuild the current package:
 
@@ -94,7 +94,7 @@ npm ci
 npm run compile
 node test/async-syntax.test.cjs
 node test/formatter.test.cjs
-npx @vscode/vsce package --out accent-vscode-0.1.13.vsix
+npx @vscode/vsce package --out accent-vscode-0.1.14.vsix
 python3 test/package.test.py
 ```
 

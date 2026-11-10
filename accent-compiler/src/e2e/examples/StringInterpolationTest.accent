@@ -11,21 +11,21 @@ class StringInterpolationTest {
         final name = "Accent Developer";
         final welcome = $"Welcome, {name}!";
         System.out.println("1. Basic Variable: " + welcome);
-        _assertWelcome(welcome, "Welcome, Accent Developer!");
+        static._assertWelcome(welcome, "Welcome, Accent Developer!");
 
         // 2. Expression & Ternary Interpolation
         final active = true;
         final count = 5;
         final summary = $"Items: {count * 10}, Status: {active ? "Active" : "Inactive"}";
         System.out.println("2. Expressions:    " + summary);
-        _assertSummary(summary, "Items: 50, Status: Active");
+        static._assertSummary(summary, "Items: 50, Status: Active");
 
         // 3. Double Brace Escaping
         final braces = $"{{name: \"{name}\", rating: {count}}}";
         System.out.println("3. Double Braces:  " + braces);
         final quote = Character.toString(34) ?: "";
         final expectedBraces = "{name: " + quote + "Accent Developer" + quote + ", rating: 5}";
-        _assertBraces(braces, expectedBraces);
+        static._assertBraces(braces, expectedBraces);
 
         // 4. Multiline Interpolation
         final multiline = $"Line 1: {name}
@@ -33,20 +33,20 @@ Line 2: Count is {count}
 Line 3: Finished.";
         System.out.println("4. Multiline:\n" + multiline);
         final expectedMultiline = $"Line 1: Accent Developer\nLine 2: Count is 5\nLine 3: Finished.";
-        _assertMultiline(multiline, expectedMultiline);
+        static._assertMultiline(multiline, expectedMultiline);
 
         // 5. Null Conversion
         final Object nullable? = null;
         final nullStr = $"Value: {nullable?}";
         System.out.println("5. Null Handling:  " + nullStr);
-        _assertNull(nullStr, "Value: null");
+        static._assertNull(nullStr, "Value: null");
 
         // 6. Evaluation Order (Left-to-Right)
         final List<Integer> order = new ArrayList<Integer>();
-        final orderStr = $"{_recordCall(order, 1)}-{_recordCall(order, 2)}-{_recordCall(order, 3)}";
+        final orderStr = $"{static._recordCall(order, 1)}-{static._recordCall(order, 2)}-{static._recordCall(order, 3)}";
         System.out.println("6. Eval Order:     " + orderStr);
-        _assertOrder(orderStr, "10-20-30");
-        _assertOrderSideEffects(order);
+        static._assertOrder(orderStr, "10-20-30");
+        static._assertOrderSideEffects(order);
 
         System.out.println("=== Standalone String Interpolation Test PASSED Successfully! ===");
     }

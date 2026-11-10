@@ -125,8 +125,8 @@ class BooleanOperatorTest {
                         throw new RuntimeException("Right operand must not run");
                     }
                     static void main(String[] args) {
-                        if (false and fail()) { throw new RuntimeException("and failed"); }
-                        if (not (true or fail())) { throw new RuntimeException("or failed"); }
+                        if (false and static.fail()) { throw new RuntimeException("and failed"); }
+                        if (not (true or static.fail())) { throw new RuntimeException("or failed"); }
                     }
                 }
                 """);
@@ -312,13 +312,13 @@ class BooleanOperatorTest {
             "        return firstActive == secondActive;\n" +
             "    }\n" +
             "    static void main(String[] args) {\n" +
-            "        if (not canAccess(true, false, false)) { throw new RuntimeException(\"canAccess 1\"); }\n" +
-            "        if (canAccess(true, true, false))   { throw new RuntimeException(\"canAccess 2\"); }\n" +
-            "        if (not canAccess(false, true, true))  { throw new RuntimeException(\"canAccess 3\"); }\n" +
-            "        if (not exactlyOneSelected(true, false)) { throw new RuntimeException(\"exclusive selection 1\"); }\n" +
-            "        if (exactlyOneSelected(true, true))   { throw new RuntimeException(\"exclusive selection 2\"); }\n" +
-            "        if (not haveSameStatus(true, true))   { throw new RuntimeException(\"same status 1\"); }\n" +
-            "        if (haveSameStatus(true, false))   { throw new RuntimeException(\"same status 2\"); }\n" +
+            "        if (not static.canAccess(true, false, false)) { throw new RuntimeException(\"canAccess 1\"); }\n" +
+            "        if (static.canAccess(true, true, false))   { throw new RuntimeException(\"canAccess 2\"); }\n" +
+            "        if (not static.canAccess(false, true, true))  { throw new RuntimeException(\"canAccess 3\"); }\n" +
+            "        if (not static.exactlyOneSelected(true, false)) { throw new RuntimeException(\"exclusive selection 1\"); }\n" +
+            "        if (static.exactlyOneSelected(true, true))   { throw new RuntimeException(\"exclusive selection 2\"); }\n" +
+            "        if (not static.haveSameStatus(true, true))   { throw new RuntimeException(\"same status 1\"); }\n" +
+            "        if (static.haveSameStatus(true, false))   { throw new RuntimeException(\"same status 2\"); }\n" +
             "    }\n" +
             "}\n";
 

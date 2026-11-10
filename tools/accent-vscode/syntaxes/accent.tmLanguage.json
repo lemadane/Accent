@@ -161,7 +161,7 @@
       "patterns": [
         {
           "name": "storage.modifier.accent",
-          "match": "\\b(public|protected|private|static|transient|volatile|synchronized|native|abstract|strictfp|package|import)\\b"
+          "match": "\\b(public|protected|private|static(?!\\s*\\.)|transient|volatile|synchronized|native|abstract|strictfp|package|import)\\b"
         }
       ]
     },
@@ -173,7 +173,7 @@
         },
         {
           "name": "constant.language.accent",
-          "match": "\\b(true|false|null|this|super)\\b"
+          "match": "\\b(true|false|null|this|super|static(?=\\s*\\.))\\b"
         }
       ]
     },

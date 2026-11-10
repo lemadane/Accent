@@ -69,8 +69,8 @@ class DataParsingEndToEndTest {
                     static void main(String[] args) {
                         List<Item?> items = List.of(new Item("Lem"));
                         Map<String, Person> people? = Map.of("U1", new Person("Ana"));
-                        System.out.println(Parsing.jsonRoundTrip(items)?);
-                        System.out.println(Parsing.xmlRoundTrip(people?)?);
+                        System.out.println(static.jsonRoundTrip(items)?);
+                        System.out.println(static.xmlRoundTrip(people?)?);
                     }
                 }
                 """);

@@ -137,10 +137,10 @@ class ExtensionResolutionRegressionTest {
                 class Caller {
                     static int receiverCalls = 0;
                     static int argumentCalls = 0;
-                    static String receiver?() { Caller.receiverCalls++; return null; }
-                    static String argument() { Caller.argumentCalls++; return "["; }
-                    static String absent?() { return (Caller.receiver()?)?.decorate(Caller.argument()); }
-                    static String present?() { return "x"?.decorate(Caller.argument()); }
+                    static String receiver?() { static.receiverCalls++; return null; }
+                    static String argument() { static.argumentCalls++; return "["; }
+                    static String absent?() { return (static.receiver()?)?.decorate(static.argument()); }
+                    static String present?() { return "x"?.decorate(static.argument()); }
                 }
                 """);
 
@@ -173,9 +173,9 @@ class ExtensionResolutionRegressionTest {
                 class Caller {
                     static int receiverCalls = 0;
                     static int argumentCalls = 0;
-                    static domain.Counter receiver?(domain.Counter value?) { Caller.receiverCalls++; return value?; }
-                    static int argument() { Caller.argumentCalls++; return 3; }
-                    static void run(domain.Counter value?) { (Caller.receiver(value?)?)?.add(Caller.argument()); }
+                    static domain.Counter receiver?(domain.Counter value?) { static.receiverCalls++; return value?; }
+                    static int argument() { static.argumentCalls++; return 3; }
+                    static void run(domain.Counter value?) { (static.receiver(value?)?)?.add(static.argument()); }
                 }
                 """);
 

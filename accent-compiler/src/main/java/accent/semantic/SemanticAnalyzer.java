@@ -806,6 +806,20 @@ public final class SemanticAnalyzer implements ImportResolver {
 
     private void verifyMemberReceiver(Expression receiver, List<String> modifiers,
                                       SymbolTable.MemberOwner owner, String name, Token token) {
+        if (modifiers.contains("static")) {
+            boolean own = owner != null && currentClass != null && owner.typeName().equals(currentClass.fullName());
+            if (own && !(receiver instanceof StaticExpr)) {
+                error(token, "Static member '" + name + "' of the current class must be accessed with 'static." + name + "'.");
+            } else if (!own && (receiver == null || receiver instanceof StaticExpr
+                    || receiver instanceof ThisExpr || receiver instanceof SuperExpr || !isTypeReceiver(receiver)
+                    || owner != null && !resolvedTypes.get(receiver).info().fullName().equals(owner.typeName()))) {
+                error(token, "Static member '" + name + "' must be accessed with its declaring class name '"
+                        + (owner == null ? "ClassName" : owner.typeName()) + "." + name + "'.");
+            }
+        } else if (receiver instanceof StaticExpr) {
+            error(token, "Instance member '" + name + "' cannot be accessed with 'static.'; use '"
+                    + requiredQualifier(owner) + name + "'.");
+        }
         if (requiresSuper(receiver, modifiers, owner, currentClass)) {
             error(token, "Inherited instance member '" + name + "' declared in '" + owner.typeName()
                     + "' must be accessed with 'super." + name + "', not 'this." + name + "'.");
@@ -813,6 +827,25 @@ public final class SemanticAnalyzer implements ImportResolver {
         if (receiver instanceof SuperExpr && modifiers.contains("abstract")) {
             error(token, "Cannot call abstract parent method '" + name + "' with 'super'; override it before calling it with 'this'.");
         }
+    }
+
+    private boolean isTypeReceiver(Expression receiver) {
+        if (receiver instanceof IdentifierExpr id)
+            return lookupVar(id.name()) == null && resolve(id.name()) != null;
+        if (receiver instanceof MemberAccessExpr member) {
+            String name = qualifiedTypeName(member);
+            return name != null && resolve(name) != null;
+        }
+        return false;
+    }
+
+    private String qualifiedTypeName(Expression expr) {
+        if (expr instanceof IdentifierExpr id) return id.name();
+        if (expr instanceof MemberAccessExpr member) {
+            String prefix = qualifiedTypeName(member.receiver());
+            return prefix == null ? null : prefix + "." + member.memberName();
+        }
+        return null;
     }
 
     private String requiredQualifier(SymbolTable.MemberOwner owner) {
@@ -844,7 +877,10 @@ public final class SemanticAnalyzer implements ImportResolver {
                 .filter(method -> symbolTable.isMemberAccessible(method, type.info(), context.accessingClass(),
                         context.packageName(), receiver instanceof SuperExpr))
                 .filter(method -> !requiresSuper(receiver, method.modifiers(), symbolTable.declaringOwner(method), context.accessingClass()))
-                .filter(method -> !(receiver instanceof SuperExpr && method.modifiers().contains("abstract"))).toList();
+                .filter(method -> !(receiver instanceof SuperExpr && method.modifiers().contains("abstract")))
+                .filter(method -> !(receiver instanceof ThisExpr || receiver instanceof SuperExpr) || !method.modifiers().contains("static"))
+                .filter(method -> !(receiver instanceof StaticExpr) || method.modifiers().contains("static")
+                        && symbolTable.declaringOwner(method).typeName().equals(type.info().fullName())).toList();
     }
 
     public List<SymbolTable.FieldInfo> accessibleFields(Expression receiver) {
@@ -857,7 +893,10 @@ public final class SemanticAnalyzer implements ImportResolver {
         }
         return fields.values().stream().filter(field -> symbolTable.isMemberAccessible(field, type.info(),
                 context.accessingClass(), context.packageName(), receiver instanceof SuperExpr))
-                .filter(field -> !requiresSuper(receiver, field.modifiers(), symbolTable.declaringOwner(field), context.accessingClass())).toList();
+                .filter(field -> !requiresSuper(receiver, field.modifiers(), symbolTable.declaringOwner(field), context.accessingClass()))
+                .filter(field -> !(receiver instanceof ThisExpr || receiver instanceof SuperExpr) || !field.modifiers().contains("static"))
+                .filter(field -> !(receiver instanceof StaticExpr) || field.modifiers().contains("static")
+                        && symbolTable.declaringOwner(field).typeName().equals(type.info().fullName())).toList();
     }
 
     private Expression unwrapNullable(Expression expression) {
@@ -912,15 +951,19 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
 
             // Check field access on current class (missing this. check)
-            if (currentClass != null && !isStaticContext) {
+            if (currentClass != null) {
                 SymbolTable.FieldInfo fInfo = currentClass.findField(id.name(), symbolTable);
                 if (fInfo != null) {
                     ResolvedType receiver = new ResolvedType(currentClass, true, List.of(), 0);
                     if (!isAccessible(fInfo, receiver, null)) {
                         inaccessibleMember(id.token(), "field", id.name(), symbolTable.declaringOwner(fInfo));
                     }
-                    error(id.token(), "Access to field '" + id.name() + "' must be explicitly qualified with '"
-                            + requiredQualifier(symbolTable.declaringOwner(fInfo)) + "'.");
+                    if (fInfo.modifiers().contains("static")) {
+                        verifyMemberReceiver(null, fInfo.modifiers(), symbolTable.declaringOwner(fInfo), id.name(), id.token());
+                    } else {
+                        error(id.token(), "Access to field '" + id.name() + "' must be explicitly qualified with '"
+                                + requiredQualifier(symbolTable.declaringOwner(fInfo)) + "'.");
+                    }
                     // Recover type
                     return symbolTable.resolveFieldType(fInfo);
                 }
@@ -934,6 +977,12 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
 
             error(id.token(), "Cannot resolve symbol '" + id.name() + "'.");
+        } else if (expr instanceof StaticExpr st) {
+            if (currentClass == null) {
+                error(st.token(), "Cannot use 'static.' outside a declaring class; use the declaring class name.");
+                return new ResolvedType(symbolTable.getType("java.lang.Object"), true, List.of(), 0);
+            }
+            return new ResolvedType(currentClass, true, List.of(), 0);
         } else if (expr instanceof ThisExpr te) {
             if (isStaticContext) {
                 error(te.token(), "Cannot reference 'this' in a static context.");
@@ -1040,6 +1089,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             return type;
         } else if (expr instanceof MemberAccessExpr ma) {
             if (ma.memberName().equals("class")) {
+                if (ma.receiver() instanceof StaticExpr) error(ma.token(), "Use the class name for a class literal, not 'static.class'.");
                 if (ma.nonNullBinding()) error(ma.token(), "Class literals must not use a binding '!'.");
                 return new ResolvedType(symbolTable.getType("java.lang.Class"), true, List.of(), 0);
             }

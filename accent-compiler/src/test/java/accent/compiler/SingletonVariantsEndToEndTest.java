@@ -31,9 +31,9 @@ class SingletonVariantsEndToEndTest {
                     static int classCalls = 0;
                     static int recordCalls = 0;
                     static int modelCalls = 0;
-                    static int classCreated() { Probe.classCalls++; return 1; }
-                    static String recordName() { Probe.recordCalls++; return "light"; }
-                    static String modelName() { Probe.modelCalls++; return "app"; }
+                    static int classCreated() { static.classCalls++; return 1; }
+                    static String recordName() { static.recordCalls++; return "light"; }
+                    static String modelName() { static.modelCalls++; return "app"; }
                 }
                 """);
         fixtures.put("Config", """

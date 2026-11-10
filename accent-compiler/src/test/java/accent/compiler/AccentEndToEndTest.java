@@ -222,10 +222,10 @@ class AccentEndToEndTest {
                     static Async<String> start() { return Async.run(() -> "hello"); }
                     static String finish(Async<String> task) { return task.await(); }
                     static void main(String[] args) {
-                        final Async<String> task = start();
+                        final Async<String> task = static.start();
                         final inferred = Async.run(() -> "world");
-                        if (finish(task) != "hello") { throw new RuntimeException("Typed Async failed"); }
-                        if (finish(inferred) != "world") { throw new RuntimeException("Inferred Async failed"); }
+                        if (static.finish(task) != "hello") { throw new RuntimeException("Typed Async failed"); }
+                        if (static.finish(inferred) != "world") { throw new RuntimeException("Inferred Async failed"); }
                     }
                 }
                 """;
@@ -305,15 +305,15 @@ class AccentEndToEndTest {
             "    }\n" +
             "    static void main(String[] args) {\n" +
             "        // 1. Positional only with defaults\n" +
-            "        final res1 = calculate(10);\n" +
+            "        final res1 = static.calculate(10);\n" +
             "        if (res1 != 21) { throw new RuntimeException(\"Test 1 failed: \" + res1); }\n" +
             "\n" +
             "        // 2. Named arguments out of order\n" +
-            "        final res2 = calculate(offset: 5, base: 10);\n" +
+            "        final res2 = static.calculate(offset: 5, base: 10);\n" +
             "        if (res2 != 25) { throw new RuntimeException(\"Test 2 failed: \" + res2); }\n" +
             "\n" +
             "        // 3. Mixed positional and named arguments\n" +
-            "        final res3 = calculate(10, multiplier: 3);\n" +
+            "        final res3 = static.calculate(10, multiplier: 3);\n" +
             "        if (res3 != 31) { throw new RuntimeException(\"Test 3 failed: \" + res3); }\n" +
             "    }\n" +
             "}\n";
@@ -509,7 +509,7 @@ class AccentEndToEndTest {
             "\n" +
             "        // 6. Evaluation order check\n" +
             "        final List<Integer> order = new ArrayList<Integer>();\n" +
-            "        final orderTest = $\"{_recordCall(order, 1)}-{_recordCall(order, 2)}-{_recordCall(order, 3)}\";\n" +
+            "        final orderTest = $\"{static._recordCall(order, 1)}-{static._recordCall(order, 2)}-{static._recordCall(order, 3)}\";\n" +
             "        if (not orderTest.equals(\"10-20-30\")) {\n" +
             "            throw new RuntimeException(\"Fail order value: \" + orderTest);\n" +
             "        }\n" +

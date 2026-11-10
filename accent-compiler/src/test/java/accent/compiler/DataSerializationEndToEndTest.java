@@ -87,11 +87,11 @@ class DataSerializationEndToEndTest {
                 static int chained(Map<String, PersonModel> value) { return value.toJson().length(); }
                 static int calls = 0;
                 static List<PersonRecord> next() {
-                    Harness.calls++;
+                    static.calls++;
                     List<PersonRecord> result = List.of(new PersonRecord("once"));
                     return result;
                 }
-                static String once() { return Harness.next().toJson(); }
+                static String once() { return static.next().toJson(); }
                 static String payload(Payload value) { return value.toJson(); }
                 static String payloadXml(Payload value) { return value.toXml(); }
                 static String nodeJson(Node value) { return value.toJson(); }

@@ -18,9 +18,9 @@ class NullCoalescingCompatibilityTest {
         Files.writeString(source, """
             class Coalesce {
                 static int fallbacks = 0;
-                static String fallback() { Coalesce.fallbacks++; return "fallback"; }
+                static String fallback() { static.fallbacks++; return "fallback"; }
                 static Object value(Object x?) {
-                    return x? ?: Coalesce.fallback();
+                    return x? ?: static.fallback();
                 }
             }
             """);

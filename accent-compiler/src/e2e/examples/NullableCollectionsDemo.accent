@@ -6,7 +6,7 @@ import java.util.ArrayList;
 class NullableCollectionsDemo {
     static int indexCalls = 0;
     static int nextIndex() {
-        NullableCollectionsDemo.indexCalls++;
+        static.indexCalls++;
         return 0;
     }
 
@@ -21,24 +21,24 @@ class NullableCollectionsDemo {
 
         List<String> optional? = null;
         optional?.add("skipped");
-        String skipped? = optional?.get(NullableCollectionsDemo.nextIndex());
+        String skipped? = optional?.get(static.nextIndex());
 
         List<String> both?? = null;
         both?.add(null);
-        String skippedElement? = both?.get(NullableCollectionsDemo.nextIndex())?;
+        String skippedElement? = both?.get(static.nextIndex())?;
         List<String> alias?? = both??;
 
         String[] optionalArray? = null;
-        String skippedIndex? = optionalArray?[NullableCollectionsDemo.nextIndex()];
+        String skippedIndex? = optionalArray?[static.nextIndex()];
         String[] bothArray?? = null;
-        String skippedNullableIndex? = bothArray?[NullableCollectionsDemo.nextIndex()]?;
+        String skippedNullableIndex? = bothArray?[static.nextIndex()]?;
 
         String?[] slots = {null, "Jane"};
         String emptySlot? = slots[0]?;
         String[] required = {"John"};
         String indexed = required[0];
 
-        if (NullableCollectionsDemo.indexCalls != 0) {
+        if (static.indexCalls != 0) {
             throw new IllegalStateException("Optional access evaluated an index for a null receiver");
         }
         return first + ":" + (missing? ?: "missing") + ":" + (skipped? ?: "skipped")
@@ -46,6 +46,6 @@ class NullableCollectionsDemo {
     }
 
     static void main(String[] args) {
-        System.out.println(NullableCollectionsDemo.run());
+        System.out.println(static.run());
     }
 }

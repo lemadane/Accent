@@ -54,12 +54,12 @@ class HttpLoggingEndToEndTest {
                             log.info("info marker");
                             log.warn("warn marker");
                             log.error("error marker", new IllegalStateException("stack marker"));
-                            final task = async HttpLogServer.background();
+                            final task = async static.background();
                             await task;
                             return Response.text("ok");
                         });
                         app.get("/async-failure", req -> {
-                            final task = async HttpLogServer.failAsync();
+                            final task = async static.failAsync();
                             final value = await task;
                             return Response.text(value);
                         });

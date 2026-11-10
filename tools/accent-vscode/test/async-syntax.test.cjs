@@ -19,7 +19,7 @@ for (const keyword of ['public', 'protected', 'private']) {
 console.log('Visibility modifier highlighting checks passed');
 
 const receiverRules = grammar.repository.numbers.patterns.map(rule => new RegExp(rule.match));
-for (const keyword of ['this', 'super']) {
+for (const keyword of ['this', 'super', 'static.']) {
     assert.equal(receiverRules.some(rule => rule.test(keyword)), true);
 }
 console.log('Member qualifier highlighting checks passed');
@@ -38,3 +38,7 @@ const resultRule = new RegExp(grammar.repository['nullable-bindings'].patterns[1
 assert.equal(resultRule.test('names.get(0)?'), true);
 assert.equal(resultRule.test('names?[0]?'), true);
 console.log('Nullable binding, method, and result highlighting checks passed');
+
+assert.equal(modifierRules.some(rule => rule.test("static int count")), true);
+assert.equal(modifierRules.some(rule => rule.test("static.increment()")), false);
+assert.equal(receiverRules.some(rule => rule.test("static.increment()")), true);

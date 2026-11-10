@@ -154,7 +154,9 @@ These are the rules you will use throughout the examples. The detailed sections 
 | Nullable method result | `String nickname?()` → `customer.nickname()?` | Mark the declaration and the result at the call site |
 | Binding that cannot be reassigned | `final count = 1;` | Does not make a referenced object deeply immutable |
 | Reassignable binding | `var count = 1;` | Allows reassignment |
-| Current / inherited member | `this.name` / `super.name` | Identify where the selected instance member is declared |
+| Current / inherited instance member | `this.name` / `super.name` | Identify where the selected instance member is declared |
+| Static member in its declaring class | `static.count` / `static.increment()` | Access shared state or behavior explicitly |
+| Static member from another class | `Counter.count` / `Counter.increment()` | Name the class that declares the member |
 | Non-public member | `protected int _count;` | Use an explicit modifier and an underscore prefix |
 | Logical expression | `ready and not stopped` | Use `not`, `and`, and `or` |
 | Conditional block | `if (ready) { run(); }` | Braces are required for every `if` and `else` body |
@@ -360,6 +362,8 @@ Use the qualifier that identifies where the selected instance field or method is
 | Inherited from a parent, on the current object | `super.member` / `super.method()` |
 | Explicit parent implementation of an overridden method | `super.method()` |
 | A member of another object | `object.member` / `object.method()` |
+| Static member declared in the current class | `static.member` / `static.method()` |
+| Static member declared in another class, including a parent | `ClassName.member` / `ClassName.method()` |
 
 The rule applies to public, protected, and accessible package-private instance members. An inherited field or matching method overload cannot be accessed through `this`. A same-named method with different parameters is an overload, not an override. If a child declares a same-named field, `this.field` selects the child's field and `super.field` selects the parent's field.
 
@@ -388,7 +392,29 @@ class FastCounter extends Counter {
 
 Normal calls on another object still dispatch dynamically. For example, `counter.increment()` can invoke `FastCounter.increment()` even when `counter` is declared as `Counter`. `this.method()` also retains virtual dispatch, so a further subclass can override it. `super.method()` deliberately bypasses overrides in the current and further subclasses.
 
-Static members use class-qualified access, such as `Counter.shared`. `super` is unavailable in static contexts and extension blocks. Inside an extension, `this` refers to the extension's target object, so calls such as `this.length()` remain valid. A class with no explicit parent may use `super` for its implicit `Object` parent. Abstract parent methods have no implementation to call through `super`; implement an override before calling them through `this`.
+#### Static member access
+
+Use `static.` for static fields and methods declared in the class you are writing. This rule applies inside both static and instance methods, constructors, field initializers, and lambdas. Bare calls such as `increment()` and same-class calls such as `Counter.increment()` are rejected inside `Counter`.
+
+```accent
+class Counter {
+    static int count = 0;
+
+    static void increment() {
+        static.count++;
+    }
+
+    void update() {
+        static.increment();
+    }
+}
+```
+
+From another class, use `Counter.increment()` or `Counter.count`. In a subclass, inherited static members still use their declaring parent's name, such as `Counter.increment()`. `static.` cannot access instance members; use `this.` or `super.` for those. Static members cannot be accessed through an object reference.
+
+The compiler lowers `static.` to the declaring Java class name; it does not change the JVM member name or dispatch behavior. Ordinary Java source retains Java's access syntax. The compiler-provided `@Logging` binding keeps its existing `log.info(...)` convenience.
+
+`super` is unavailable in static contexts and extension blocks. Inside an extension, `this` refers to the extension's target object, so calls such as `this.length()` remain valid. A class with no explicit parent may use `super` for its implicit `Object` parent. Abstract parent methods have no implementation to call through `super`; implement an override before calling them through `this`.
 
 Run the complete example from the repository root after building the CLI distribution:
 

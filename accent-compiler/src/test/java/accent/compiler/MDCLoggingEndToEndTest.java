@@ -45,9 +45,9 @@ class MDCLoggingEndToEndTest {
                         });
                         app.get("/users/:id", req -> {
                             log.info("request work");
-                            final task = async Server.work();
+                            final task = async static.work();
                             final id = await task;
-                            final explicitTask = Async.run(() -> Server.work());
+                            final explicitTask = Async.run(() -> static.work());
                             if (not explicitTask.await().equals(id)) { throw new RuntimeException("context mismatch"); }
                             return Response.text(id);
                         });

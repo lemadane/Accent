@@ -197,7 +197,7 @@ class SemanticVisibilityTest {
                 import vis.Circle;
                 class Visitor {
                     int read(Shape shape, Circle circle) {
-                        return shape.area() + Shape.VALUE + Shape.initial() + circle.VALUE;
+                        return shape.area() + Shape.VALUE + Shape.initial() + Shape.VALUE;
                     }
                 }
                 """);
