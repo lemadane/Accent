@@ -25,6 +25,9 @@
       "include": "#nullable-bindings"
     },
     {
+      "include": "#builtins"
+    },
+    {
       "include": "#accent-keywords"
     },
     {
@@ -230,6 +233,18 @@
         {
           "name": "entity.name.function.nullable.accent",
           "match": "\\b[A-Za-z_]\\w*\\?(?=\\s*\\()"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.accent",
+          "match": "(?<![\\w.])\\b(?:print|println|log)\\b(?=\\s*\\()"
+        },
+        {
+          "name": "support.variable.builtin.accent",
+          "match": "\\blog\\b(?=\\s*\\.)"
         }
       ]
     }

@@ -122,6 +122,8 @@ public final class SymbolTable {
             info = getType(implicit + name);
             if (info != null) return info;
         }
+        if (name.equals("Logger") && !unit.sourceFile().path().toString().endsWith(".java"))
+            return getType("accent.logging.Logger");
         return getType(name);
     }
 

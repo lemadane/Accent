@@ -160,6 +160,9 @@ These are the rules you will use throughout the examples. The detailed sections 
 | Non-public member | `protected int _count;` | Use an explicit modifier and an underscore prefix |
 | Logical expression | `ready and not stopped` | Use `not`, `and`, and `or` |
 | Conditional block | `if (ready) { run(); }` | Braces are required for every `if` and `else` body |
+| Console output | `println("Hello");` | Shorthand for `System.out.println(...)` |
+| Logging | `log("Started");` / `log.info("Started");` | Use the current type's logger without imports or annotations |
+| Diagnostic context | `log.put("requestId", id);` | Attach context fields to log events on the current thread |
 
 The collection entries show declaration shapes; non-null local variables and fields still require an initializer. For independent collection and element nullability, see the [complete table](#non-null-array-and-list-elements).
 
@@ -412,7 +415,7 @@ class Counter {
 
 From another class, use `Counter.increment()` or `Counter.count`. In a subclass, inherited static members still use their declaring parent's name, such as `Counter.increment()`. `static.` cannot access instance members; use `this.` or `super.` for those. Static members cannot be accessed through an object reference.
 
-The compiler lowers `static.` to the declaring Java class name; it does not change the JVM member name or dispatch behavior. Ordinary Java source retains Java's access syntax. The compiler-provided `@Logging` binding keeps its existing `log.info(...)` convenience.
+The compiler lowers `static.` to the declaring Java class name; it does not change the JVM member name or dispatch behavior. Ordinary Java source retains Java's access syntax. The built-in `print(...)`, `println(...)`, and `log(...)` calls are explicit compiler shorthands and are exempt from user-defined member qualification. The automatic `log` binding also supports `log.info(...)` and context methods.
 
 `super` is unavailable in static contexts and extension blocks. Inside an extension, `this` refers to the extension's target object, so calls such as `this.length()` remain valid. A class with no explicit parent may use `super` for its implicit `Object` parent. Abstract parent methods have no implementation to call through `super`; implement an override before calling them through `this`.
 
@@ -703,6 +706,21 @@ Accent includes native support for type-safe, evaluated string interpolation exp
 * **Evaluation Order**: Expressions inside an interpolated string are evaluated strictly from left to right exactly once.
 * **Null Handling**: If an evaluated expression resolves to `null`, it renders as the string `"null"` (equivalent to `String.valueOf(value)`). No `NullPointerException` is thrown from the string mapping itself.
 * **Type Behavior**: The entire interpolated string expression resolves to type `java.lang.String`. Void-returning expressions are rejected at compile-time.
+
+#### Console output
+
+Use `println(...)` to write a value followed by a newline, `println()` for a blank line, and `print(...)` to write without a newline:
+
+```accent
+print("Hello, ");
+println("Accent!");
+println(42);
+println();
+```
+
+These built-in calls use `System.out.print` and `System.out.println`, including the standard output stream's formatting and redirection. They need no import or receiver. Explicit `System.out` calls remain valid. If you declare your own method named `print` or `println`, access it through `this.` or `static.`; a bare call selects the built-in shorthand.
+
+For log levels, timestamps, file output, and request context, use [logging](#22-logging-and-diagnostic-context). The runnable [console and logging demo](accent-compiler/src/e2e/examples/console/ConsoleLoggingDemo.accent) shows both APIs.
 
 ### 16. Data models and records
 
@@ -1132,14 +1150,31 @@ class ProductController {
 
 ### 22. Logging and diagnostic context
 
-Accent provides a native logging system integrated directly into the language via the `@Logging` annotation, without requiring Lombok, SLF4J, or any external bytecode manipulation.
+Every Accent type can use `log` without an import, annotation, or field declaration. The non-null `Logger` binding combines severity-based logging and MDC-style diagnostic context in one API. The `Logger` type itself is implicitly available, like `String` or `Object`.
 
-When you annotate a class, record, or enum with `@Logging`, the compiler automatically injects a static, immutable `log` field bound to that specific type.
+| Call | Meaning |
+| --- | --- |
+| `log("Started")` | Shorthand for static `Logger.log("Started")` (INFO) |
+| `log("Failed", exception)` | Logs at INFO with exception details; use `log.error(...)` for ERROR severity |
+| `log.trace(...)`, `.debug(...)`, `.info(...)`, `.warn(...)`, `.error(...)` | Select a severity; each accepts a message and an optional exception |
+| `final log = new Logger()` | Create a logger instance named after the calling class; no import needed |
+| `log.put(...)`, `.get(...)`, `.remove(...)`, `.clear()` | Manage diagnostic context on the current thread |
 
 ```accent
-import accent.logging.Logging;
+class Application {
+    static void main(String[] args) {
+        println("Application starting");
+        log("Started");
+        final log = new Logger();
+        log.info("Ready to accept work");
+        Logger.log("Also available as a static call");
+    }
+}
+```
 
-@Logging
+Use explicit levels in application code:
+
+```accent
 class BookingService {
     Booking create(BookingRequest request) {
         log.debug($"Creating booking for {request.customerName()}");
@@ -1156,20 +1191,19 @@ class BookingService {
 }
 ```
 
-The underlying injected field is equivalent to:
-```java
-private static final accent.logging.Logger log = accent.logging.LogManager.getLogger(BookingService.class);
-```
+The automatic logger uses the enclosing type's fully qualified name. It is obtained lazily through Accent's cached `LogManager`, so unused logging does not add an eagerly initialized field to every class. Logger handles are shared by name; diagnostic context is shared only within the current thread.
+
+The built-in `log` binding cannot be reassigned. A local variable or parameter named `log` shadows it; an explicitly declared field named `log` follows normal member qualification. Explicit imports or application types named `Logger` take precedence over the implicit Accent type. Bare `log(...)` always calls static `accent.logging.Logger.log(...)`, even when a local variable is named `log`; `log.info(...)` uses that local instance. `new Logger()` uses the calling class name, and `new Logger("category")` selects an explicit category. Static logging shares the current thread's context with logger instances. Bare `log(...)` selects the shorthand; call your own methods named `log` through `this.` or `static.`.
+
+Existing `@Logging` code remains supported: the annotation generates the same static final logger field as before. It is optional for the native shorthand. No Lombok or SLF4J dependency is required.
 
 #### Diagnostic context
 
-Every `Logger` (including the `log` field generated by `@Logging`) can attach string fields to log events on the current thread. For example:
+Every `Logger`, including the automatic `log` binding, can attach string fields to log events on the current thread. For example:
 
 ```accent
-import accent.logging.Logging;
 import java.util.Map;
 
-@Logging
 class CustomerService {
     void process(String requestId) {
         log.withContext(Map.of("requestId", requestId), () -> {
@@ -1180,7 +1214,7 @@ class CustomerService {
 }
 ```
 
-Use `log.put(key, value)`, `log.get(key)`, `log.remove(key)`, and `log.clearContext()` to manage fields. Keys and values must be non-null strings. `get` returns null for a missing key. `log.contextMap()` returns an immutable snapshot (an empty map when unset); `log.setContextMap(map)` replaces the current context with a defensive copy. `log.withContext(map, body)` adds fields for the duration of `body` and then restores the previous context, even if `body` throws.
+Use `log.put(key, value)`, `log.get(key)`, `log.remove(key)`, and `log.clear()` to manage fields. `log.clearContext()` remains an equivalent spelling. Keys and values must be non-null strings. `get` returns null for a missing key. `log.contextMap()` returns an immutable snapshot (an empty map when unset); `log.setContextMap(map)` replaces the current context with a defensive copy. `log.withContext(map, body)` adds fields for the duration of `body` and then restores the previous context, even if `body` throws.
 
 The context is per thread, not per logger: fields set through one logger appear on events from every logger on the same thread.
 
@@ -1201,14 +1235,12 @@ Accent does not generate request IDs automatically. Outside the standalone HTTP 
 
 #### Logging in standalone HTTP
 
-`@Logging` works in standalone HTTP applications without Spring. The generated `log` field is static, so it is also available inside `main`, middleware, and route lambdas:
+The automatic `log` binding works without Spring and is available inside `main`, middleware, and route lambdas:
 
 ```accent
 import accent.http.App;
 import accent.http.Response;
-import accent.logging.Logging;
 
-@Logging
 class Main {
     static void main(String[] args) {
         final app = new App();

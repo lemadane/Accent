@@ -12,6 +12,24 @@ Ordered by day-to-day developer usefulness:
 4. **Formatting**: Uses the editor's indentation settings (2 spaces when no tab size is provided), with 4-space continuation indentation; preserves multiline literal contents.
 5. **Generated Java command**: The extension registers **Accent: Show Generated Java**, backed by the server's transpile command. The CLI's `--save-java` output is also available for inspecting generated Java.
 
+## Console output and logging
+
+Use `print(...)` or `println(...)` without `System.out`. An automatic `log` binding provides severity and diagnostic-context methods without an import or `@Logging`. `log("message")` calls static `Logger.log("message")` at INFO, even with a local variable named `log`; `log.error("message", exception)` selects ERROR. `Logger` is an implicitly available class; `new Logger()` creates an instance named after the calling class.
+
+```accent
+println("Hello, Accent!");
+log("Started");
+final log = new Logger();
+log.put("requestId", "R1");
+try {
+    log.info("Processing request");
+} finally {
+    log.clear();
+}
+```
+
+Completion offers `print`, `println`, `log`, and `Logger`; `log.` includes logging and context methods. Generated Java previews expand these shorthands. User-defined members still require `this.`, `super.`, or `static.` as appropriate; bare printing and logging calls select built-ins.
+
 ## Visibility
 
 | Accent modifier | Java output | Access |
@@ -75,13 +93,13 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.14.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
+Use `accent-vscode-0.1.15.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
 
 ```bash
-code --install-extension tools/accent-vscode/accent-vscode-0.1.14.vsix --force
+code --install-extension tools/accent-vscode/accent-vscode-0.1.15.vsix --force
 ```
 
-Reload VS Code after installation. Archives through `0.1.13` retain their previous documentation. Rebuild the language server and install `0.1.14` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
+Reload VS Code after installation. Archives through `0.1.14` retain their previous documentation. Rebuild the language server and install `0.1.15` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
 
 To rebuild the current package:
 
@@ -94,7 +112,7 @@ npm ci
 npm run compile
 node test/async-syntax.test.cjs
 node test/formatter.test.cjs
-npx @vscode/vsce package --out accent-vscode-0.1.14.vsix
+npx @vscode/vsce package --out accent-vscode-0.1.15.vsix
 python3 test/package.test.py
 ```
 

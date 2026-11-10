@@ -14,9 +14,13 @@ public final class HoverProvider {
         Token token = AstNavigator.findTokenAt(unit, line, column);
         if (token == null) return null;
 
-        // Check synthetic log field injected by @Logging
+        // Built-in shorthand descriptions.
         if ("log".equals(token.lexeme())) {
-            return "**(Synthetic Field)** `private static final accent.logging.Logger log`\n\nGenerated logger injected by `@Logging` annotation.";
+            return "**(Built-in / Synthetic Field)** `accent.logging.Logger log`\n\nClass-associated logger with logging and diagnostic-context methods. No import or `@Logging` annotation is required. `log(message)` calls static `Logger.log(message)` at INFO, independently of local bindings. Use `new Logger()` for an instance.";
+        }
+
+        if ("println".equals(token.lexeme()) || "print".equals(token.lexeme())) {
+            return "Built-in shorthand for `System.out." + token.lexeme() + "(...)`.";
         }
 
         Node node = AstNavigator.findNodeAt(unit, line, column);

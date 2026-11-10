@@ -86,13 +86,15 @@ public final class CompletionProvider {
             }
         }
 
-        // Special handling for log. inside @Logging context
+        // Fallback while the built-in logger expression is still incomplete.
         if (prevToken != null && prevToken.lexeme().equals("log")) {
             items.add(new CompletionItem("info", "Method", "void"));
             items.add(new CompletionItem("debug", "Method", "void"));
             items.add(new CompletionItem("warn", "Method", "void"));
             items.add(new CompletionItem("error", "Method", "void"));
             items.add(new CompletionItem("trace", "Method", "void"));
+            for (String method : List.of("put", "get", "remove", "clear", "clearContext", "contextMap", "setContextMap", "withContext"))
+                items.add(new CompletionItem(method, "Method", "Diagnostic context"));
             return items;
         }
 
@@ -107,6 +109,11 @@ public final class CompletionProvider {
         for (String kw : keywords) {
             items.add(new CompletionItem(kw, "Keyword", "Accent keyword"));
         }
+
+        items.add(new CompletionItem("println", "Function", "System.out.println(...)"));
+        items.add(new CompletionItem("print", "Function", "System.out.print(...)"));
+        items.add(new CompletionItem("log", "Variable", "Logger; log(message) calls static Logger.log(message)"));
+        items.add(new CompletionItem("Logger", "Class", "accent.logging.Logger (implicit, constructible type)"));
 
         // 3. Local variable completions (simplified search)
         if (unit.declarations() != null) {

@@ -42,3 +42,9 @@ console.log('Nullable binding, method, and result highlighting checks passed');
 assert.equal(modifierRules.some(rule => rule.test("static int count")), true);
 assert.equal(modifierRules.some(rule => rule.test("static.increment()")), false);
 assert.equal(receiverRules.some(rule => rule.test("static.increment()")), true);
+
+const builtinRules = grammar.repository.builtins.patterns.map(rule => new RegExp(rule.match));
+for (const sample of ['println("hello")', 'print(42)', 'log("hello")', 'log.put("id", "1")']) {
+    assert.equal(builtinRules.some(rule => rule.test(sample)), true, sample);
+}
+assert.equal(builtinRules[0].test('static.println("hello")'), false);

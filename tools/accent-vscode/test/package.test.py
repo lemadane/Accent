@@ -28,6 +28,9 @@ with zipfile.ZipFile(archive) as package:
     modifiers = [rule["match"] for rule in grammar["repository"]["storage-modifiers"]["patterns"]]
     for name in ("public", "private", "protected"):
         assert any(re.search(pattern, name) for pattern in modifiers), f"Missing visibility modifier highlighting: {name}"
+    builtin_rules = [rule["match"] for rule in grammar["repository"]["builtins"]["patterns"]]
+    for example in ('println("hello")', 'log("hello")', 'log.put("id", "one")'):
+        assert any(re.search(pattern, example) for pattern in builtin_rules)
     assert package.read("extension/readme.md") == (root / "README.md").read_bytes()
     assert package.read("extension/dist/extension.js") == (root / "dist/extension.js").read_bytes()
 print(f"Verified {archive.name}: this/super/static receivers and async/await syntax supported; version and contents match source")

@@ -1,0 +1,27 @@
+package demo;
+
+import java.util.Map;
+
+class ConsoleLoggingDemo {
+    static void main(String[] args) {
+        print("Hello, ");
+        println("Accent!");
+        println();
+
+        // Logger and log are available without imports or @Logging.
+        final log = new Logger();
+        log("Application started");
+        log.info("Logging and diagnostic context share one API");
+
+        log.withContext(Map.of("requestId", "R1"), () -> {
+            log.info("Processing request");
+        });
+
+        log.put("taskId", "T1");
+        try {
+            log.warn("Retrying task");
+        } finally {
+            log.clear();
+        }
+    }
+}

@@ -14,6 +14,7 @@ import java.util.*;
 public final class AccentLowerer implements ImportResolver {
     private final SymbolTable symbolTable;
     private final Map<Expression, ResolvedType> expressionTypes = new IdentityHashMap<>();
+    private final Map<Expression, Expression> builtinExpressions;
     
     // State for name resolution
     private CompilationUnit currentUnit;
@@ -32,7 +33,13 @@ public final class AccentLowerer implements ImportResolver {
     }
 
     public AccentLowerer(SymbolTable symbolTable, Map<Expression, ResolvedType> resolvedTypes) {
+        this(symbolTable, resolvedTypes, Map.of());
+    }
+
+    public AccentLowerer(SymbolTable symbolTable, Map<Expression, ResolvedType> resolvedTypes,
+                         Map<Expression, Expression> builtinExpressions) {
         this.symbolTable = symbolTable;
+        this.builtinExpressions = builtinExpressions;
         expressionTypes.putAll(resolvedTypes);
     }
 
@@ -71,6 +78,7 @@ public final class AccentLowerer implements ImportResolver {
         if (info != null) return info;
         info = symbolTable.getType("java.math." + simpleName);
         if (info != null) return info;
+        if (simpleName.equals("Logger")) return symbolTable.getType("accent.logging.Logger");
         return symbolTable.getType(simpleName);
     }
 
@@ -120,8 +128,13 @@ public final class AccentLowerer implements ImportResolver {
         for (TypeDeclaration decl : unit.declarations()) {
             declarations.add(lowerTypeDeclaration(decl));
         }
+        List<String> imports = new ArrayList<>(unit.imports());
+        TypeInfo logger = resolve("Logger");
+        if (logger != null && logger.fullName().equals("accent.logging.Logger")
+                && unit.tokens().stream().anyMatch(token -> token.type() == TokenType.IDENTIFIER && token.lexeme().equals("Logger"))
+                && !imports.contains("accent.logging.Logger")) imports.add("accent.logging.Logger");
         this.currentUnit = null;
-        return new CompilationUnit(unit.sourceFile(), unit.packageName(), unit.imports(), declarations, unit.tokens());
+        return new CompilationUnit(unit.sourceFile(), unit.packageName(), imports, declarations, unit.tokens());
     }
 
     private boolean hasLoggingAnnotation(List<String> modifiers) {
@@ -375,6 +388,8 @@ public final class AccentLowerer implements ImportResolver {
     }
 
     private Expression lowerExpressionInternal(Expression expr) {
+        Expression builtin = builtinExpressions.get(expr);
+        if (builtin != null) return lowerExpression(builtin);
         if (expr instanceof NullableExpr nullable) {
             Expression value = lowerExpression(nullable.expression());
             if (value instanceof IdentifierExpr id)

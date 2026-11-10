@@ -78,9 +78,12 @@ public final class SemanticAnalyzer implements ImportResolver {
         return symbolTable.resolveInUnit(simpleName, currentUnit);
     }
 
+    private String nativeLoggerName;
+
     public void analyze(CompilationUnit unit) {
         this.currentUnit = unit;
         for (TypeDeclaration decl : unit.declarations()) {
+            nativeLoggerName = unit.packageName().map(pkg -> pkg + ".").orElse("") + decl.name();
             if (decl instanceof ClassDecl cd) {
                 analyzeClass(cd);
             } else if (decl instanceof ModelDecl md) {
@@ -96,6 +99,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
         }
         this.currentUnit = null;
+        this.nativeLoggerName = null;
     }
 
     private boolean hasLoggingAnnotation(List<String> modifiers) {
@@ -865,6 +869,8 @@ public final class SemanticAnalyzer implements ImportResolver {
 
 
     public final Map<Expression, ResolvedType> resolvedTypes = new java.util.IdentityHashMap<>();
+    /** Compiler-provided expressions, resolved before Java lowering. */
+    public final Map<Expression, Expression> builtinExpressions = new IdentityHashMap<>();
     private record AccessContext(TypeInfo accessingClass, String packageName) {}
     private final Map<Expression, AccessContext> accessContexts = new IdentityHashMap<>();
 
@@ -950,6 +956,15 @@ public final class SemanticAnalyzer implements ImportResolver {
                 return v.type;
             }
 
+            if (id.name().equals("log") && nativeLoggerName != null
+                    && (currentClass == null || currentClass.findField("log", symbolTable) == null)) {
+                ResolvedType logger = new ResolvedType(symbolTable.getType("accent.logging.Logger"), true, List.of(), 0);
+                checkBindingMarker("log", id, logger, id.token());
+                builtinExpressions.put(id, new MethodCallExpr(new IdentifierExpr("accent.logging.LogManager", null),
+                        "getLogger", List.of(), List.of(new LiteralExpr(nativeLoggerName, id.token())), false, id.token()));
+                return logger;
+            }
+
             // Check field access on current class (missing this. check)
             if (currentClass != null) {
                 SymbolTable.FieldInfo fInfo = currentClass.findField(id.name(), symbolTable);
@@ -1024,6 +1039,7 @@ public final class SemanticAnalyzer implements ImportResolver {
                 // Reassignment checks
                 if (unwrapNullable(bin.left()) instanceof IdentifierExpr id) {
                     LocalVar v = lookupVar(id.name());
+                    if (builtinExpressions.containsKey(id)) error(bin.operator(), "The built-in 'log' binding cannot be reassigned.");
                     if (v != null) {
                         left = v.type;
                         v.isRefinedNonNull = right != null && right.isNonNull();
@@ -1115,6 +1131,40 @@ public final class SemanticAnalyzer implements ImportResolver {
                 error(ma.token(), "Cannot resolve field '" + ma.memberName() + "' on type " + rec);
             }
         } else if (expr instanceof MethodCallExpr mc) {
+            if (mc.receiver() == null && mc.methodName().equals("log")) {
+                if (mc.arguments().size() < 1 || mc.arguments().size() > 2)
+                    error(mc.token(), "log requires a message and an optional Throwable.");
+                if (!mc.typeArguments().isEmpty() || mc.arguments().stream().anyMatch(arg -> arg instanceof NamedArgExpr))
+                    error(mc.token(), "Built-in log uses positional arguments without type arguments.");
+                Expression expanded = new MethodCallExpr(new IdentifierExpr("accent.logging.Logger", mc.token()), "log",
+                        mc.typeArguments(), mc.arguments(), false, mc.token());
+                builtinExpressions.put(mc, expanded);
+                ResolvedType result = checkExpression(expanded);
+                if (!mc.arguments().isEmpty()) {
+                    ResolvedType message = resolvedTypes.get(mc.arguments().getFirst());
+                    if (message != null && (message.arrayDimensions() != 0
+                            || !Set.of("java.lang.String", "null").contains(message.info().fullName())))
+                        error(mc.token(), "log requires a String message.");
+                }
+                if (mc.arguments().size() == 2) {
+                    ResolvedType throwable = resolvedTypes.get(mc.arguments().get(1));
+                    if (throwable != null && !throwable.info().fullName().equals("null")
+                            && (throwable.arrayDimensions() != 0 || !symbolTable.isSubtype(throwable.info(), symbolTable.getType("java.lang.Throwable"))))
+                        error(mc.token(), "The second log argument must be a Throwable.");
+                }
+                return result;
+            }
+            if (mc.receiver() == null && Set.of("print", "println").contains(mc.methodName())) {
+                int minimum = mc.methodName().equals("print") ? 1 : 0;
+                if (mc.arguments().size() < minimum || mc.arguments().size() > 1)
+                    error(mc.token(), mc.methodName() + " expects " + (minimum == 0 ? "zero or one argument." : "one argument."));
+                if (!mc.typeArguments().isEmpty() || mc.arguments().stream().anyMatch(arg -> arg instanceof NamedArgExpr))
+                    error(mc.token(), "Built-in printing uses positional arguments without type arguments.");
+                Expression output = new MemberAccessExpr(new IdentifierExpr("java.lang.System", mc.token()), "out", false, mc.token());
+                Expression expanded = new MethodCallExpr(output, mc.methodName(), mc.typeArguments(), mc.arguments(), false, mc.token());
+                builtinExpressions.put(mc, expanded);
+                return checkExpression(expanded);
+            }
             ResolvedType rec = null;
             if (mc.receiver() != null) {
                 if (mc.isOptional()) optionalReceivers.add(mc.receiver());

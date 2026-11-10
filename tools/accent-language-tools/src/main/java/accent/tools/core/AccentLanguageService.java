@@ -222,7 +222,7 @@ public final class AccentLanguageService {
                 if (result.unit() == null) return "// Source file not parsed or empty AST.";
                 SymbolTable symbolTable = symbolTables.get(normalize(path));
                 accent.lowering.AccentLowerer lowerer = new accent.lowering.AccentLowerer(symbolTable,
-                        result.analyzer().resolvedTypes);
+                        result.analyzer().resolvedTypes, result.analyzer().builtinExpressions);
                 CompilationUnit lowered = lowerer.lower(result.unit());
                 return new accent.emitter.JavaEmitter().emit(lowered);
             } catch (Exception exception) {

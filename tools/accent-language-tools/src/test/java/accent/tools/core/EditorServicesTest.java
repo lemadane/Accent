@@ -26,6 +26,26 @@ class EditorServicesTest {
             """;
 
     @Test
+    void nativeConsoleAndLoggerHaveCompletionAndGeneratedJavaWithoutAnnotations() {
+        var members = complete(new ProjectContext(List.of()), "NativeEditor.accent", """
+                class NativeEditor {
+                    static void run() { log.<caret> }
+                }
+                """);
+        assertMembersPresent(members, "info", "warn", "put", "get()?", "remove", "clear", "clearContext", "withContext");
+        ProjectContext context = new ProjectContext(List.of());
+        Path path = Path.of("NativeEditor.accent");
+        context.putFile(path, "class NativeEditor { static void run() { println(\"hello\"); log(\"hello\"); } }");
+        var result = context.analyze(path, false);
+        assertTrue(result.diagnostics().isEmpty(), result.diagnostics().toString());
+        String java = context.getGeneratedJava(path);
+        assertTrue(java.contains("java.lang.System.out.println"), java);
+        assertTrue(java.contains("accent.logging.Logger.log(\"hello\")"), java);
+        var globals = CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1);
+        assertMembersPresent(globals, "println", "print", "log", "Logger");
+    }
+
+    @Test
     void staticCompletionOnlyOffersOwnStaticMembers() {
         String code = """
                 class Counter {

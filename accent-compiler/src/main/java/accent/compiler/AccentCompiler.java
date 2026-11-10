@@ -271,7 +271,7 @@ public final class AccentCompiler {
         }
 
         // Lower and emit Java code
-        AccentLowerer lowerer = new AccentLowerer(symbolTable, analyzer.resolvedTypes);
+        AccentLowerer lowerer = new AccentLowerer(symbolTable, analyzer.resolvedTypes, analyzer.builtinExpressions);
         JavaEmitter emitter = new JavaEmitter();
         List<Path> compiledJavaFiles = new ArrayList<>(originalJavaFiles);
 
