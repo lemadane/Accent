@@ -71,11 +71,11 @@ class SingletonVariantsEndToEndTest {
                         return values.toXml!();
                     }
                     static void main(String[] args) {
-                        if (Config.instance!() != Config.instance!()) throw new RuntimeException("class identity");
-                        if (Defaults.instance!() != Defaults.instance!()) throw new RuntimeException("record identity");
-                        if (State.instance!() != State.instance!()) throw new RuntimeException("model identity");
+                        if (Config.instance!() != Config.instance!()) { throw new RuntimeException("class identity"); }
+                        if (Defaults.instance!() != Defaults.instance!()) { throw new RuntimeException("record identity"); }
+                        if (State.instance!() != State.instance!()) { throw new RuntimeException("model identity"); }
                         State.instance!().theme("dark");
-                        if (not State.instance!().theme().equals("dark")) throw new RuntimeException("shared state");
+                        if (not State.instance!().theme().equals("dark")) { throw new RuntimeException("shared state"); }
                         System.out.println(Defaults.instance!().toJson!());
                         System.out.println(State.instance!().toXml!());
                     }

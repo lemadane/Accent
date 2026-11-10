@@ -64,9 +64,9 @@ class GeneratorTest {
             "        for (Integer n : gen.numbers(5)) {\n" +
             "            result.add(n);\n" +
             "        }\n" +
-            "        if (result.size() != 5) throw new RuntimeException(\"Expected 5, got \" + result.size());\n" +
+            "        if (result.size() != 5) { throw new RuntimeException(\"Expected 5, got \" + result.size()); }\n" +
             "        for (var i = 0; i < 5; i++) {\n" +
-            "            if (not result.get(i).equals(i)) throw new RuntimeException(\"Expected \" + i + \" at index \" + i + \", got \" + result.get(i));\n" +
+            "            if (not result.get(i).equals(i)) { throw new RuntimeException(\"Expected \" + i + \" at index \" + i + \", got \" + result.get(i)); }\n" +
             "        }\n" +
             "    }\n" +
             "}\n";

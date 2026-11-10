@@ -46,16 +46,16 @@ class NonNullMethodTest {
         rejects("class Sample { String name!() { return; } }", "must return a non-null value");
         rejects("class Sample { String name!(String input) { return input; } }", "must return a non-null value");
         rejects("class Sample { String name!() {} }", "every completing path");
-        rejects("class Sample { String name!(boolean flag) { if (flag) return \"John\"; } }", "every completing path");
+        rejects("class Sample { String name!(boolean flag) { if (flag) { return \"John\"; } } }", "every completing path");
         rejects("class Sample { String name!() { final action = () -> { return \"John\"; }; } }", "every completing path");
         accepts("""
                 class Sample {
                     String name!(String input) {
-                        if (input != null) return input;
+                        if (input != null) { return input; }
                         throw new IllegalArgumentException("name required");
                     }
                     String either!(boolean flag) {
-                        if (flag) return "John"; else return "Jane";
+                        if (flag) { return "John"; } else { return "Jane"; }
                     }
                     String stopped!() { throw new RuntimeException("unavailable"); }
                     String attempt!() {
@@ -112,7 +112,7 @@ class NonNullMethodTest {
                 class Sample {
                     String name!(boolean flag) {
                         String value = null;
-                        if (flag) value = "John";
+                        if (flag) { value = "John"; }
                         return value;
                     }
                 }
@@ -121,7 +121,7 @@ class NonNullMethodTest {
                 class Sample {
                     String name!(boolean flag) {
                         String value = "John";
-                        if (value != null) value = null;
+                        if (value != null) { value = null; }
                         return value;
                     }
                 }
@@ -129,7 +129,7 @@ class NonNullMethodTest {
         rejects("""
                 class Sample {
                     String name!(boolean flag) {
-                        do { if (flag) continue; return "John"; } while (false);
+                        do { if (flag) { continue; } return "John"; } while (false);
                     }
                 }
                 """, "every completing path");
@@ -137,7 +137,7 @@ class NonNullMethodTest {
                 class Sample {
                     String name!(boolean flag) {
                         String value = null;
-                        if (flag) value = "John"; else value = "Jane";
+                        if (flag) { value = "John"; } else { value = "Jane"; }
                         return value;
                     }
                 }

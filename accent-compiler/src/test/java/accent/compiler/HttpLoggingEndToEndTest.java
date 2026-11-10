@@ -38,9 +38,9 @@ class HttpLoggingEndToEndTest {
                         final app = new App();
                         app.use((req, next) -> {
                             final id = req.header("X-Request-Id");
-                            if (id != null) log.put("requestId", id);
+                            if (id != null) { log.put("requestId", id); }
                             log.debug("middleware before");
-                            if (req.path().equals("/middleware-failure")) throw new RuntimeException("middleware secret");
+                            if (req.path().equals("/middleware-failure")) { throw new RuntimeException("middleware secret"); }
                             if (req.path().equals("/short")) {
                                 log.warn("short marker");
                                 return Response.text("denied").status(403);

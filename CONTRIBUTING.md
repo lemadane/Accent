@@ -65,6 +65,18 @@ python3 scripts/test-readme-spring.py
 
 For editor changes, rebuild the server and follow the [extension build and package checks](tools/accent-vscode/README.md#building-updated-editor-support). Existing VSIX archives retain their embedded grammar and documentation until rebuilt.
 
+## Conditional body braces
+
+Every Accent `if` and `else` body requires `{ ... }`, including single statements
+and empty branches. `else if (...) { ... }` chains are supported; each conditional
+body and the final `else` must be braced. `for/else` fallback bodies also require
+braces. Java source interoperability retains Java's own branch syntax.
+
+Keep embedded Accent fixtures and README examples braced. Cover missing braces,
+empty statements, nested branches, `else if`, loop fallbacks, and valid generated
+Java in `ConditionalBracesTest`. This rule does not change truthiness or add new
+null-flow proofs.
+
 ## Nullability contracts
 
 Keep declarations, examples, diagnostics, and editor support consistent:

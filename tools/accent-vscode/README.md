@@ -75,13 +75,13 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.11.vsix` for the current syntax, with required non-public prefixes, `this`/`super` member qualification, `!` / `!!` contracts, and `async` / `await` support. Install it from the repository root:
+Use `accent-vscode-0.1.12.vsix` for the current syntax, with required non-public prefixes, `this`/`super` member qualification, `!` / `!!` contracts, and `async` / `await` support. Install it from the repository root:
 
 ```bash
-code --install-extension tools/accent-vscode/accent-vscode-0.1.11.vsix --force
+code --install-extension tools/accent-vscode/accent-vscode-0.1.12.vsix --force
 ```
 
-Reload VS Code after installation. Archives through `0.1.10` retain their previous documentation. Rebuild the language server and install `0.1.11` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
+Reload VS Code after installation. Archives through `0.1.11` retain their previous documentation. Rebuild the language server and install `0.1.12` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
 
 To rebuild the current package:
 
@@ -94,7 +94,7 @@ npm ci
 npm run compile
 node test/async-syntax.test.cjs
 node test/formatter.test.cjs
-npx @vscode/vsce package --out accent-vscode-0.1.11.vsix
+npx @vscode/vsce package --out accent-vscode-0.1.12.vsix
 python3 test/package.test.py
 ```
 
@@ -141,3 +141,11 @@ copy ordinary inputs and reject null mutations, while array boundaries copy and
 validate arrays. Direct Java writes to exposed JVM arrays cannot be intercepted;
 marked Accent reads reject introduced nulls. See the [language guide](https://github.com/accent-lang/accent/blob/main/README.md#non-null-array-and-list-elements)
 for the complete boundary and alias rules.
+
+## Mandatory conditional braces
+
+Accent requires `{ ... }` around every `if` and `else` body, even one statement.
+Use `if (user != null) { names!!.add(user); }`. `else if (...) { ... }` chains
+remain valid; empty branches use `{}`. The rule includes `for/else` fallback
+bodies. The language server reports unbraced branches as syntax errors; rebuild
+it to get the updated diagnostics. The formatter does not invent missing braces.

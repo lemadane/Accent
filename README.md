@@ -170,7 +170,9 @@ class Names {
     void example(String user) {
         java.util.List<String> names!! = new java.util.ArrayList<String>();
         names!!.add("John");
-        if (user != null) names!!.add(user);
+        if (user != null) {
+            names!!.add(user);
+        }
         String first! = names!!.get!(0);
 
         String[] labels!! = {"John", "Jane"};
@@ -716,6 +718,16 @@ Accent includes native support for type-safe, evaluated string interpolation exp
 * **Type Behavior**: The entire interpolated string expression resolves to type `java.lang.String`. Void-returning expressions are rejected at compile-time.
 
 ### 11. `if` expression
+
+**Braces are mandatory for every `if` and `else` body, even for a single
+statement.** Write `if (user != null) { names!!.add(user); }`; the unbraced form
+is a compile error. `else if (...) { ... }` chains remain valid, with a braced
+body for each condition and the final `else`. An empty branch must use `{}`,
+not `;`. This rule also applies to the `else` body of a `for/else` loop.
+If-expressions and HTML conditionals already require braced bodies.
+
+Explicit block boundaries make the scope of each condition visible and avoid
+ambiguous nested branches. Readability counts.
 
 ```java
 final status = if (order.isPaid()) {

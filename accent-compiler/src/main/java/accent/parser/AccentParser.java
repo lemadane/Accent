@@ -921,13 +921,21 @@ public final class AccentParser {
         Expression condition = parseExpression(Precedence.NONE);
         consume(TokenType.RIGHT_PAREN, "Expected ')' after 'if' condition.");
 
-        Statement thenBranch = parseStatement();
+        BlockStmt thenBranch = parseRequiredBranchBlock("if");
         Optional<Statement> elseBranch = Optional.empty();
         if (match(TokenType.ELSE)) {
-            elseBranch = Optional.of(parseStatement());
+            elseBranch = Optional.of(match(TokenType.IF)
+                    ? parseIfStatement() : parseRequiredBranchBlock("else"));
         }
 
         return new IfStmt(condition, thenBranch, elseBranch);
+    }
+
+    private BlockStmt parseRequiredBranchBlock(String branch) {
+        if (!check(TokenType.LEFT_BRACE)) {
+            throw error(peek(), "The '" + branch + "' body requires braces '{ ... }', even for a single statement.");
+        }
+        return parseBlockStatement();
     }
 
     private Statement parseForStatement() {
@@ -957,7 +965,7 @@ public final class AccentParser {
             Statement body = parseStatement();
             Optional<Statement> elseBranch = Optional.empty();
             if (match(TokenType.ELSE)) {
-                elseBranch = Optional.of(parseStatement());
+                elseBranch = Optional.of(parseRequiredBranchBlock("else"));
             }
             return new ForEachStmt(param, iterable, body, elseBranch);
         } else {
@@ -987,7 +995,7 @@ public final class AccentParser {
             Statement body = parseStatement();
             Optional<Statement> elseBranch = Optional.empty();
             if (match(TokenType.ELSE)) {
-                elseBranch = Optional.of(parseStatement());
+                elseBranch = Optional.of(parseRequiredBranchBlock("else"));
             }
             return new ForStmt(init, condition, update, body, elseBranch);
         }

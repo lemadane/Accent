@@ -125,8 +125,8 @@ class BooleanOperatorTest {
                         throw new RuntimeException("Right operand must not run");
                     }
                     static void main(String[] args) {
-                        if (false and fail()) throw new RuntimeException("and failed");
-                        if (not (true or fail())) throw new RuntimeException("or failed");
+                        if (false and fail()) { throw new RuntimeException("and failed"); }
+                        if (not (true or fail())) { throw new RuntimeException("or failed"); }
                     }
                 }
                 """);
@@ -207,20 +207,20 @@ class BooleanOperatorTest {
             "        var tt = false;\n" +
             "\n" +
             "        // AND\n" +
-            "        ff = false and false; if (ff != false) throw new RuntimeException(\"AND ff\");\n" +
-            "        ft = false and true;  if (ft != false) throw new RuntimeException(\"AND ft\");\n" +
-            "        tf = true  and false; if (tf != false) throw new RuntimeException(\"AND tf\");\n" +
-            "        tt = true  and true;  if (tt != true)  throw new RuntimeException(\"AND tt\");\n" +
+            "        ff = false and false; if (ff != false) { throw new RuntimeException(\"AND ff\"); }\n" +
+            "        ft = false and true;  if (ft != false) { throw new RuntimeException(\"AND ft\"); }\n" +
+            "        tf = true  and false; if (tf != false) { throw new RuntimeException(\"AND tf\"); }\n" +
+            "        tt = true  and true;  if (tt != true)  { throw new RuntimeException(\"AND tt\"); }\n" +
             "\n" +
             "        // OR\n" +
-            "        ff = false or false; if (ff != false) throw new RuntimeException(\"OR ff\");\n" +
-            "        ft = false or true;  if (ft != true)  throw new RuntimeException(\"OR ft\");\n" +
-            "        tf = true  or false; if (tf != true)  throw new RuntimeException(\"OR tf\");\n" +
-            "        tt = true  or true;  if (tt != true)  throw new RuntimeException(\"OR tt\");\n" +
+            "        ff = false or false; if (ff != false) { throw new RuntimeException(\"OR ff\"); }\n" +
+            "        ft = false or true;  if (ft != true)  { throw new RuntimeException(\"OR ft\"); }\n" +
+            "        tf = true  or false; if (tf != true)  { throw new RuntimeException(\"OR tf\"); }\n" +
+            "        tt = true  or true;  if (tt != true)  { throw new RuntimeException(\"OR tt\"); }\n" +
             "\n" +
             "        // NOT\n" +
-            "        final a = not true;  if (a != false) throw new RuntimeException(\"NOT true\");\n" +
-            "        final b = not false; if (b != true)  throw new RuntimeException(\"NOT false\");\n" +
+            "        final a = not true;  if (a != false) { throw new RuntimeException(\"NOT true\"); }\n" +
+            "        final b = not false; if (b != true)  { throw new RuntimeException(\"NOT false\"); }\n" +
             "    }\n" +
             "}\n";
 
@@ -248,10 +248,10 @@ class BooleanOperatorTest {
             "        boolean enabled = true;\n" +
             "        // active and not suspended  ->  true and not false  ->  true\n" +
             "        final allowed = active and not suspended;\n" +
-            "        if (not allowed) throw new RuntimeException(\"mixed 1\");\n" +
+            "        if (not allowed) { throw new RuntimeException(\"mixed 1\"); }\n" +
             "        // enabled and not hidden  ->  true and not false  ->  true\n" +
             "        final visible = enabled and not hidden;\n" +
-            "        if (not visible) throw new RuntimeException(\"mixed 2\");\n" +
+            "        if (not visible) { throw new RuntimeException(\"mixed 2\"); }\n" +
             "    }\n" +
             "}\n";
 
@@ -276,11 +276,11 @@ class BooleanOperatorTest {
             "class PrecedenceMain {\n" +
             "    static void main(String[] args) {\n" +
             "        final r1 = false or true and false;\n" +
-            "        if (r1 != false) throw new RuntimeException(\"or-and precedence\");\n" +
+            "        if (r1 != false) { throw new RuntimeException(\"or-and precedence\"); }\n" +
             "        // not a and b  =>  (not a) and b\n" +
             "        // (not true) and true  =>  false and true  =>  false\n" +
             "        final r2 = not true and true;\n" +
-            "        if (r2 != false) throw new RuntimeException(\"not-and precedence\");\n" +
+            "        if (r2 != false) { throw new RuntimeException(\"not-and precedence\"); }\n" +
             "    }\n" +
             "}\n";
 
@@ -312,13 +312,13 @@ class BooleanOperatorTest {
             "        return firstActive == secondActive;\n" +
             "    }\n" +
             "    static void main(String[] args) {\n" +
-            "        if (not canAccess(true, false, false)) throw new RuntimeException(\"canAccess 1\");\n" +
-            "        if (canAccess(true, true, false))   throw new RuntimeException(\"canAccess 2\");\n" +
-            "        if (not canAccess(false, true, true))  throw new RuntimeException(\"canAccess 3\");\n" +
-            "        if (not exactlyOneSelected(true, false)) throw new RuntimeException(\"exclusive selection 1\");\n" +
-            "        if (exactlyOneSelected(true, true))   throw new RuntimeException(\"exclusive selection 2\");\n" +
-            "        if (not haveSameStatus(true, true))   throw new RuntimeException(\"same status 1\");\n" +
-            "        if (haveSameStatus(true, false))   throw new RuntimeException(\"same status 2\");\n" +
+            "        if (not canAccess(true, false, false)) { throw new RuntimeException(\"canAccess 1\"); }\n" +
+            "        if (canAccess(true, true, false))   { throw new RuntimeException(\"canAccess 2\"); }\n" +
+            "        if (not canAccess(false, true, true))  { throw new RuntimeException(\"canAccess 3\"); }\n" +
+            "        if (not exactlyOneSelected(true, false)) { throw new RuntimeException(\"exclusive selection 1\"); }\n" +
+            "        if (exactlyOneSelected(true, true))   { throw new RuntimeException(\"exclusive selection 2\"); }\n" +
+            "        if (not haveSameStatus(true, true))   { throw new RuntimeException(\"same status 1\"); }\n" +
+            "        if (haveSameStatus(true, false))   { throw new RuntimeException(\"same status 2\"); }\n" +
             "    }\n" +
             "}\n";
 
@@ -345,9 +345,9 @@ class BooleanOperatorTest {
             "class TruthyIntAndMain {\n" +
             "    static void main(String[] args) {\n" +
             "        boolean r = 1 and 2;\n" +
-            "        if (not r) throw new RuntimeException(\"1 and 2 should be true\");\n" +
+            "        if (not r) { throw new RuntimeException(\"1 and 2 should be true\"); }\n" +
             "        boolean r2 = 0 and 2;\n" +
-            "        if (r2) throw new RuntimeException(\"0 and 2 should be false\");\n" +
+            "        if (r2) { throw new RuntimeException(\"0 and 2 should be false\"); }\n" +
             "    }\n" +
             "}\n";
 
@@ -370,9 +370,9 @@ class BooleanOperatorTest {
             "class TruthyNotMain {\n" +
             "    static void main(String[] args) {\n" +
             "        boolean r1 = not 42;\n" +
-            "        if (r1) throw new RuntimeException(\"not 42 should be false\");\n" +
+            "        if (r1) { throw new RuntimeException(\"not 42 should be false\"); }\n" +
             "        boolean r2 = not 0;\n" +
-            "        if (not r2) throw new RuntimeException(\"not 0 should be true\");\n" +
+            "        if (not r2) { throw new RuntimeException(\"not 0 should be true\"); }\n" +
             "    }\n" +
             "}\n";
 

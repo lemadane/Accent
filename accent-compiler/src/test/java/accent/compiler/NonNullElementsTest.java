@@ -34,7 +34,7 @@ class NonNullElementsTest {
         rejects("void run(List<String> names!!, String user) { names!!.add(user); }");
         rejects("void run(List<String> names!!) { names!!.set!(0, null); }");
         rejects("void run(List<String> names!!, List<String> other!) { names!!.addAll(other!); }");
-        accepts("void run(List<String> names!!, String user) { if (user != null) names!!.add(user); }");
+        accepts("void run(List<String> names!!, String user) { if (user != null) { names!!.add(user); } }");
         accepts("void run(List<String> names!!, String user!) { names!!.add(user!); }");
     }
     @Test void arrayElementsAreCheckedAtInitializationAndAssignment() {

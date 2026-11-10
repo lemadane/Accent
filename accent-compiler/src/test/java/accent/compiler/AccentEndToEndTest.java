@@ -224,8 +224,8 @@ class AccentEndToEndTest {
                     static void main(String[] args) {
                         final Async<String> task = start();
                         final inferred = Async.run(() -> "world");
-                        if (finish(task) != "hello") throw new RuntimeException("Typed Async failed");
-                        if (finish(inferred) != "world") throw new RuntimeException("Inferred Async failed");
+                        if (finish(task) != "hello") { throw new RuntimeException("Typed Async failed"); }
+                        if (finish(inferred) != "world") { throw new RuntimeException("Inferred Async failed"); }
                     }
                 }
                 """;
