@@ -8,7 +8,7 @@ class Main {
         app.get("/health", req -> Response.text("ok"));
         app.get("/users/:id", (req) -> Response.json(Map.of("id", req.path("id"))));
         app.post("/echo", req -> Response.json(req.json()));
-        final port = Integer.parseInt(System.getenv("PORT") ?: "8080");
+        final port = Integer.parseInt(System.getenv("PORT") else "8080");
         app.listen(port);
         System.out.println("Accent HTTP listening on " + app.port());
     }

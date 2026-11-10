@@ -41,8 +41,8 @@ class NullableCollectionsDemo {
         if (static.indexCalls != 0) {
             throw new IllegalStateException("Optional access evaluated an index for a null receiver");
         }
-        return first + ":" + (missing? ?: "missing") + ":" + (skipped? ?: "skipped")
-                + ":" + (emptySlot? ?: "empty") + ":" + indexed;
+        return first + ":" + (missing? else "missing") + ":" + (skipped? else "skipped")
+                + ":" + (emptySlot? else "empty") + ":" + indexed;
     }
 
     static void main(String[] args) {

@@ -48,7 +48,7 @@ class NullableCollectionsTest {
                 List.of("build/classes/java/main", classes.toString()), temp.resolve("consumer-java"), true);
         assertFalse(result.successful());
         assertTrue(result.diagnostics().stream().anyMatch(d -> d.message().contains("Nullable result requires")));
-        Files.writeString(consumer, "class Consumer { String value() { return Library.name()? ?: \"fallback\"; } }");
+        Files.writeString(consumer, "class Consumer { String value() { return Library.name()? else \"fallback\"; } }");
         result = new AccentCompiler().compile(List.of(consumer), temp.resolve("consumer"),
                 List.of("build/classes/java/main", classes.toString()), temp.resolve("consumer-java"), true);
         assertTrue(result.successful(), result.diagnostics().toString());

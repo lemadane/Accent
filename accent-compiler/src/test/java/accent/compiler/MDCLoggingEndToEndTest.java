@@ -35,7 +35,7 @@ class MDCLoggingEndToEndTest {
                 class Server {
                     static String work() {
                         log.info("async work");
-                        return log.get("requestId") ?: "";
+                        return log.get("requestId") else "";
                     }
                     static App start() {
                         final app = new App();

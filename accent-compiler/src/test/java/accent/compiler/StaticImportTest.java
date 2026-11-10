@@ -106,7 +106,7 @@ class StaticImportTest {
                 import static sample.Child.label;
                 import static sample.Child.text;
                 class Nullable {
-                    static String run() { return text()? ?: (label? ?: "empty"); }
+                    static String run() { return text()? else (label? else "empty"); }
                 }
                 """);
         var result = new AccentCompiler().compile(List.of(parent, child, caller), temp.resolve("nullable"),

@@ -1170,9 +1170,9 @@ public final class AccentParser {
     private enum Precedence {
         NONE,
         ASSIGNMENT,       // = += -=
-        TERNARY,          // ? :
+        TERNARY,          // then / else (Java: ? :)
         LAMBDA,           // ->
-        NULL_COALESCING,  // ?: (null-only fallback)
+        NULL_COALESCING,  // else (null-only fallback)
         OR,               // or
         AND,              // and
         EQUALITY,         // == !=
@@ -1184,12 +1184,16 @@ public final class AccentParser {
         PRIMARY
     }
 
-    private Precedence getPrecedence(TokenType type) {
-        return switch (type) {
+    private Precedence getPrecedence(Token token) {
+        if (!isJava && token.type() == TokenType.IDENTIFIER && token.lexeme().equals("then")) {
+            return Precedence.TERNARY;
+        }
+        return switch (token.type()) {
             case ASSIGN -> Precedence.ASSIGNMENT;
             case QUESTION -> Precedence.TERNARY;
             case ARROW -> Precedence.LAMBDA;
             case NULL_COALESCING -> Precedence.NULL_COALESCING;
+            case ELSE -> isJava ? Precedence.NONE : Precedence.NULL_COALESCING;
             case OR -> Precedence.OR;
             case AND -> Precedence.AND;
             case EQUAL_EQUAL, BANG_EQUAL -> Precedence.EQUALITY;
@@ -1202,10 +1206,15 @@ public final class AccentParser {
     }
 
     private Expression parseExpression(Precedence precedence) {
+        return parseExpression(precedence, false);
+    }
+
+    private Expression parseExpression(Precedence precedence, boolean stopAtElse) {
         Token token = advance();
-        Expression left = parsePrefix(token);
+        Expression left = parsePrefix(token, stopAtElse);
 
         while (true) {
+            if (stopAtElse && check(TokenType.ELSE)) break;
             if (check(TokenType.DOUBLE_QUESTION)) {
                 Token marker = advance();
                 left = new NullableExpr(left, marker, true);
@@ -1216,9 +1225,9 @@ public final class AccentParser {
                 left = new NullableExpr(left, marker);
                 continue;
             }
-            if (precedence.ordinal() >= getPrecedence(peek().type()).ordinal()) break;
+            if (precedence.ordinal() >= getPrecedence(peek()).ordinal()) break;
             Token op = advance();
-            left = parseInfix(left, op);
+            left = parseInfix(left, op, stopAtElse);
         }
 
         return left;
@@ -1226,8 +1235,10 @@ public final class AccentParser {
 
     private boolean isNullablePostfix() {
         if (!check(TokenType.QUESTION) || previous().endOffset() != peek().startOffset()) return false;
+        if (!isJava && lookAhead(1).type() == TokenType.IDENTIFIER
+                && lookAhead(1).lexeme().equals("then")) return true;
         return switch (lookAhead(1).type()) {
-            case SEMICOLON, COMMA, RIGHT_PAREN, RIGHT_BRACKET, RIGHT_BRACE, INTERPOLATION_END, EOF, DOT, OPTIONAL_CHAIN,
+            case ELSE, SEMICOLON, COMMA, RIGHT_PAREN, RIGHT_BRACKET, RIGHT_BRACE, INTERPOLATION_END, EOF, DOT, OPTIONAL_CHAIN,
                  LEFT_BRACKET, ASSIGN, EQUAL_EQUAL, BANG_EQUAL, NULL_COALESCING, QUESTION,
                  PLUS, MINUS, STAR, SLASH, LESS, GREATER, LESS_EQUAL, GREATER_EQUAL,
                  AND, OR, COLON, ARROW -> true;
@@ -1235,7 +1246,7 @@ public final class AccentParser {
         };
     }
 
-    private Expression parsePrefix(Token token) {
+    private Expression parsePrefix(Token token, boolean stopAtElse) {
         return switch (token.type()) {
             case NUMBER -> new LiteralExpr(Double.parseDouble(token.lexeme()), token);
             case STRING -> {
@@ -1282,7 +1293,7 @@ public final class AccentParser {
                 if (check(TokenType.ARROW)) {
                     if (nonNullElements) throw error(token, "Use an explicitly typed array or List<T> parameter for '!!' lambdas.");
                     advance(); // consume ->
-                    Node body = check(TokenType.LEFT_BRACE) ? parseStatement() : parseExpression(Precedence.NONE);
+                    Node body = check(TokenType.LEFT_BRACE) ? parseStatement() : parseExpression(Precedence.NONE, stopAtElse);
                     yield new LambdaExpr(List.of(new Parameter(new BaseTypeNode("var", List.of(), true), token.lexeme(), false, Optional.empty())), body, token);
                 }
                 yield new IdentifierExpr(token.lexeme(), token, nonNullBinding, nonNullElements);
@@ -1329,7 +1340,7 @@ public final class AccentParser {
                     if (check(TokenType.LEFT_BRACE)) {
                         body = parseStatement();
                     } else {
-                        body = parseExpression(Precedence.NONE);
+                        body = parseExpression(Precedence.NONE, stopAtElse);
                     }
                     yield new LambdaExpr(parameters, body, token);
                 } else {
@@ -1373,7 +1384,7 @@ public final class AccentParser {
             case NEW -> {
                 TypeNode type = parseType();
                 if (type instanceof ArrayTypeNode array && check(TokenType.LEFT_BRACE)) {
-                    ArrayInitializerExpr initializer = (ArrayInitializerExpr) parsePrefix(advance());
+                    ArrayInitializerExpr initializer = (ArrayInitializerExpr) parsePrefix(advance(), false);
                     yield new NewArrayExpr(array.elementType(), List.of(), Optional.of(initializer), token);
                 }
                 if (match(TokenType.LEFT_PAREN)) {
@@ -1660,9 +1671,21 @@ public final class AccentParser {
                lower.equals("track") || lower.equals("wbr") || lower.equals("param");
     }
 
-    private Expression parseInfix(Expression left, Token op) {
-        Precedence precedence = getPrecedence(op.type());
+    private Expression parseInfix(Expression left, Token op, boolean stopAtElse) {
+        Precedence precedence = getPrecedence(op);
+        if (!isJava && op.type() == TokenType.IDENTIFIER && op.lexeme().equals("then")) {
+            Expression thenBranch = parseExpression(Precedence.NONE, true);
+            consume(TokenType.ELSE, "Expected 'else' after conditional then-branch expression.");
+            Expression elseBranch = parseExpression(Precedence.ASSIGNMENT, stopAtElse);
+            return new TernaryExpr(left, thenBranch, elseBranch, op);
+        }
         return switch (op.type()) {
+            case NULL_COALESCING -> throw error(op, "Use 'value else fallback' instead of '?:'.");
+            case ELSE -> {
+                Token coalesce = new Token(TokenType.NULL_COALESCING, "else", op.line(), op.column(), op.startOffset(), op.endOffset());
+                Expression right = parseExpression(Precedence.LAMBDA, stopAtElse);
+                yield new BinaryExpr(left, coalesce, right);
+            }
             case PLUS_PLUS, MINUS_MINUS -> {
                 yield new UnaryExpr(op, left, true);
             }
@@ -1715,6 +1738,7 @@ public final class AccentParser {
                 yield new ArrayAccessExpr(left, index, op);
             }
             case QUESTION -> {
+                if (!isJava) throw error(op, "Use 'condition then value else value' instead of '? :'.");
                 Expression thenBranch = parseExpression(Precedence.NONE);
                 consume(TokenType.COLON, "Expected ':' after ternary then-branch expression.");
                 Expression elseBranch = parseExpression(Precedence.TERNARY);
@@ -1722,22 +1746,22 @@ public final class AccentParser {
             }
             case ASSIGN -> {
                 // Right-associative
-                Expression right = parseExpression(Precedence.values()[precedence.ordinal() - 1]);
+                Expression right = parseExpression(Precedence.values()[precedence.ordinal() - 1], stopAtElse);
                 yield new BinaryExpr(left, op, right);
             }
             // Textual binary boolean operators — lower to equivalent BinaryExpr
             case AND -> {
                 // 'and' -> same as '&&'  (short-circuit AND)
-                Expression right = parseExpression(Precedence.AND);
+                Expression right = parseExpression(Precedence.AND, stopAtElse);
                 yield new BinaryExpr(left, op, right);
             }
             case OR -> {
                 // 'or' -> same as '||'  (short-circuit OR)
-                Expression right = parseExpression(Precedence.OR);
+                Expression right = parseExpression(Precedence.OR, stopAtElse);
                 yield new BinaryExpr(left, op, right);
             }
             default -> {
-                Expression right = parseExpression(precedence);
+                Expression right = parseExpression(precedence, stopAtElse);
                 yield new BinaryExpr(left, op, right);
             }
         };

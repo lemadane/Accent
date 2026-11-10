@@ -16,7 +16,7 @@ class AccentLexerTest {
                 """
                 extension String! {
                     String normalized!() {
-                        final result = this?.trim() ?: \"\";
+                        final result = this?.trim() else \"\";
                         return result;
                     }
                 }
@@ -36,7 +36,7 @@ class AccentLexerTest {
         assertTrue(types.contains(TokenType.EXTENSION));
         assertTrue(types.contains(TokenType.BANG));
         assertTrue(types.contains(TokenType.OPTIONAL_CHAIN));
-        assertTrue(types.contains(TokenType.NULL_COALESCING));
+        assertTrue(types.contains(TokenType.ELSE));
         assertTrue(types.contains(TokenType.ASYNC));
         assertTrue(types.contains(TokenType.AWAIT));
         assertTrue(types.contains(TokenType.FOR));
@@ -47,10 +47,10 @@ class AccentLexerTest {
     @Test
     void distinguishesNullableMarkersCoalescingAndTernary() {
         var result = new AccentLexer(new SourceFile(Path.of("Operators.accent"),
-                "users??; user? ?: fallback; user?.name(); flag ? yes : no;")).lex();
+                "users??; user? else fallback; user?.name(); flag ? yes : no;")).lex();
         assertTrue(result.successful());
         assertEquals(List.of(TokenType.IDENTIFIER, TokenType.DOUBLE_QUESTION, TokenType.SEMICOLON,
-                TokenType.IDENTIFIER, TokenType.QUESTION, TokenType.NULL_COALESCING,
+                TokenType.IDENTIFIER, TokenType.QUESTION, TokenType.ELSE,
                 TokenType.IDENTIFIER, TokenType.SEMICOLON,
                 TokenType.IDENTIFIER, TokenType.OPTIONAL_CHAIN, TokenType.IDENTIFIER,
                 TokenType.LEFT_PAREN, TokenType.RIGHT_PAREN, TokenType.SEMICOLON,

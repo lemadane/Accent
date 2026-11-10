@@ -16,14 +16,14 @@ class StringInterpolationTest {
         // 2. Expression & Ternary Interpolation
         final active = true;
         final count = 5;
-        final summary = $"Items: {count * 10}, Status: {active ? "Active" : "Inactive"}";
+        final summary = $"Items: {count * 10}, Status: {active then "Active" else "Inactive"}";
         System.out.println("2. Expressions:    " + summary);
         static._assertSummary(summary, "Items: 50, Status: Active");
 
         // 3. Double Brace Escaping
         final braces = $"{{name: \"{name}\", rating: {count}}}";
         System.out.println("3. Double Braces:  " + braces);
-        final quote = Character.toString(34) ?: "";
+        final quote = Character.toString(34) else "";
         final expectedBraces = "{name: " + quote + "Accent Developer" + quote + ", rating: 5}";
         static._assertBraces(braces, expectedBraces);
 

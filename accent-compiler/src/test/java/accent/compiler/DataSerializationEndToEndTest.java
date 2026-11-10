@@ -83,7 +83,7 @@ class DataSerializationEndToEndTest {
                 static String linkedList(LinkedList<PersonModel> value) { return value.toXml(); }
                 static String hashMap(HashMap<String, PersonRecord> value) { return value.toJson(); }
                 static String treeMap(TreeMap<String, PersonModel> value) { return value.toXml(); }
-                static String fallback(List<PersonRecord> value?) { return value?.toJson() ?: "absent"; }
+                static String fallback(List<PersonRecord> value?) { return value?.toJson() else "absent"; }
                 static int chained(Map<String, PersonModel> value) { return value.toJson().length(); }
                 static int calls = 0;
                 static List<PersonRecord> next() {

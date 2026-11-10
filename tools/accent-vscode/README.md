@@ -93,13 +93,13 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.20.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
+Use `accent-vscode-0.1.21.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
 
 ```bash
-code --install-extension tools/accent-vscode/accent-vscode-0.1.20.vsix --force
+code --install-extension tools/accent-vscode/accent-vscode-0.1.21.vsix --force
 ```
 
-Reload VS Code after installation. Archives through `0.1.19` retain their previous documentation. Rebuild the language server and install `0.1.20` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
+Reload VS Code after installation. Archives through `0.1.20` retain their previous documentation. Rebuild the language server and install `0.1.21` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
 
 To rebuild the current package:
 
@@ -112,7 +112,7 @@ npm ci
 npm run compile
 node test/async-syntax.test.cjs
 node test/formatter.test.cjs
-npx @vscode/vsce package --out accent-vscode-0.1.20.vsix
+npx @vscode/vsce package --out accent-vscode-0.1.21.vsix
 python3 test/package.test.py
 ```
 
@@ -132,9 +132,9 @@ uses `names.get(0)?` or `names[0]?`. Optional calls such as `names?.get(0)?` ski
 null receiver and therefore have a nullable overall result. Declare nullable
 method results as `String getName?()` and call them as `customer.getName()?`.
 
-Null coalescing uses `?:`: `nickname? ?: "Unknown"`. It evaluates the fallback
-only for null, preserving empty strings, zero, and false. The ternary expression
-remains `condition ? yes : no`; `??` is reserved for collection markers.
+Null coalescing uses `else`: `nickname? else "Unknown"`. It evaluates the fallback
+only for null, preserving empty strings, zero, and false. Conditional expressions use
+`condition then yes else no`; `??` is reserved for collection markers.
 
 Non-null fields and locals require initializers. These contracts do not imply
 non-empty or immutable values. Rebuild the language server and extension together
@@ -194,3 +194,5 @@ Traditional loops use `for (i = 0; i < limit; i++)`. An undeclared counter becom
 ## Record and model bodies
 
 Write `record Address(String city)` and `model Profile(String name, Address address)` without braces when there are no explicit members. Empty or comment-only `{}` bodies are syntax errors, including for singleton records and models. Nonempty bodies retain braces, and Java records retain Java syntax.
+
+Null fallback uses `value? else fallback`; `?:` is rejected. Inside a conditional's `then` branch, use parentheses: `active then (name? else "Guest") else "Inactive"`. Only null triggers the fallback.

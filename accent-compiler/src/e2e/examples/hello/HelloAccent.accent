@@ -4,7 +4,7 @@ import java.util.UUID;
 
 extension String {
     String normalized() {
-        return this.trim().toUpperCase() ?: "";
+        return this.trim().toUpperCase() else "";
     }
 }
 
@@ -29,7 +29,7 @@ record DashboardService(
         };
 
         final city =
-            customer.address()?.city() ?: "Unknown";
+            customer.address()?.city() else "Unknown";
 
         final names = each (order from orders) {
             yield order.name().normalized();

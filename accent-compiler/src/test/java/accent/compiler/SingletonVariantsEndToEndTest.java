@@ -50,7 +50,7 @@ class SingletonVariantsEndToEndTest {
         fixtures.put("State", """
                 singleton model State(final String id = Probe.modelName(), String theme = "light", int count = 0)
                 """);
-        fixtures.put("Computed", "singleton record Computed(String name = Probe.recordName() ?: \"fallback\")");
+        fixtures.put("Computed", "singleton record Computed(String name = Probe.recordName() else \"fallback\")");
         fixtures.put("EmptyClass", "singleton class EmptyClass {}");
         fixtures.put("EmptyRecord", "singleton record EmptyRecord()");
         fixtures.put("EmptyModel", "singleton model EmptyModel()");

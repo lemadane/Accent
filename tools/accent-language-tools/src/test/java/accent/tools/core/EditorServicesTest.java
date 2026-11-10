@@ -26,6 +26,31 @@ class EditorServicesTest {
             """;
 
     @Test
+    void elseFallbackProducesGeneratedJava() {
+        ProjectContext context = new ProjectContext(List.of());
+        Path path = Path.of("Fallback.accent");
+        context.putFile(path, """
+                class Fallback { String value(String name?) { return name? else "Guest"; } }
+                """);
+        var result = context.analyze(path, false);
+        assertTrue(result.diagnostics().isEmpty(), result.diagnostics().toString());
+        assertTrue(context.getGeneratedJava(path).contains("Guest"));
+    }
+
+    @Test
+    void thenElseExpressionsHaveCompletionAndGeneratedJava() {
+        ProjectContext context = new ProjectContext(List.of());
+        Path path = Path.of("Choice.accent");
+        context.putFile(path, """
+                class Choice { String value(boolean active) { return active then "ACTIVE" else "INACTIVE"; } }
+                """);
+        var result = context.analyze(path, false);
+        assertTrue(result.diagnostics().isEmpty(), result.diagnostics().toString());
+        assertTrue(context.getGeneratedJava(path).contains(" ? "));
+        assertMembersPresent(CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1), "then", "else");
+    }
+
+    @Test
     void bodylessDataDeclarationsHaveDiagnosticsAndGeneratedJava() {
         for (String kind : List.of("record", "model")) {
             ProjectContext context = new ProjectContext(List.of());

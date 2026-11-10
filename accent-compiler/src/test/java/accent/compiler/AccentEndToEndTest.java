@@ -163,7 +163,7 @@ class AccentEndToEndTest {
             "class NullMain {\n" +
             "    static void main(String[] args) {\n" +
             "        final String name? = null;\n" +
-            "        final fallback = name? ?: \"Default\";\n" +
+            "        final fallback = name? else \"Default\";\n" +
             "        if (not fallback.equals(\"Default\")) { throw new RuntimeException(\"Null coalescing failed\"); }\n" +
             "    }\n" +
             "}\n";
@@ -188,7 +188,7 @@ class AccentEndToEndTest {
             "package test;\n" +
             "extension String {\n" +
             "    String shout() {\n" +
-            "        return this.toUpperCase() ?: \"\";\n" +
+            "        return this.toUpperCase() else \"\";\n" +
             "    }\n" +
             "}\n" +
             "class ExtMain {\n" +
@@ -339,10 +339,10 @@ class AccentEndToEndTest {
             "class TernaryMain {\n" +
             "    static void main(String[] args) {\n" +
             "        final condition = true;\n" +
-            "        final val = condition ? \"Zack\" : \"Guest\";\n" +
+            "        final val = condition then \"Zack\" else \"Guest\";\n" +
             "        if (not val.equals(\"Zack\")) { throw new RuntimeException(\"Expected Zack\"); }\n" +
             "\n" +
-            "        final nested = condition ? (false ? 1 : 2) : 3;\n" +
+            "        final nested = condition then (false then 1 else 2) else 3;\n" +
             "        if (nested != 2) { throw new RuntimeException(\"Expected 2\"); }\n" +
             "    }\n" +
             "}\n";
@@ -476,7 +476,7 @@ class AccentEndToEndTest {
             "\n" +
             "        // 2. Arithmetic, ternary, and nested expressions\n" +
             "        final active = true;\n" +
-            "        final math = $\"Total: {10 * 5}, Status: {active ? \"Active\" : \"Inactive\"}\";\n" +
+            "        final math = $\"Total: {10 * 5}, Status: {active then \"Active\" else \"Inactive\"}\";\n" +
             "        if (not math.equals(\"Total: 50, Status: Active\")) {\n" +
             "            throw new RuntimeException(\"Fail expressions: \" + math);\n" +
             "        }\n" +

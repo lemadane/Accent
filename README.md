@@ -39,11 +39,11 @@ record DashboardService(
         OrderService orderService) {
 
     Dashboard load(UUID customerId) {
-        final customerAsync =
-            async this.customerService.findRequired(customerId);
+        final customerAsync = async this.customerService
+          .findRequired(customerId);
 
-        final ordersAsync =
-            async this.orderService.findForCustomer(customerId);
+        final ordersAsync = async this.orderService
+          .findForCustomer(customerId);
 
         final customer = await customerAsync;
         final orders = await ordersAsync;
@@ -54,8 +54,8 @@ record DashboardService(
             yield "INACTIVE";
         };
 
-        final city =
-            customer.address()?.city() ?: "Unknown";
+        final city = customer.address()?
+          .city() else "Unknown";
 
         final names = each (order from orders) {
             yield order.name().normalized();
@@ -147,7 +147,7 @@ These are the rules you will use throughout the examples. The detailed sections 
 | --- | --- | --- |
 | Non-null reference | `String name = "John";` | Must be initialized and cannot hold null |
 | Nullable reference | `String nickname? = null;` | Keep `?` when using the binding: `nickname?` |
-| Null fallback | `nickname? ?: "Guest"` | Evaluate the fallback only for null |
+| Null fallback | `nickname? else "Guest"` | Evaluate the fallback only for null |
 | Optional access | `customer?.getName()` | Skip the call if the receiver is null; the overall result is nullable |
 | Non-null list and elements | `List<String> names` | Neither the list nor its elements may be null |
 | Nullable list and elements | `List<String> names??` | Both the list and its elements may be null |
@@ -176,7 +176,7 @@ and keep that marker when using the nullable binding:
 ```java
 String name = "John";
 String nickname? = null;
-System.out.println(nickname? ?: name);
+System.out.println(nickname? else name);
 ```
 
 Non-null fields and local variables require initializers. Assigning null or a
@@ -276,10 +276,10 @@ class Customer {
 class Greeting {
     String greet(Customer customer) {
         String nickname? = customer.getNickname()?;
-        return nickname? ?: customer.getName();
+        return nickname? else customer.getName();
     }
     String optional(Customer customer?) {
-        return customer?.getName() ?: "Unknown";
+        return customer?.getName() else "Unknown";
     }
 }
 ```
@@ -290,7 +290,7 @@ value. A non-null method must return a non-null value on every completing path;
 overrides cannot weaken inherited non-null return contracts. JVM method names
 remain unchanged. Separately compiled libraries retain contract metadata.
 
-Unannotated Java reference results remain nullable. Use a null check or `?:`
+Unannotated Java reference results remain nullable. Use a null check or `else`
 fallback when supplying a non-null Accent binding or return value. Java source
 retains its own declaration syntax.
 
@@ -305,14 +305,17 @@ If a nullable receiver is `null`, the rest of the optional chain is skipped and 
 ### 3. Null coalescing
 
 ```java
-final city = customer.address()?.city() ?: "Unknown";
+Integer port = config.port? else 8080;
+final city = customer.address()?.city() else "Unknown";
 ```
 
-The `?:` operator evaluates its right-hand expression only when the left-hand
+The `else` operator evaluates its right-hand expression only when the left-hand
 value is `null`. Empty strings, empty collections, zero, and `false` keep their
-original values. Write `user? ?: fallback` when using a nullable binding.
+original values. Write `user? else fallback` when using a nullable binding.
 The old coalescing spelling `??` is reserved for nullable collection and element
 markers, such as `List<User> users??` and `User[] users??`.
+
+The old `?:` operator is a syntax error. In `condition then yes else no`, the first unparenthesized `else` ends the `then` branch. Parenthesize a null fallback inside that branch: `active then (nickname? else "Guest") else "Inactive"`. Outside a conditional branch, `value? else fallback` is null coalescing; chained fallbacks associate to the right.
 
 <a id="visibility"></a>
 
@@ -469,7 +472,7 @@ Method and constructor parameters cannot be reassigned. This restriction applies
 
 ```java
 void rename(String name) {
-    final normalizedName = name.trim() ?: "";
+    final normalizedName = name.trim() else "";
     this.name = normalizedName;
 }
 ```
@@ -502,11 +505,11 @@ boolean canAccess = (authenticated and not suspended) or administrator;
 
 Unary `!`, `&&`, and `||` are compile errors in Accent. Equality still uses `==` and `!=`. The words `not`, `and`, and `or` are reserved; longer identifiers such as `notification` remain valid.
 
-The ternary expression remains `condition ? yes : no`. It selects a branch by truthiness. Null coalescing, `value? ?: fallback`, selects a fallback only when the value is null.
+The conditional expression uses `condition then yes else no`. It selects a branch by truthiness. Null coalescing, `value? else fallback`, selects a fallback only when the value is null.
 
 ### 9. Truthy and falsy conditions
 
-Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `condition ? yes : no`, `if` expressions) as well as logical operators (`not`, `and`, `or`).
+Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, conditional `condition then yes else no`, `if` expressions) as well as logical operators (`not`, `and`, `or`).
 
 Truthy conditions still require braced `if` and `else` bodies. Braces do not
 change truthiness or nullability analysis: use an explicit `user? != null` check
@@ -976,7 +979,7 @@ Accent can extend an existing Java or Accent class without changing the original
 ```java
 extension String {
     String normalized() {
-        return this.trim().toUpperCase() ?: "";
+        return this.trim().toUpperCase() else "";
     }
 }
 ```
@@ -1357,7 +1360,7 @@ Standalone HTTP handlers start with an empty context and clear it at request com
 
 ```accent
 app.use((req, next) -> {
-    log.put("requestId", req.header("X-Request-Id") ?: "unknown");
+    log.put("requestId", req.header("X-Request-Id") else "unknown");
     return next.handle(req);
 });
 ```
@@ -1376,7 +1379,7 @@ class Main {
     static void main(String[] args) {
         final app = new App();
         app.use((req, next) -> {
-            log.put("requestId", req.header("X-Request-Id") ?: "unknown");
+            log.put("requestId", req.header("X-Request-Id") else "unknown");
             log.debug($"HTTP {req.method()} {req.path()}");
             return next.handle(req);
         });
@@ -1431,7 +1434,7 @@ class Main {
         app.get("/health", req -> Response.text("ok"));
         app.get("/users/:id", (req) -> Response.json(Map.of("id", req.path("id"))));
         app.post("/echo", req -> Response.json(req.json()));
-        final port = Integer.parseInt(System.getenv("PORT") ?: "8080");
+        final port = Integer.parseInt(System.getenv("PORT") else "8080");
         app.listen(port);
         System.out.println("Accent HTTP listening on " + app.port());
     }
@@ -1561,9 +1564,16 @@ record UserCard(User user) implements Component {
 }
 ```
 
-#### Ternary conditional operator for ReactJS-like HTML template control flow
+#### Conditional expressions in HTML templates
 
-Accent supports standard Java ternary expressions (`{condition ? thenExpr : elseExpr}`). It is fully compatible with Java's standard ternary operator:
+Use `{condition then thenExpr else elseExpr}` in HTML templates, just as in ordinary expressions:
+
+```accent
+final status = customer.isActive() then "ACTIVE" else "INACTIVE";
+final content = (<div>{active then (<b>Active</b>) else (<i>Inactive</i>)}</div>);
+```
+
+Only the selected branch is evaluated. Conditions use Accent truthiness. Nested conditionals associate to the right: `a then x else b then y else z` means `a then x else (b then y else z)`. Use parentheses to make complex nesting clearer. Accent rejects the old `condition ? yes : no` syntax; Java source keeps it. Nullable markers (`?`, `??`), optional access (`?.`), and null coalescing (`else`) retain their existing meanings.
 
 ## Specialized library utilities
 
@@ -1684,7 +1694,7 @@ Symbol<String?> statusKey? = Symbol.create("status");
 SymbolMap context = new SymbolMap();
 context.put(statusKey?, "ACTIVE");
 String status? = context.get(statusKey?);
-System.out.println(status? ?: "UNKNOWN");
+System.out.println(status? else "UNKNOWN");
 ```
 
 The nullable markers above reflect the unannotated Java API results and the possibility of a missing map entry. A symbol's description is for debugging; it does not determine identity. Symbols are useful for request attributes and plugin metadata, but are not persistent database IDs and should not be treated as serialization keys.

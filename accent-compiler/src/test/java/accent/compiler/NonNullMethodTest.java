@@ -67,7 +67,7 @@ class NonNullMethodTest {
         String prefix = "class Sample { String name() { return \"John\"; } ";
         rejects(prefix + "String read(Sample customer?) { return customer?.name(); } }", "must return a non-null value");
         rejects(prefix + "void read(Sample customer?) { String name = customer?.name(); } }", "Incompatible types");
-        accepts(prefix + "String read(Sample customer?) { return customer?.name() ?: \"Unknown\"; } }");
+        accepts(prefix + "String read(Sample customer?) { return customer?.name() else \"Unknown\"; } }");
         accepts(prefix + "String read(Sample customer) { return customer.name(); } }");
     }
 
@@ -185,7 +185,7 @@ class NonNullMethodTest {
                     String name() { return this.value; }
                     String label() { return super._label(); }
                     static String read(Parent customer) { return customer.name(); }
-                    static String optional(Parent customer?) { return customer?.name() ?: "Unknown"; }
+                    static String optional(Parent customer?) { return customer?.name() else "Unknown"; }
                     static java.util.function.Supplier<String> supplier() {
                         java.util.function.Supplier<String> result = () -> { return null; };
                         return result;

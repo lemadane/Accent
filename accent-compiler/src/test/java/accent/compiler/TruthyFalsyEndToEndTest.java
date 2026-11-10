@@ -151,10 +151,10 @@ class TruthyFalsyEndToEndTest {
             "        if (doRuns != 1) { throw new RuntimeException(\"do-while loop failed, expected 1 got \" + doRuns); }\n" +
             "\n" +
             "        // Ternary operator\n" +
-            "        final strRes = \"yes\" ? \"ok\" : \"no\";\n" +
+            "        final strRes = \"yes\" then \"ok\" else \"no\";\n" +
             "        if (not strRes.equals(\"ok\")) { throw new RuntimeException(\"ternary string failed\"); }\n" +
             "\n" +
-            "        final zeroRes = 0 ? \"bad\" : \"good\";\n" +
+            "        final zeroRes = 0 then \"bad\" else \"good\";\n" +
             "        if (not zeroRes.equals(\"good\")) { throw new RuntimeException(\"ternary zero failed\"); }\n" +
             "    }\n" +
             "}\n";

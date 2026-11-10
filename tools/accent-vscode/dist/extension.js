@@ -278,7 +278,7 @@ function isStatementContinuation(line) {
     }
     if (trimmed.endsWith(',') || trimmed.endsWith('+') || trimmed.endsWith('-') ||
         trimmed.endsWith('*') || trimmed.endsWith('/') || trimmed.endsWith('=') ||
-        trimmed.endsWith('&&') || trimmed.endsWith('||') || trimmed.endsWith('?:') ||
+        trimmed.endsWith('&&') || trimmed.endsWith('||') || trimmed.endsWith('then') || trimmed.endsWith('else') ||
         trimmed.endsWith('?') || trimmed.endsWith(':') || trimmed.endsWith('and') ||
         trimmed.endsWith('or') || trimmed.endsWith('->') || trimmed.endsWith('=>')) {
         return true;

@@ -93,7 +93,7 @@ class DataSerializationTest {
                     static String optionalList?(List<Item> values?) { return values?.toJson(); }
                     static String optionalMap?(Map<String, Entry> values?) { return values?.toXml(); }
                     static int chained(List<Item> values) { return values.toJson().length(); }
-                    static String fallback(List<Item> values?) { return values?.toJson() ?: "absent"; }
+                    static String fallback(List<Item> values?) { return values?.toJson() else "absent"; }
                 }
                 """);
         Path output = tempDir.resolve("classes");

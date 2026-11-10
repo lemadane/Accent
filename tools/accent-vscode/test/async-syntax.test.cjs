@@ -50,5 +50,7 @@ for (const sample of ['println("hello")', 'print(42)', 'log("hello")', 'log.put(
 assert.equal(builtinRules[0].test('static.println("hello")'), false);
 
 assert.equal(isKeyword('each'), true);
+assert.equal(isKeyword('then'), true);
+assert.equal(isKeyword('thenValue'), false);
 assert.equal(isKeyword('from'), true);
 assert.equal(isKeyword('foreach'), false);

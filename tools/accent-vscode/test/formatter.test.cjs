@@ -56,7 +56,7 @@ const markedMethods = [
     'class Sample {',
     '  String name() { return "John"; }',
     '  String read!(Sample customer) {',
-    '    return customer?.name() ?: "Unknown";',
+    '    return customer?.name() else "Unknown";',
     '  }',
     '}', ''
 ].join('\n');

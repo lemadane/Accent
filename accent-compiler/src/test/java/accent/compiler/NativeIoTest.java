@@ -26,7 +26,7 @@ class NativeIoTest {
                 class NativeIo {
                     static int calls = 0;
                     static String value() { static.calls++; return "world"; }
-                    static String context() { return log.get("requestId") ?: "missing"; }
+                    static String context() { return log.get("requestId") else "missing"; }
                     static int run() {
                         final log = new Logger();
                         Logger logger = log;
@@ -98,9 +98,9 @@ class NativeIoTest {
         Path contract = temp.resolve("InterfaceLog.accent");
         Path extension = temp.resolve("StringLog.accent");
         Path caller = temp.resolve("Caller.accent");
-        Files.writeString(record, "record RecordLog() { String category() { return log.name() ?: \"\"; } }");
-        Files.writeString(contract, "interface InterfaceLog { static String category() { return log.name() ?: \"\"; } }");
-        Files.writeString(extension, "extension String { String category() { return log.name() ?: \"\"; } }");
+        Files.writeString(record, "record RecordLog() { String category() { return log.name() else \"\"; } }");
+        Files.writeString(contract, "interface InterfaceLog { static String category() { return log.name() else \"\"; } }");
+        Files.writeString(extension, "extension String { String category() { return log.name() else \"\"; } }");
         Files.writeString(caller, "class Caller { static String category() { return \"x\".category(); } }");
         var result = new AccentCompiler().compile(List.of(record, contract, extension, caller), temp.resolve("kinds"),
                 List.of("build/classes/java/main"), temp.resolve("kinds-java"), true);

@@ -115,7 +115,7 @@ class AccentSpringEndToEndTest {
                 class Qualified {
                     final String _value?;
                     Qualified(@Qualifier("right") String value) { this._value? = value; }
-                    String value() { return this._value? ?: ""; }
+                    String value() { return this._value? else ""; }
                 }
                 """);
         Files.writeString(sources.resolve("QualifiedRecord.accent"), """

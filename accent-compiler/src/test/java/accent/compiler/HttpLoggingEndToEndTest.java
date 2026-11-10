@@ -66,7 +66,7 @@ class HttpLoggingEndToEndTest {
                         app.get("/short", req -> { throw new RuntimeException("must not execute"); });
                         app.get("/failure", req -> { throw new RuntimeException("handler secret"); });
                         app.get("/expected", req -> { throw new HttpException(422, "invalid customer"); });
-                        app.get("/clean", req -> Response.text(log.get("requestId") ?: "empty"));
+                        app.get("/clean", req -> Response.text(log.get("requestId") else "empty"));
                         app.listen("127.0.0.1", 0);
                         System.out.println("HTTP_LOG_PORT=" + app.port());
                     }

@@ -102,7 +102,7 @@ Keep declarations, examples, diagnostics, and editor support consistent:
 Reference types and elements are non-null by default. `List<String?> names`
 and `String?[] names` allow nullable elements in a non-null collection. The
 `??` binding suffix permits both a nullable collection and nullable elements.
-Use `?:` for null coalescing; `??` is no longer a coalescing operator.
+Use `else` for null coalescing; `??` is no longer a coalescing operator.
 
 Non-null fields and locals require initializers. Nullable bindings keep `?` at
 use sites, including after a proof such as `if (value? != null) { ... }`.
@@ -200,3 +200,7 @@ By contributing to Accent, you agree that your contributions will be licensed un
 ## Record and model bodies
 
 Write `record Address(String city)` and `model Profile(String name, Address address)` without braces when there are no explicit members. Empty or comment-only `{}` bodies are syntax errors, including for singleton records and models. Nonempty bodies retain braces, and Java records retain Java syntax.
+
+## Conditional expressions
+
+Accent uses `condition then value else value` and rejects the old `? :` form. Preserve truthiness, evaluation of only the selected branch, right-associative nesting, nullable result contracts, interpolation, and HTML rendering. `then` is contextual so qualified Java method names remain usable. Java source retains `? :`; nullable markers, optional access, and `else` null coalescing are unchanged.

@@ -126,7 +126,7 @@ class HtmlRenderingEndToEndTest {
 
     @Test
     void markupLoopsKeepLiftedExpressionsWithinEachIteration() throws Exception {
-        try (var compiled = compile("class Demo { static Html render(List<String> items??) { return (<ul>{for (String item? : items?) {<li>{item? ?: \"none\"}</li>} else {<li>done</li>}}</ul>); } }")) {
+        try (var compiled = compile("class Demo { static Html render(List<String> items??) { return (<ul>{for (String item? : items?) {<li>{item? else \"none\"}</li>} else {<li>done</li>}}</ul>); } }")) {
             assertEquals("<ul><li>one</li><li>none</li><li>two</li><li>done</li></ul>",
                     compiled.render(new Class<?>[]{List.class}, Arrays.asList("one", null, "two")).renderToString());
             assertEquals("<ul><li>done</li></ul>", compiled.render(new Class<?>[]{List.class}, List.of()).renderToString());
@@ -145,7 +145,7 @@ class HtmlRenderingEndToEndTest {
 
     @Test
     void nestedMarkupExpressionsHaveUniqueWritersAndHtmlTargetTypes() throws Exception {
-        try (var compiled = compile("class Demo { static Html render(boolean show) { return (<div>{show ? (<b>yes</b>) : (<i>no</i>)}</div>); } }")) {
+        try (var compiled = compile("class Demo { static Html render(boolean show) { return (<div>{show then (<b>yes</b>) else (<i>no</i>)}</div>); } }")) {
             assertEquals("<div><b>yes</b></div>", compiled.render(new Class<?>[]{boolean.class}, true).renderToString());
             assertEquals("<div><i>no</i></div>", compiled.render(new Class<?>[]{boolean.class}, false).renderToString());
         }
@@ -153,7 +153,7 @@ class HtmlRenderingEndToEndTest {
 
     @Test
     void nestedLoopsAndChildrenRetainTheirVariableScopes() throws Exception {
-        try (var compiled = compile("class Demo { static Html render(List<String> items??) { return (<Box>{for (String item? : items?) {<Box>{if (item? != null) {<span>{item? ?: \"none\"}</span>} else {<i>missing</i>}}</Box>}}</Box>); } }")) {
+        try (var compiled = compile("class Demo { static Html render(List<String> items??) { return (<Box>{for (String item? : items?) {<Box>{if (item? != null) {<span>{item? else \"none\"}</span>} else {<i>missing</i>}}</Box>}}</Box>); } }")) {
             assertEquals("<section><section><span>one</span></section><section><i>missing</i></section></section>",
                     compiled.render(new Class<?>[]{List.class}, Arrays.asList("one", null)).renderToString());
         }
@@ -166,7 +166,7 @@ class HtmlRenderingEndToEndTest {
                     static int calls = 0;
                     static String value?() { static.calls++; return null; }
                     static Html render(boolean show) {
-                        return (<div>{if (show) {<b title={static.value()? ?: "tip"}>{static.value()? ?: "none"}</b>}}</div>);
+                        return (<div>{if (show) {<b title={static.value()? else "tip"}>{static.value()? else "none"}</b>}}</div>);
                     }
                 }
                 """)) {

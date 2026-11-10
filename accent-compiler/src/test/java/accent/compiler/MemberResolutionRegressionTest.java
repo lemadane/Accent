@@ -63,7 +63,7 @@ class MemberResolutionRegressionTest {
         write("src/client/Caller.accent", """
                 package client;
                 import api.Calls;
-                class Caller { static String run() { return Calls.collect("count:", 1) ?: ""; } }
+                class Caller { static String run() { return Calls.collect("count:", 1) else ""; } }
                 """);
 
         assertEquals("count:1", compileAndRun("client.Caller", List.of(library)));
@@ -78,7 +78,7 @@ class MemberResolutionRegressionTest {
         write("src/client/Caller.accent", """
                 package client;
                 import api.Calls;
-                class Caller { static String run() { return Calls.boxed(1) ?: ""; } }
+                class Caller { static String run() { return Calls.boxed(1) else ""; } }
                 """);
 
         assertEquals("boxed:1", compileAndRun("client.Caller", List.of(library)));
