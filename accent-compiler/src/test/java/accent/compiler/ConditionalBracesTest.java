@@ -19,7 +19,7 @@ class ConditionalBracesTest {
                 "if (true) {} else if (false) return;",
                 "if (true) if (false) {} else {}",
                 "if (true) // comment\n return;",
-                "for (int i = 0; i < 1; i++) {} else return;",
+                "for (i = 0; i < 1; i++) {} else return;",
                 "for (String value : new String[]{}) {} else return;")) {
             var result = new AccentCompiler().check(List.of(new SourceFile(Path.of("Sample.accent"),
                     "class Sample { void run() { " + body + " } }")));

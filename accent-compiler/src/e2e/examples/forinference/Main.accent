@@ -1,0 +1,13 @@
+class Main {
+    static void main(String[] args) {
+        for (i = 0; i < 3; i++) {
+            println(i);
+        } else {
+            println("Completed");
+        }
+        final values = for (i = 0; i < 3; i++) {
+            yield i;
+        };
+        println(values);
+    }
+}

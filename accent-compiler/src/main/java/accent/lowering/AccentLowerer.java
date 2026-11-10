@@ -255,7 +255,15 @@ public final class AccentLowerer implements ImportResolver {
         return new BlockStmt(stmtList);
     }
 
+    private Statement resolveForInitializer(Statement statement) {
+        if (!(statement instanceof ForInitStmt init)) return statement;
+        IdentifierExpr name = (IdentifierExpr) init.assignment().left();
+        return expressionTypes.containsKey(name) || lookupVarType(name.name()) != null
+                ? new ExprStmt(init.assignment()) : init.declaration();
+    }
+
     private List<Statement> lowerStatement(Statement stmt) {
+        if (stmt instanceof ForInitStmt) return lowerStatement(resolveForInitializer(stmt));
         List<Statement> savedPending = new ArrayList<>(pendingStatements);
         pendingStatements.clear();
 
@@ -328,7 +336,7 @@ public final class AccentLowerer implements ImportResolver {
         } else if (stmt instanceof DoWhileStmt dws) {
             Statement body = lowerBlock(dws.body() instanceof BlockStmt ? (BlockStmt) dws.body() : new BlockStmt(List.of(dws.body())));
             Expression cond = lowerExpression(dws.condition());
-            result = new DoWhileStmt(body, cond);
+            result = new DoWhileStmt(body, cond, dws.elseBranch().map(eb -> new BlockStmt(lowerStatement(eb))));
         } else if (stmt instanceof TryStmt ts) {
             BlockStmt body = lowerBlock(ts.body());
             List<CatchClause> catches = new ArrayList<>();
@@ -778,6 +786,17 @@ public final class AccentLowerer implements ImportResolver {
         return stmt;
     }
 
+    private Statement lowerForExpressionInitializer(Statement statement) {
+        if (!(statement instanceof ForInitStmt)) return statement;
+        Statement resolved = resolveForInitializer(statement);
+        if (resolved instanceof LocalVarDeclStmt declaration) {
+            return new LocalVarDeclStmt(declaration.isFinal(), declaration.isInferred(), declaration.type(),
+                    declaration.name(), declaration.initializer().map(this::lowerExpression),
+                    declaration.nonNullBinding(), declaration.nonNullElements());
+        }
+        return new ExprStmt(lowerExpression(((ExprStmt) resolved).expression()));
+    }
+
     private Statement lowerLoopYields(Statement stmt, String listName) {
         if (stmt instanceof YieldStmt ys) {
             // yield X; -> listName.add(X);
@@ -791,14 +810,15 @@ public final class AccentLowerer implements ImportResolver {
         } else if (stmt instanceof IfStmt ifs) {
             return new IfStmt(ifs.condition(), lowerLoopYields(ifs.thenBranch(), listName), ifs.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof ForStmt fs) {
-            return new ForStmt(fs.init(), fs.condition(), fs.update(), lowerLoopYields(fs.body(), listName), fs.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
+            return new ForStmt(fs.init().map(this::lowerForExpressionInitializer), fs.condition(), fs.update(), lowerLoopYields(fs.body(), listName), fs.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof ForEachStmt fes) {
             return new ForEachStmt(fes.parameter(), fes.iterable(), lowerLoopYields(fes.body(), listName), fes.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof WhileStmt ws) {
             return new WhileStmt(ws.condition(), lowerLoopYields(ws.body(), listName),
                     ws.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof DoWhileStmt dws) {
-            return new DoWhileStmt(lowerLoopYields(dws.body(), listName), dws.condition());
+            return new DoWhileStmt(lowerLoopYields(dws.body(), listName), dws.condition(),
+                    dws.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof TryStmt ts) {
             BlockStmt body = (BlockStmt) lowerLoopYields(ts.body(), listName);
             List<CatchClause> catches = new ArrayList<>();
@@ -1005,6 +1025,8 @@ public final class AccentLowerer implements ImportResolver {
             pushScope();
             if (fs.init().isPresent()) {
                 Statement init = fs.init().get();
+                if (init instanceof ForInitStmt inferred && !expressionTypes.containsKey(inferred.assignment().left()))
+                    init = inferred.declaration();
                 if (init instanceof LocalVarDeclStmt lvd) {
                     ResolvedType type = null;
                     if (lvd.type().isPresent()) {
@@ -1045,6 +1067,7 @@ public final class AccentLowerer implements ImportResolver {
             ws.elseBranch().ifPresent(eb -> findYieldTypesHelper(eb, types));
         } else if (stmt instanceof DoWhileStmt dws) {
             findYieldTypesHelper(dws.body(), types);
+            dws.elseBranch().ifPresent(eb -> findYieldTypesHelper(eb, types));
         }
     }
 

@@ -57,7 +57,7 @@ record DashboardService(
         final city =
             customer.address()?.city() ?: "Unknown";
 
-        final names = for (Order order : orders) {
+        final names = each (order from orders) {
             yield order.name().normalized();
         };
 
@@ -545,7 +545,7 @@ A truthy collection can still contain null elements when its element contract pe
 statement.** Write `if (user? != null) { names.add(user?); }`; the unbraced form
 is a compile error. `else if (...) { ... }` chains remain valid, with a braced
 body for each condition and the final `else`. An empty branch must use `{}`,
-not `;`. This rule also applies to the `else` body of `for/else` and `while/else` loops.
+not `;`. This rule also applies to the `else` body of `each/else`, `for/else`, and `while/else` loops.
 If-expressions and HTML conditionals already require braced bodies.
 
 Explicit block boundaries make the scope of each condition visible and avoid
@@ -596,23 +596,29 @@ final port = try {
 };
 ```
 
-### 12. `for` loops and expressions with `else`
+### 12. `each` and `for` loops with `else`
 
-Accent uses Java's existing `for` keyword for both enhanced and traditional loops in statement and expression positions. Accent supports an optional `else` branch on `for` loops (`for/else`).
+Use `each (item from list) { ... }` for collection iteration. Accent infers the element type, and `item` is implicitly final: it cannot be reassigned or incremented.
+
+Explicit types such as `each (Customer item from customers)` and `each (final Customer item from customers)` are also supported. Explicit `final` remains optional and compatible, including `each (final item from list)`. Final applies to the binding, not to the mutability of the referenced object.
+
+Both the `each` body and its optional `else` body require braces.
+
+Traditional counting loops use `for (i = 0; i < limit; i++) { ... }`. Existing enhanced `for (var item : list)` loops remain compatible, including their expression and `else` forms. Prefer `each` in new collection-processing code.
 
 The `else` body must use `{ ... }`, even for a single statement or an empty
 fallback. See the [conditional brace rules](#10-braced-conditionals-and-if-expressions).
 
-#### `for/else` Semantics
+#### Loop completion and `else`
 - **Falsy/Empty Iterable**: If the loop iterable is falsy (`null`, empty `List`, empty `Map`, empty array, etc.) or a traditional loop condition starts `false`, the loop body is skipped and the `else` branch executes immediately.
 - **Normal Loop Completion**: If the loop executes to completion without encountering a `break` statement, the `else` branch executes.
 - **Early Exit via `break`**: If a `break` statement is encountered, the `else` branch is skipped.
 
-#### Enhanced `for/else` Statement
+#### `each/else` statement
 
 ```java
 // Executes else branch when list is empty, null, or completed without break
-for (var customer : customers) {
+each (customer from customers) {
     if (customer.id().equals(targetId)) {
         this.process(customer);
         break; // Skips else branch
@@ -624,8 +630,18 @@ for (var customer : customers) {
 
 #### Traditional `for/else` Statement
 
+Traditional loops infer new counters from their initializers:
+
+```accent
+for (i = 0; i < maxAttempts; i++) { println(i); }
+```
+
+An undeclared `i` becomes a mutable local with its type inferred from `0`. It is scoped to the loop header and body, and is not visible in `else` or after the loop. Unlike an `each` binding, the counter is mutable so `i++` is allowed. An initializer is required to infer a new variable. Writing `var`, an explicit type, or `final` in a traditional `for` initializer is a syntax error. Ordinary local declarations and compatible enhanced `for (var item : list)` loops keep their existing syntax.
+
+If `i` already names a local variable, the bare form assigns to that variable instead of declaring another one; its final value remains available after the loop. Existing final variables and parameters cannot be reassigned, and fields retain their normal qualification rules. The same initializer rules work in `for` expressions and with `else`.
+
 ```java
-for (var i = 0; i < maxAttempts; i++) {
+for (i = 0; i < maxAttempts; i++) {
     if (this.tryConnect()) {
         break; // Skips else branch on successful connection
     }
@@ -634,17 +650,25 @@ for (var i = 0; i < maxAttempts; i++) {
 }
 ```
 
-#### `for/else` Expression
+#### `each/else` expression
 
 Each executed `yield` contributes an element to the resulting collection. With `else`, the branch also contributes values whenever the loop completes without `break`, including when it was empty. In the example below, `"Guest"` is appended after normal iteration as well as for an empty iterable:
 
 ```java
-final names = for (Customer customer : customers) {
+final names = each (customer from customers) {
     yield customer.name();
 } else {
     yield "Guest";
 };
 ```
+
+| Each expression execution | Result |
+| --- | --- |
+| Body yields `1`, `2`; normal completion yields `3` from `else` | `[1, 2, 3]` |
+| Empty or null collection; `else` yields `9` | `[9]` |
+| Body yields `1`, then breaks | `[1]`; `else` is skipped |
+
+The iterable is evaluated once. Iteration variables are scoped to the body and are not visible in `else`; use the normal `?` marker when declaring and referencing nullable items. `continue` does not suppress `else` after normal completion, and breaking an inner loop does not suppress the outer loop's `else`. The expression form ends with `;` after its complete body or `else` block.
 
 ### 13. `while` and `do-while` expressions
 
@@ -691,7 +715,7 @@ If no executed branch yields a value, the result is an empty list. `continue` sk
 
 See the [runnable while/else example](accent-compiler/src/e2e/examples/whileelse/Main.accent) and [expression regression tests](accent-compiler/src/test/java/accent/compiler/WhileElseTest.java).
 
-Plain `while` and `do-while` expressions remain supported; `do-while` does not have an `else` branch.
+Plain `while` and `do-while` expressions remain supported.
 
 ```java
 final values = while (iterator.hasNext()) {
@@ -704,6 +728,46 @@ final values = do {
     yield this.readValue();
 } while (this.hasMore());
 ```
+
+#### `do-while/else` statements and expressions
+
+Use `do { ... } while (condition) else { ... }` for a loop that must execute at least once. There is one loop body, after `do`; no second block follows `while (condition)`. Both the loop body and the `else` body require braces.
+
+```accent
+int attempts = 0;
+do {
+    attempts++;
+    if (this.tryConnect()) {
+        break;
+    }
+} while (attempts < 3) else {
+    println("All connection attempts failed");
+}
+```
+
+The condition is checked after each iteration. `else` runs when it becomes falsy; a `break` exiting this loop skips `else`. A nested loop's `break` does not suppress the outer loop's `else`. `continue` checks the condition before the next iteration, and still allows `else` on normal completion. A `return` or escaping exception bypasses `else`.
+
+The expression form collects every executed `yield`, including those in `else`:
+
+```accent
+int count = 0;
+final values = do {
+    count++;
+    yield count;
+} while (count < 2) else {
+    yield 3;
+}; // [1, 2, 3]
+```
+
+| Expression execution | Body yields | Else yields | Result |
+| --- | --- | --- | --- |
+| Normal completion | `1`, `2` | `3` | `[1, 2, 3]` |
+| Condition is false on the first check | `7` | `9` | `[7, 9]` |
+| Break after yielding `7` | `7` | Skipped | `[7]` |
+
+Unlike `while/else`, a `do-while/else` loop never has zero iterations. Variables declared inside the loop body remain scoped to that body. With `else`, place no semicolon between `while (condition)` and `else`; an expression ends with `;` after the complete `else` block. Ordinary `do { ... } while (condition);` retains its existing syntax.
+
+See the [runnable do-while/else example](accent-compiler/src/e2e/examples/dowhileelse/Main.accent).
 
 ## Functions and data modeling
 
@@ -1468,7 +1532,7 @@ Accent includes native support for server-side HTML templating via JSX-like mark
 * **HTML Elements**: Lowercase tags (e.g. `<div class="card">`) represent standard HTML elements. Real HTML attribute names (`class`, `for`) are used instead of React-specific names (`className`, `htmlFor`).
 * **Accent Components**: Capitalized tags (e.g. `<UserCard user={user} />`) represent custom component classes or records that implement the `accent.html.Component` interface.
 * **Property Injection**: Component properties are matched to constructor parameters at compile-time. Property types, names, and presence of required attributes are checked at compile-time.
-* **Control Flow**: You can write conditionals (`{if (cond) { ... } else { ... }}`) and loops (`{for (var item : list) { ... }}`) directly inside the markup block to control structure dynamically.
+* **Control Flow**: You can write conditionals (`{if (cond) { ... } else { ... }}`) and loops (`{each (item from list) { ... }}`) directly inside the markup block to control structure dynamically.
 * **Rendering Scope**: Dynamic expressions run when the `Html` is written. Unselected conditional branches are not evaluated, and loop expressions are evaluated within each iteration. Nested components may contain further components and control flow.
 * **Boolean Attributes**: `disabled={false}` and `checked={null}` omit the attribute; `disabled={true}` emits `disabled`. Ordinary attributes retain their values, so `title={true}` emits `title="true"`.
 * **Fragments**: Use empty tags (`<> ... </>`) to group multiple elements without adding wrapping nodes to the DOM.

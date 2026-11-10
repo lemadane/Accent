@@ -177,11 +177,21 @@ The suite covers routing, inferred handler and middleware parameters, JSON and H
 - Use descriptive names; avoid abbreviations.
 - Write Javadoc for public types and methods.
 
+## Each loops
+
+Prefer `each (item from list) { ... }` in Accent samples, including expression and `else` forms. Preserve enhanced `for (var item : list)` compatibility and traditional `for` loops. `each` and `from` are contextual syntax; Java source and qualified Java method names retain their behavior. `EachLoopTest` covers inferred and typed bindings, immutable items, collection/array iteration, empty and null inputs, yields, nested breaks, scope, and brace requirements.
+
+## Inferred for initializers
+
+`for (i = 0; condition; update)` declares a mutable inferred local only when `i` is not already bound. Preserve assignment to existing variables, immutable binding checks, field qualification, loop scope, and inferred return element types in loop expressions. `InferredForInitTest` covers these behaviors and syntax errors for `var`, explicit types, and `final` in traditional Accent loop initializers. Preserve ordinary declarations, Java source, and enhanced `for` compatibility.
+
 ## Static imports and loop completion
 
 Static imports support unqualified field and method access without a `$` prefix. Preserve named-import precedence, ambiguity diagnostics, visibility, overload selection, local shadowing, and nullable contracts. Lower imported access to its declaring class so generated Java previews and execution agree; imported mutable fields must remain assignable.
 
 `while/else` shares `for/else` completion behavior: run the braced fallback after a falsy condition or normal exhaustion, skip it on an exiting break, and keep nested breaks isolated. Preserve else branches during semantic checks, yield collection/lowering, and editor AST traversal. `WhileElseTest` verifies statement behavior and expression results: `[1, 2, 3]` after normal completion, `[9]` for zero iterations, and `[7]` after an early break. Keep these expression cases covered when changing loop lowering.
+
+`DoWhileElseTest` covers at-least-once execution, normal completion, break/continue, nested loops, return/exception exits, braced bodies, scope, and expression yields. Preserve the do-while else branch through semantic checks, lowering, Java emission, and editor traversal; a false first condition still follows one body execution.
 
 ## License
 

@@ -61,7 +61,7 @@ class AccentEndToEndTest {
             "        if (val != 100) { throw new RuntimeException(\"Value should be 100\"); }\n" +
             "\n" +
             "        var sum = 0;\n" +
-            "        final list = for (var i = 0; i < 5; i++) {\n" +
+            "        final list = for (i = 0; i < 5; i++) {\n" +
             "            yield i;\n" +
             "        };\n" +
             "        for (var n : list) { sum = sum + n; }\n" +

@@ -53,7 +53,7 @@ class GeneratorTest {
             "package test;\n" +
             "class Gen {\n" +
             "    generator int numbers(int limit) {\n" +
-            "        for (var i = 0; i < limit; i++) {\n" +
+            "        for (i = 0; i < limit; i++) {\n" +
             "            emit i;\n" +
             "        }\n" +
             "    }\n" +
@@ -65,7 +65,7 @@ class GeneratorTest {
             "            result.add(n);\n" +
             "        }\n" +
             "        if (result.size() != 5) { throw new RuntimeException(\"Expected 5, got \" + result.size()); }\n" +
-            "        for (var i = 0; i < 5; i++) {\n" +
+            "        for (i = 0; i < 5; i++) {\n" +
             "            if (not result.get(i).equals(i)) { throw new RuntimeException(\"Expected \" + i + \" at index \" + i + \", got \" + result.get(i)); }\n" +
             "        }\n" +
             "    }\n" +
@@ -99,7 +99,7 @@ class GeneratorTest {
             "package test;\n" +
             "class ConditionalGen {\n" +
             "    generator int evenNumbers(int limit) {\n" +
-            "        for (var i = 0; i < limit; i++) {\n" +
+            "        for (i = 0; i < limit; i++) {\n" +
             "            if (i % 2 == 0) {\n" +
             "                emit i;\n" +
             "            }\n" +
@@ -118,7 +118,7 @@ class GeneratorTest {
             "package test;\n" +
             "class ReturnCheck {\n" +
             "    generator int numbers(int limit) {\n" +
-            "        for (var i = 0; i < limit; i++) {\n" +
+            "        for (i = 0; i < limit; i++) {\n" +
             "            emit i;\n" +
             "        }\n" +
             "    }\n" +

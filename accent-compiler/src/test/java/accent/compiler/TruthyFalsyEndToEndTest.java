@@ -573,7 +573,7 @@ class TruthyFalsyEndToEndTest {
             "        // 5. Standard for/else loop\n" +
             "        boolean else5Ran = false;\n" +
             "        int sum5 = 0;\n" +
-            "        for (var i = 0; i < 3; i++) {\n" +
+            "        for (i = 0; i < 3; i++) {\n" +
             "            sum5 = sum5 + i;\n" +
             "        } else {\n" +
             "            else5Ran = true;\n" +
@@ -581,7 +581,7 @@ class TruthyFalsyEndToEndTest {
             "        if (sum5 != 3 or not else5Ran) { throw new RuntimeException(\"Standard for/else without break failed\"); }\n" +
             "\n" +
             "        boolean else6Ran = false;\n" +
-            "        for (var i = 0; i < 3; i++) {\n" +
+            "        for (i = 0; i < 3; i++) {\n" +
             "            if (i == 1) { break; }\n" +
             "        } else {\n" +
             "            else6Ran = true;\n" +

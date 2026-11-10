@@ -1,0 +1,18 @@
+import java.util.List;
+
+class Main {
+    static void main(String[] args) {
+        final items = List.of(1, 2);
+        each (item from items) {
+            println(item);
+        } else {
+            println("Iteration completed");
+        }
+        final values = each (item from items) {
+            yield item;
+        } else {
+            yield 3;
+        };
+        println(values);
+    }
+}

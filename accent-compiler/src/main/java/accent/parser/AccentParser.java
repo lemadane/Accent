@@ -837,6 +837,10 @@ public final class AccentParser {
         if (match(TokenType.IF)) {
             return parseIfStatement();
         }
+        if (isEachStart()) {
+            advance();
+            return parseEachStatement();
+        }
         if (match(TokenType.FOR)) {
             return parseForStatement();
         }
@@ -924,6 +928,44 @@ public final class AccentParser {
         return parseBlockStatement();
     }
 
+    private boolean isEachStart() {
+        return !isJava && check(TokenType.IDENTIFIER) && peek().lexeme().equals("each")
+                && lookAhead(1).type() == TokenType.LEFT_PAREN;
+    }
+
+    private Parameter parseEachParameter() {
+        int nameOffset = check(TokenType.FINAL) ? 1 : 0;
+        if (lookAhead(nameOffset).type() == TokenType.IDENTIFIER) {
+            int separator = nameOffset + 1;
+            if (lookAhead(separator).type() == TokenType.QUESTION
+                    || lookAhead(separator).type() == TokenType.DOUBLE_QUESTION) separator++;
+            if (lookAhead(separator).type() == TokenType.IDENTIFIER && lookAhead(separator).lexeme().equals("from")) {
+                if (nameOffset == 1) advance();
+                String name = consume(TokenType.IDENTIFIER, "Expected item name.").lexeme();
+                TypeNode type = parseBindingSuffix(new BaseTypeNode("var", List.of(), true));
+                return new Parameter(type, name, false, Optional.empty());
+            }
+        }
+        return parseParameter();
+    }
+
+    private void consumeFrom() {
+        Token token = consume(TokenType.IDENTIFIER, "Expected 'from' after each binding.");
+        if (!token.lexeme().equals("from")) throw error(token, "Expected 'from' after each binding.");
+    }
+
+    private Statement parseEachStatement() {
+        consume(TokenType.LEFT_PAREN, "Expected '(' after 'each'.");
+        Parameter parameter = parseEachParameter();
+        consumeFrom();
+        Expression iterable = parseExpression(Precedence.NONE);
+        consume(TokenType.RIGHT_PAREN, "Expected ')' after each clause.");
+        Statement body = parseRequiredBranchBlock("each");
+        Optional<Statement> elseBranch = Optional.empty();
+        if (match(TokenType.ELSE)) elseBranch = Optional.of(parseRequiredBranchBlock("else"));
+        return new ForEachStmt(parameter, iterable, body, elseBranch);
+    }
+
     private Statement parseForStatement() {
         consume(TokenType.LEFT_PAREN, "Expected '(' after 'for'.");
 
@@ -958,11 +1000,20 @@ public final class AccentParser {
             Optional<Statement> init = Optional.empty();
             if (!match(TokenType.SEMICOLON)) {
                 if (isLocalVarDeclaration()) {
+                    if (!isJava) {
+                        report(peek(), "Traditional for initializers infer their type; omit 'var', explicit types, and 'final'.");
+                    }
                     init = Optional.of(parseLocalVarDeclaration());
                 } else {
                     Expression initializer = parseExpression(Precedence.NONE);
                     consume(TokenType.SEMICOLON, "Expected ';' after loop initializer.");
-                    init = Optional.of(new ExprStmt(initializer));
+                    if (!isJava && initializer instanceof BinaryExpr assignment
+                            && assignment.operator().type() == TokenType.ASSIGN
+                            && assignment.left() instanceof IdentifierExpr) {
+                        init = Optional.of(new ForInitStmt(assignment));
+                    } else {
+                        init = Optional.of(new ExprStmt(initializer));
+                    }
                 }
             }
 
@@ -1006,8 +1057,14 @@ public final class AccentParser {
         consume(TokenType.LEFT_PAREN, "Expected '(' after 'while'.");
         Expression condition = parseExpression(Precedence.NONE);
         consume(TokenType.RIGHT_PAREN, "Expected ')' after condition.");
-        consume(TokenType.SEMICOLON, "Expected ';' after do-while loop.");
-        return new DoWhileStmt(body, condition);
+        Optional<Statement> elseBranch = Optional.empty();
+        if (!isJava && match(TokenType.ELSE)) {
+            if (!(body instanceof BlockStmt)) report(previous(), "A do-while/else body requires braces.");
+            elseBranch = Optional.of(parseRequiredBranchBlock("else"));
+        } else {
+            consume(TokenType.SEMICOLON, "Expected ';' after do-while loop, or 'else { ... }'.");
+        }
+        return new DoWhileStmt(body, condition, elseBranch);
     }
 
     private Statement parseTryStatement() {
@@ -1186,6 +1243,9 @@ public final class AccentParser {
             case NULL -> new LiteralExpr(null, token);
             case IDENTIFIER -> {
                 validateIdentifier(token);
+                if (!isJava && token.lexeme().equals("each") && check(TokenType.LEFT_PAREN)) {
+                    yield new LoopExpr(parseEachStatement(), token);
+                }
                 if (token.lexeme().equals("sql")) {
                     Optional<TypeNode> resultType = Optional.empty();
                     if (match(TokenType.LESS)) {
@@ -1535,11 +1595,14 @@ public final class AccentParser {
         MarkupNode node;
         if (check(TokenType.IF)) {
             node = parseMarkupNodeInsideIfChain();
-        } else if (match(TokenType.FOR)) {
-            Token forToken = previous();
+        } else if (isEachStart() || check(TokenType.FOR)) {
+            boolean each = isEachStart();
+            Token forToken = advance();
             boolean hasParen = match(TokenType.LEFT_PAREN);
-            Parameter loopVar = parseParameter();
-            if (!match(TokenType.COLON)) {
+            Parameter loopVar = each ? parseEachParameter() : parseParameter();
+            if (each) {
+                consumeFrom();
+            } else if (!match(TokenType.COLON)) {
                 Token in = consume(TokenType.IDENTIFIER, "Expected ':' or 'in' in for loop.");
                 if (!in.lexeme().equals("in")) throw error(in, "Expected ':' or 'in' in for loop.");
             }

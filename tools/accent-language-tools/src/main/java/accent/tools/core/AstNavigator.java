@@ -75,6 +75,8 @@ public final class AstNavigator {
             traverse(is.condition(), line, col, path);
             traverse(is.thenBranch(), line, col, path);
             is.elseBranch().ifPresent(e -> traverse(e, line, col, path));
+        } else if (node instanceof ForInitStmt init) {
+            traverse(init.assignment(), line, col, path);
         } else if (node instanceof ForStmt fs) {
             fs.init().ifPresent(i -> traverse(i, line, col, path));
             fs.condition().ifPresent(c -> traverse(c, line, col, path));
@@ -90,6 +92,7 @@ public final class AstNavigator {
         } else if (node instanceof DoWhileStmt dws) {
             traverse(dws.body(), line, col, path);
             traverse(dws.condition(), line, col, path);
+            dws.elseBranch().ifPresent(eb -> traverse(eb, line, col, path));
         } else if (node instanceof TryStmt ts) {
             traverse(ts.body(), line, col, path);
             for (CatchClause cc : ts.catchClauses()) {

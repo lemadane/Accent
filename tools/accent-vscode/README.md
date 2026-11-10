@@ -93,13 +93,13 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.17.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
+Use `accent-vscode-0.1.19.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
 
 ```bash
-code --install-extension tools/accent-vscode/accent-vscode-0.1.17.vsix --force
+code --install-extension tools/accent-vscode/accent-vscode-0.1.19.vsix --force
 ```
 
-Reload VS Code after installation. Archives through `0.1.16` retain their previous documentation. Rebuild the language server and install `0.1.17` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
+Reload VS Code after installation. Archives through `0.1.18` retain their previous documentation. Rebuild the language server and install `0.1.19` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
 
 To rebuild the current package:
 
@@ -112,7 +112,7 @@ npm ci
 npm run compile
 node test/async-syntax.test.cjs
 node test/formatter.test.cjs
-npx @vscode/vsce package --out accent-vscode-0.1.17.vsix
+npx @vscode/vsce package --out accent-vscode-0.1.19.vsix
 python3 test/package.test.py
 ```
 
@@ -172,3 +172,21 @@ The expression form is `final values = while (condition) { yield value; } else {
 - A `break` after yielding `7` produces `[7]`: the `else` yields are skipped.
 
 The expression requires a final semicolon. See the [while-expression guide](https://github.com/accent-lang/accent/blob/main/README.md#13-while-and-do-while-expressions).
+
+## Do-while loops with else
+
+Use `do { ... } while (condition) else { ... }`. The single body after `do` runs at least once. Both bodies require braces. `else` runs after normal completion and is skipped by a `break` exiting this loop, a return, or an escaping exception.
+
+The expression form is `final values = do { yield value; } while (condition) else { yield fallback; };`. It collects body yields followed by else yields on normal completion. A false first condition still produces both the first body value and the fallback; a break skips the fallback. There is no semicolon before `else`; the complete expression ends with `;`.
+
+## Each loops
+
+Prefer `each (item from list) { ... }` for collection iteration. The element type is inferred and the binding is implicitly final (it cannot be reassigned or incremented); typed bindings such as `each (Customer item from customers)` are also supported. Explicit `final` remains supported but is optional. This fixes the binding; it does not make the referenced object immutable. Bodies require braces.
+
+The expression form is `final values = each (item from list) { yield item; } else { yield fallback; };`. It collects body yields followed by fallback yields on normal completion. Empty or null collections run `else`; a `break` exiting this loop skips it. `continue` and nested-loop breaks preserve normal outer-loop completion.
+
+Existing enhanced `for (var item : list)` remains compatible, and traditional counting loops use `for (i = 0; i < limit; i++)`. Completion and highlighting include `each` and `from`.
+
+## For initializer inference
+
+Traditional loops use `for (i = 0; i < limit; i++)`. An undeclared counter becomes a mutable inferred local; an existing variable is assigned instead. A newly declared counter is scoped to the loop header and body, excluding `else`. Existing final variables remain protected from reassignment. The same rules apply in loop expressions and with `else`. Writing `var`, an explicit type, or `final` in a traditional Accent `for` initializer is a syntax error. Ordinary declarations, Java source, and enhanced `for (var item : list)` remain supported.

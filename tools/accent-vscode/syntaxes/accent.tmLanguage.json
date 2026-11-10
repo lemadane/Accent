@@ -140,7 +140,7 @@
       "patterns": [
         {
           "name": "keyword.control.accent",
-          "match": "(?<!\\.)\\b(not|and|or|yield|async|await|generator|emit)\\b"
+          "match": "(?<!\\.)\\b(not|and|or|yield|async|await|generator|emit|each|from)\\b"
         }
       ]
     },

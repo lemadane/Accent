@@ -199,7 +199,7 @@ public interface Ast {
     ) implements Member {}
 
     // Statements
-    sealed interface Statement extends Node permits BlockStmt, LocalVarDeclStmt, IfStmt, ForStmt, ForEachStmt, WhileStmt, DoWhileStmt, TryStmt, ReturnStmt, YieldStmt, BreakStmt, ContinueStmt, ExprStmt, ThrowStmt, EmitStmt {}
+    sealed interface Statement extends Node permits BlockStmt, LocalVarDeclStmt, ForInitStmt, IfStmt, ForStmt, ForEachStmt, WhileStmt, DoWhileStmt, TryStmt, ReturnStmt, YieldStmt, BreakStmt, ContinueStmt, ExprStmt, ThrowStmt, EmitStmt {}
 
     record BlockStmt(List<Statement> statements) implements Statement {}
 
@@ -224,6 +224,14 @@ public interface Ast {
         }
     }
 
+    /** A bare for initializer declares a local only when its name is not already bound. */
+    record ForInitStmt(BinaryExpr assignment) implements Statement {
+        public LocalVarDeclStmt declaration() {
+            return new LocalVarDeclStmt(false, true, Optional.empty(),
+                    ((IdentifierExpr) assignment.left()).name(), Optional.of(assignment.right()), true);
+        }
+    }
+
     record IfStmt(Expression condition, Statement thenBranch, Optional<Statement> elseBranch) implements Statement {}
 
     record ForStmt(
@@ -240,7 +248,9 @@ public interface Ast {
         public WhileStmt(Expression condition, Statement body) { this(condition, body, Optional.empty()); }
     }
 
-    record DoWhileStmt(Statement body, Expression condition) implements Statement {}
+    record DoWhileStmt(Statement body, Expression condition, Optional<Statement> elseBranch) implements Statement {
+        public DoWhileStmt(Statement body, Expression condition) { this(body, condition, Optional.empty()); }
+    }
 
     record TryStmt(
             BlockStmt body,

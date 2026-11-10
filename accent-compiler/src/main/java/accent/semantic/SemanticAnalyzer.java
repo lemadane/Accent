@@ -609,6 +609,14 @@ public final class SemanticAnalyzer implements ImportResolver {
                 checkStatement(s);
             }
             popScope();
+        } else if (stmt instanceof ForInitStmt init) {
+            IdentifierExpr name = (IdentifierExpr) init.assignment().left();
+            boolean bound = lookupVar(name.name()) != null
+                    || currentClass != null && currentClass.findField(name.name(), symbolTable) != null
+                    || !staticImportTypes(name.name(), false).isEmpty()
+                    || name.name().equals("log");
+            if (bound) checkExpression(init.assignment());
+            else checkStatement(init.declaration());
         } else if (stmt instanceof LocalVarDeclStmt varDecl) {
             ResolvedType type = null;
             if (varDecl.type().isPresent()) {
@@ -725,6 +733,8 @@ public final class SemanticAnalyzer implements ImportResolver {
             clearMutableRefinements();
             checkStatement(dws.body());
             checkExpression(dws.condition());
+            clearMutableRefinements();
+            dws.elseBranch().ifPresent(this::checkStatement);
             clearMutableRefinements();
         } else if (stmt instanceof TryStmt ts) {
             clearMutableRefinements();
@@ -1847,8 +1857,20 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
         } else if (node instanceof ForMarkupNode fmn) {
             pushScope();
-            checkExpression(fmn.iterable());
-            ResolvedType loopVarType = symbolTable.resolveTypeNode(fmn.parameter().type(), this);
+            ResolvedType iterableType = checkExpression(fmn.iterable());
+            ResolvedType loopVarType;
+            if (fmn.parameter().type() instanceof BaseTypeNode base && base.name().equals("var")) {
+                if (iterableType != null && iterableType.arrayDimensions() > 0) {
+                    loopVarType = iterableType.elementType(symbolTable);
+                } else if (iterableType != null && !iterableType.typeArguments().isEmpty()) {
+                    loopVarType = iterableType.typeArguments().getFirst();
+                } else {
+                    loopVarType = new ResolvedType(symbolTable.getType("java.lang.Object"), false, List.of(), 0);
+                }
+                loopVarType = loopVarType.withNonNull(loopVarType.isPrimitive() || fmn.parameter().type().isNonNull());
+            } else {
+                loopVarType = symbolTable.resolveTypeNode(fmn.parameter().type(), this);
+            }
             scopes.getFirst().put(fmn.parameter().name(), new LocalVar(fmn.parameter().name(), loopVarType, true, true));
             for (MarkupNode n : fmn.body()) {
                 checkMarkupNode(n);

@@ -68,6 +68,9 @@ public final class DefinitionProvider {
         if (node instanceof LocalVarDeclStmt lvd && lvd.name().equals(name)) {
             // Find the identifier token for the local variable
             results.add(new Token(accent.lexer.TokenType.IDENTIFIER, name, 1, 1)); // Placeholder or exact matching below
+        } else if (node instanceof ForInitStmt init
+                && init.assignment().left() instanceof IdentifierExpr id && id.name().equals(name)) {
+            results.add(id.token());
         } else if (node instanceof Parameter param && param.name().equals(name)) {
             results.add(new Token(accent.lexer.TokenType.IDENTIFIER, name, 1, 1));
         }

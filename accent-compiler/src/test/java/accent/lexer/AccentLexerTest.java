@@ -24,7 +24,7 @@ class AccentLexerTest {
                 final valueAsync = async service.load();
                 final value = await valueAsync;
 
-                final values = for (var i = 0; i < 10; i++) {
+                final values = for (i = 0; i < 10; i++) {
                     yield i;
                 };
                 """);

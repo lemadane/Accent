@@ -1,0 +1,12 @@
+class Main {
+    static void main(String[] args) {
+        int count = 0;
+        final values = do {
+            count++;
+            yield count;
+        } while (count < 2) else {
+            yield 3;
+        };
+        println(values);
+    }
+}

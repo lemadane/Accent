@@ -26,6 +26,28 @@ class EditorServicesTest {
             """;
 
     @Test
+    void inferredForInitializersAppearInGeneratedJava() {
+        ProjectContext context = new ProjectContext(List.of());
+        Path path = Path.of("InferredFor.accent");
+        context.putFile(path, "class InferredFor { static void run() { for (i = 0; i < 3; i++) { println(i); } } }");
+        var result = context.analyze(path, false);
+        assertTrue(result.diagnostics().isEmpty(), result.diagnostics().toString());
+        String generated = context.getGeneratedJava(path);
+        assertTrue(generated.contains("var i = 0"), generated);
+    }
+
+    @Test
+    void eachLoopsHaveKeywordCompletionAndGeneratedJava() {
+        ProjectContext context = new ProjectContext(List.of());
+        Path path = Path.of("EachEditor.accent");
+        context.putFile(path, "import java.util.List; class EachEditor { static void run() { each (item from List.of(1)) { println(item); } else { println(0); } } }");
+        var result = context.analyze(path, false);
+        assertTrue(result.diagnostics().isEmpty(), result.diagnostics().toString());
+        assertTrue(context.getGeneratedJava(path).contains("for ("));
+        assertMembersPresent(CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1), "each", "from");
+    }
+
+    @Test
     void staticImportsResolveInGeneratedJava() {
         ProjectContext context = new ProjectContext(List.of());
         Path path = Path.of("Imported.accent");

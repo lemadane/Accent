@@ -777,6 +777,9 @@ public final class JavaEmitter {
                 String id = "loop_" + (loopCounter++);
                 String ranVar = "__ran_" + id;
                 String brokenVar = "__broken_" + id;
+                String iterableVar = "__iterable_" + id;
+                printIndent();
+                sb.append("final var ").append(iterableVar).append(" = ").append(emitExpression(fes.iterable())).append(";\n");
                 printIndent();
                 sb.append("boolean ").append(ranVar).append(" = false;\n");
                 printIndent();
@@ -784,11 +787,11 @@ public final class JavaEmitter {
                 loopBrokenVars.push(brokenVar);
 
                 printIndent();
-                sb.append("if (accent.runtime.AccentRuntime.isTruthy(").append(emitExpression(fes.iterable())).append(")) {\n");
+                sb.append("if (accent.runtime.AccentRuntime.isTruthy(").append(iterableVar).append(")) {\n");
                 indentLevel++;
                 printIndent();
                 sb.append("for (").append(emitType(fes.parameter().type())).append(" ")
-                        .append(fes.parameter().name()).append(" : ").append(emitExpression(fes.iterable())).append(") {\n");
+                        .append(fes.parameter().name()).append(" : ").append(iterableVar).append(") {\n");
                 indentLevel++;
                 printIndent();
                 sb.append(ranVar).append(" = true;\n");
@@ -839,12 +842,23 @@ public final class JavaEmitter {
             sb.append("\n");
             loopBrokenVars.pop();
         } else if (stmt instanceof DoWhileStmt dws) {
-            loopBrokenVars.push("");
+            String brokenVar = dws.elseBranch().isPresent() ? "__broken_loop_" + (loopCounter++) : "";
+            if (!brokenVar.isEmpty()) {
+                printIndent();
+                sb.append("boolean ").append(brokenVar).append(" = false;\n");
+            }
+            loopBrokenVars.push(brokenVar);
             printIndent();
             sb.append("do ");
             emitInlineOrBlockStatement(dws.body());
             sb.append(" while (").append(emitCondition(dws.condition())).append(");\n");
             loopBrokenVars.pop();
+            if (dws.elseBranch().isPresent()) {
+                printIndent();
+                sb.append("if (!").append(brokenVar).append(") ");
+                emitInlineOrBlockStatement(dws.elseBranch().get());
+                sb.append("\n");
+            }
 
         } else if (stmt instanceof TryStmt ts) {
             printIndent();
