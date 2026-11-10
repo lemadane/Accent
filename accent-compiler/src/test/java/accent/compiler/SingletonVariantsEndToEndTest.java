@@ -45,15 +45,15 @@ class SingletonVariantsEndToEndTest {
                 }
                 """);
         fixtures.put("Defaults", """
-                singleton record Defaults(String theme = Probe.recordName(), int retryLimit = 1 + 2) {}
+                singleton record Defaults(String theme = Probe.recordName(), int retryLimit = 1 + 2)
                 """);
         fixtures.put("State", """
-                singleton model State(final String id = Probe.modelName(), String theme = "light", int count = 0) {}
+                singleton model State(final String id = Probe.modelName(), String theme = "light", int count = 0)
                 """);
-        fixtures.put("Computed", "singleton record Computed(String name = Probe.recordName() ?: \"fallback\") {}");
+        fixtures.put("Computed", "singleton record Computed(String name = Probe.recordName() ?: \"fallback\")");
         fixtures.put("EmptyClass", "singleton class EmptyClass {}");
-        fixtures.put("EmptyRecord", "singleton record EmptyRecord() {}");
-        fixtures.put("EmptyModel", "singleton model EmptyModel() {}");
+        fixtures.put("EmptyRecord", "singleton record EmptyRecord()");
+        fixtures.put("EmptyModel", "singleton model EmptyModel()");
         fixtures.put("Calls", """
                 import java.util.*;
                 class Calls {
@@ -202,26 +202,26 @@ class SingletonVariantsEndToEndTest {
                 "singleton interface Bad {}",
                 "singleton enum Bad {}",
                 "singleton class Bad<T> {}",
-                "singleton model Bad<T>(T value = null) {}",
-                "singleton record Bad<T>(T value = null) {}",
-                "singleton record Bad(String name) {}",
-                "singleton model Bad(int count) {}",
-                "singleton record Bad(int count = \"bad\") {}",
-                "singleton model Bad(String name = null) {}",
+                "singleton model Bad<T>(T value = null)",
+                "singleton record Bad<T>(T value = null)",
+                "singleton record Bad(String name)",
+                "singleton model Bad(int count)",
+                "singleton record Bad(int count = \"bad\")",
+                "singleton model Bad(String name = null)",
                 "singleton class Bad { Bad() {} }",
                 "singleton class Bad { Bad(int value) {} }",
                 "singleton record Bad(int value = 1) { Bad() {} }",
                 "singleton model Bad(int value = 1) { Bad() {} }",
                 "singleton class Bad { static Bad instance() { return null; } }",
                 "singleton model Bad(int value = 1) { Bad copy() { return null; } }",
-                "singleton record Bad(int instance = 1) {}",
+                "singleton record Bad(int instance = 1)",
                 "singleton record Bad(int value = 1) { int other = 0; }",
                 "singleton class Bad { Object clone() { return null; } }",
                 "singleton class Bad {} class Use { Object run() { return new Bad(); } }",
-                "singleton record Bad(int value = 1) {} class Use { Object run() { return new Bad(1); } }",
-                "singleton model Bad(int value = 1) {} class Use { Object run() { return new Bad(1); } }",
-                "singleton record Bad(int value = 1) {} class Use { void run() { Bad.instance().value(2); } }",
-                "singleton model Bad(int value = 1) {} class Use { Object run() { return Bad.instance().copy(2); } }"
+                "singleton record Bad(int value = 1) class Use { Object run() { return new Bad(1); } }",
+                "singleton model Bad(int value = 1) class Use { Object run() { return new Bad(1); } }",
+                "singleton record Bad(int value = 1) class Use { void run() { Bad.instance().value(2); } }",
+                "singleton model Bad(int value = 1) class Use { Object run() { return Bad.instance().copy(2); } }"
         );
         return invalid.stream().map(text -> DynamicTest.dynamicTest(text, () -> {
             var result = new AccentCompiler().check(TestSources.sources(text));

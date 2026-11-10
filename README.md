@@ -855,12 +855,14 @@ For log levels, timestamps, file output, and request context, use [logging](#22-
 
 Use a `record` for data with final component bindings. Use a `model` when some components need setters. Both generate accessors and value-based equality; a model also generates `copy(...)`.
 
+Omit braces when a record or model has no explicit members: `record Address(String city)` and `model Profile(String name, Address address)`. Empty `{}` bodies, including comment-only bodies, are syntax errors. Use braces only when declaring members such as methods or constructors. The same rule applies to singleton records and models; Java source retains Java syntax.
+
 ```java
 model User(
     final String id,   // final     -> Immutable (getter id() ONLY, no setter)
     String name,       // default   -> Mutable   (getter name(), setter name(...))
     int age             // default   -> Mutable   (getter age(), setter age(...))
-) {}
+)
 ```
 
 #### Usage Example
@@ -950,13 +952,13 @@ final user = CacheManager.instance().get("user_1");
 singleton record Defaults(
     String theme = "light",
     int retryLimit = 3
-) {}
+)
 
 singleton model AppState(
     final String id = "app",
     String theme = "light",
     int attempts = 0
-) {}
+)
 
 final defaults = Defaults.instance(); // immutable component bindings
 final state = AppState.instance();
@@ -1109,8 +1111,8 @@ final customer =
 Records and models receive public `toJson()` and `toXml()` methods that return non-null strings:
 
 ```java
-record Address(String city) {}
-model Profile(String name, Address address) {}
+record Address(String city)
+model Profile(String name, Address address)
 
 final profile = new Profile("Lem", new Address("Manila"));
 final json = profile.toJson();
@@ -1183,7 +1185,7 @@ record User(
     String id,
     String firstName,
     String lastName
-) {}
+)
 
 // 2. Write JSON natively!
 String inputId = "123e4567-e89b-12d3-a456-426614174000";
@@ -1644,7 +1646,7 @@ record Service(
     UUID id,
     String name,
     Slug slug
-) {}
+)
 ```
 
 #### Append Example

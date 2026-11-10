@@ -90,8 +90,8 @@ class NonNullMethodTest {
     }
 
     @Test void generatedAccessorsAndFactoriesExposeTheirContracts() {
-        rejects("record Customer(String name?) {} class Sample { String read(Customer customer) { return customer.name(); } }", "Nullable result requires");
-        accepts("model Customer(String name) {} class Sample { String read(Customer customer) { return customer.name(); } void change(Customer customer) { customer.name(\"Jane\"); } }");
+        rejects("record Customer(String name?) class Sample { String read(Customer customer) { return customer.name(); } }", "Nullable result requires");
+        accepts("model Customer(String name) class Sample { String read(Customer customer) { return customer.name(); } void change(Customer customer) { customer.name(\"Jane\"); } }");
         accepts("singleton class Sample { static Sample read() { return static.instance(); } }");
     }
 

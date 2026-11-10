@@ -430,12 +430,17 @@ public final class AccentParser {
             } while (match(TokenType.COMMA));
         }
 
-        consume(TokenType.LEFT_BRACE, "Expected '{' before record body.");
         List<Member> members = new ArrayList<>();
-        while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()) {
-            members.add(parseMember(name));
+        if (isJava || check(TokenType.LEFT_BRACE)) {
+            consume(TokenType.LEFT_BRACE, "Expected '{' before record body.");
+            if (!isJava && check(TokenType.RIGHT_BRACE)) {
+                report(peek(), "Empty record bodies are not allowed; omit '{}'.");
+            }
+            while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()) {
+                members.add(parseMember(name));
+            }
+            consume(TokenType.RIGHT_BRACE, "Expected '}' after record body.");
         }
-        consume(TokenType.RIGHT_BRACE, "Expected '}' after record body.");
 
         return new RecordDecl(modifiers, name, typeParams, components, interfaces, members);
     }
@@ -463,6 +468,9 @@ public final class AccentParser {
 
         List<Member> members = new ArrayList<>();
         if (match(TokenType.LEFT_BRACE)) {
+            if (!isJava && check(TokenType.RIGHT_BRACE)) {
+                report(peek(), "Empty model bodies are not allowed; omit '{}'.");
+            }
             while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()) {
                 members.add(parseMember(name));
             }

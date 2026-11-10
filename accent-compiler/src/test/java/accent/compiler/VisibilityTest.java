@@ -256,7 +256,7 @@ class VisibilityTest {
     @Test
     void prefixedTypeNamesAreRejected() {
         assertError(check("_Hidden.accent", "class _Hidden {}"), "Type names cannot start with '_'");
-        assertError(check("__Hidden.accent", "record __Hidden(int x) {}"), "Type names cannot start with '_'");
+        assertError(check("__Hidden.accent", "record __Hidden(int x)"), "Type names cannot start with '_'");
     }
 
     @Test

@@ -25,11 +25,11 @@ class DataParsingEndToEndTest {
     @BeforeAll
     static void compileProgram() throws Exception {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
-        Files.writeString(sources.resolve("Item.accent"), "record Item(String name?) {}");
-        Files.writeString(sources.resolve("Person.accent"), "model Person(String name?) {}");
+        Files.writeString(sources.resolve("Item.accent"), "record Item(String name?)");
+        Files.writeString(sources.resolve("Person.accent"), "model Person(String name?)");
         Files.writeString(sources.resolve("Envelope.accent"), """
                 import java.util.*;
-                record Envelope(List<Item> items, Map<String, Person> people, int[] numbers, char initial) {}
+                record Envelope(List<Item> items, Map<String, Person> people, int[] numbers, char initial)
                 """);
         Files.writeString(sources.resolve("Parsing.accent"), """
                 import accent.json.Json;

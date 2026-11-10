@@ -26,6 +26,21 @@ class EditorServicesTest {
             """;
 
     @Test
+    void bodylessDataDeclarationsHaveDiagnosticsAndGeneratedJava() {
+        for (String kind : List.of("record", "model")) {
+            ProjectContext context = new ProjectContext(List.of());
+            Path path = Path.of("Data.accent");
+            context.putFile(path, kind + " Data(String name)");
+            var result = context.analyze(path, false);
+            assertTrue(result.diagnostics().isEmpty(), result.diagnostics().toString());
+            assertTrue(context.getGeneratedJava(path).contains("Data"));
+            context.putFile(path, kind + " Data(String name) {}");
+            var invalid = context.analyze(path, false);
+            assertFalse(invalid.diagnostics().isEmpty());
+        }
+    }
+
+    @Test
     void inferredForInitializersAppearInGeneratedJava() {
         ProjectContext context = new ProjectContext(List.of());
         Path path = Path.of("InferredFor.accent");

@@ -31,7 +31,7 @@ class NonNullBindingTest {
         rejects("class Sample { void run() { var name = null; } }", "Incompatible types");
         rejects("class Sample { void run() { String name = \"ok\"; name = null; } }", "Incompatible types");
         rejects("class Sample { void run() { int count? = 1; } }", "Primitive bindings");
-        rejects("record Sample(String name = null) {}", "Incompatible types");
+        rejects("record Sample(String name = null)", "Incompatible types");
         rejects("class Sample { void run(String name = null) {} }", "Incompatible types");
     }
 
@@ -44,8 +44,8 @@ class NonNullBindingTest {
     }
 
     @Test void javaCallersCannotSupplyNullToMarkedParametersOrComponents() throws Exception {
-        Files.writeString(temp.resolve("Required.accent"), "record Required(String name) {}");
-        Files.writeString(temp.resolve("Mutable.accent"), "model Mutable(String name) {}");
+        Files.writeString(temp.resolve("Required.accent"), "record Required(String name)");
+        Files.writeString(temp.resolve("Mutable.accent"), "model Mutable(String name)");
         Files.writeString(temp.resolve("Sample.accent"), """
                 class Sample {
                     static String echo(String name) { return name; }

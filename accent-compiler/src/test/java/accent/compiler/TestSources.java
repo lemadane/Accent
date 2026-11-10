@@ -39,12 +39,31 @@ public final class TestSources {
         List<int[]> segments = new ArrayList<>();
         int start = tokens.get(i).startOffset();
         int depth = 0;
+        int parentheses = 0;
+        boolean dataDeclaration = false;
         for (; i < tokens.size() && tokens.get(i).type() != TokenType.EOF; i++) {
             Token t = tokens.get(i);
+            if (depth == 0 && parentheses == 0
+                    && (t.type() == TokenType.RECORD || t.type() == TokenType.MODEL)) {
+                dataDeclaration = true;
+            }
+            if (t.type() == TokenType.LEFT_PAREN) parentheses++;
+            if (t.type() == TokenType.RIGHT_PAREN) {
+                parentheses--;
+                if (dataDeclaration && depth == 0 && parentheses == 0
+                        && i + 1 < tokens.size()
+                        && tokens.get(i + 1).type() != TokenType.LEFT_BRACE
+                        && !tokens.get(i + 1).lexeme().equals("implements")) {
+                    segments.add(new int[]{start, t.endOffset()});
+                    start = tokens.get(i + 1).startOffset();
+                    dataDeclaration = false;
+                }
+            }
             if (t.type() == TokenType.LEFT_BRACE) depth++;
             else if (t.type() == TokenType.RIGHT_BRACE) {
                 depth--;
                 if (depth == 0) {
+                    dataDeclaration = false;
                     segments.add(new int[]{start, t.endOffset()});
                     start = i + 1 < tokens.size() ? tokens.get(i + 1).startOffset() : code.length();
                 }

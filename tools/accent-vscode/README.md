@@ -93,13 +93,13 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.19.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
+Use `accent-vscode-0.1.20.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
 
 ```bash
-code --install-extension tools/accent-vscode/accent-vscode-0.1.19.vsix --force
+code --install-extension tools/accent-vscode/accent-vscode-0.1.20.vsix --force
 ```
 
-Reload VS Code after installation. Archives through `0.1.18` retain their previous documentation. Rebuild the language server and install `0.1.19` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
+Reload VS Code after installation. Archives through `0.1.19` retain their previous documentation. Rebuild the language server and install `0.1.20` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
 
 To rebuild the current package:
 
@@ -112,7 +112,7 @@ npm ci
 npm run compile
 node test/async-syntax.test.cjs
 node test/formatter.test.cjs
-npx @vscode/vsce package --out accent-vscode-0.1.19.vsix
+npx @vscode/vsce package --out accent-vscode-0.1.20.vsix
 python3 test/package.test.py
 ```
 
@@ -190,3 +190,7 @@ Existing enhanced `for (var item : list)` remains compatible, and traditional co
 ## For initializer inference
 
 Traditional loops use `for (i = 0; i < limit; i++)`. An undeclared counter becomes a mutable inferred local; an existing variable is assigned instead. A newly declared counter is scoped to the loop header and body, excluding `else`. Existing final variables remain protected from reassignment. The same rules apply in loop expressions and with `else`. Writing `var`, an explicit type, or `final` in a traditional Accent `for` initializer is a syntax error. Ordinary declarations, Java source, and enhanced `for (var item : list)` remain supported.
+
+## Record and model bodies
+
+Write `record Address(String city)` and `model Profile(String name, Address address)` without braces when there are no explicit members. Empty or comment-only `{}` bodies are syntax errors, including for singleton records and models. Nonempty bodies retain braces, and Java records retain Java syntax.

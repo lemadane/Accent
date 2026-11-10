@@ -32,7 +32,7 @@ class HttpEndToEndTest {
     static void compileAccentServer() throws Exception {
         client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
         Path source = Files.createDirectories(directory.resolve("source"));
-        Files.writeString(source.resolve("User.accent"), "package httpfixture; record User(String id, String name) {}");
+        Files.writeString(source.resolve("User.accent"), "package httpfixture; record User(String id, String name)");
         Files.writeString(source.resolve("Card.accent"), """
                 package httpfixture;
                 import accent.html.Component;

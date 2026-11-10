@@ -18,7 +18,7 @@ class RemovedVisibilityIdentifierTest {
                     "class A { void " + name + "() {} }",
                     "class A { void run(int " + name + ") {} }",
                     "class A { void run() { var " + name + " = 1; } }",
-                    "model A(int " + name + ") {}",
+                    "model A(int " + name + ")",
                     "class " + name + " {}",
                     "class A { void run() { var callback = (" + name + ") -> 1; } }")) {
                 CompilationResult result = new AccentCompiler().check(new SourceFile(Path.of("A.accent"), source));

@@ -17,7 +17,7 @@ class DuplicateTypeTest {
     @Test
     void checkAttributesDuplicateTypesToTheirSourceFile() {
         SourceFile original = new SourceFile(Path.of("first/A.accent"), "package vis; class A {}");
-        SourceFile duplicate = new SourceFile(Path.of("second/A.accent"), "package vis; model A(int value) {}");
+        SourceFile duplicate = new SourceFile(Path.of("second/A.accent"), "package vis; model A(int value)");
         var diagnostics = new AccentCompiler().checkEach(List.of(original, duplicate));
 
         assertTrue(diagnostics.get(original).isEmpty());

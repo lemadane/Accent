@@ -2,4 +2,4 @@ package example;
 
 import java.util.List;
 
-record Dashboard(Customer customer, String city, String status, List<String> orderNames) {}
+record Dashboard(Customer customer, String city, String status, List<String> orderNames)

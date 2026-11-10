@@ -721,7 +721,7 @@ class AccentEndToEndTest {
             "    }\n" +
             "}\n" +
             "\n" +
-            "model User(final String id, String name, int age) {}\n";
+            "model User(final String id, String name, int age)\n";
 
         Path tempDir = createTempDir();
         Path srcDir = tempDir.resolve("src");
@@ -745,7 +745,7 @@ class AccentEndToEndTest {
             "        user.id(\"U102\");\n" +
             "    }\n" +
             "}\n" +
-            "model User(final String id, var String name) {}\n";
+            "model User(final String id, var String name)\n";
 
         Path tempDir = createTempDir();
         Path srcDir = tempDir.resolve("src");
@@ -773,7 +773,7 @@ class AccentEndToEndTest {
                             %s
                         }
                     }
-                    model Customer(final String id, String name, int age) {}
+                    model Customer(final String id, String name, int age)
                     """.formatted(statement));
             CompilationResult result = compile(source, tempDir.resolve("bin"), tempDir.resolve("gen"));
             assertFalse(result.successful(), "Must reject invalid model mutation: " + statement);

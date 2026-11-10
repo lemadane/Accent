@@ -22,10 +22,10 @@ class DataSerializationTest {
     void generatesMethodsForRecordsAndModelsAndSupportsDirectCalls() throws Exception {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
         Files.writeString(sources.resolve("Address.accent"), """
-                record Address(String city) {}
+                record Address(String city)
                 """);
         Files.writeString(sources.resolve("User.accent"), """
-                model User(String name, Address address, String missing?, int[] scores) {}
+                model User(String name, Address address, String missing?, int[] scores)
                 """);
         Files.writeString(sources.resolve("Calls.accent"), """
                 class Calls {
@@ -77,8 +77,8 @@ class DataSerializationTest {
     @Test
     void serializesListsOfRecordsAndMapsOfModels() throws Exception {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
-        Files.writeString(sources.resolve("Item.accent"), "record Item(String name) {}");
-        Files.writeString(sources.resolve("Entry.accent"), "model Entry(String name) {}");
+        Files.writeString(sources.resolve("Item.accent"), "record Item(String name)");
+        Files.writeString(sources.resolve("Entry.accent"), "model Entry(String name)");
         Files.writeString(sources.resolve("Containers.accent"), """
                 import java.util.*;
                 class Containers {
@@ -136,7 +136,7 @@ class DataSerializationTest {
                 var source = new accent.source.SourceFile(Path.of("Invalid.accent"),
                         "import java.util.*; class Invalid { String run("
                                 + container + " values) { return values." + method + "(); } }");
-                var item = new accent.source.SourceFile(Path.of("Item.accent"), "record Item(String name) {}");
+                var item = new accent.source.SourceFile(Path.of("Item.accent"), "record Item(String name)");
                 var result = new AccentCompiler().check(List.of(item, source));
                 assertFalse(result.successful(), container + "." + method);
                 assertTrue(result.diagnostics().stream().noneMatch(d -> d.message().contains("top-level type")),

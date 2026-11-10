@@ -196,3 +196,7 @@ Static imports support unqualified field and method access without a `$` prefix.
 ## License
 
 By contributing to Accent, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+
+## Record and model bodies
+
+Write `record Address(String city)` and `model Profile(String name, Address address)` without braces when there are no explicit members. Empty or comment-only `{}` bodies are syntax errors, including for singleton records and models. Nonempty bodies retain braces, and Java records retain Java syntax.

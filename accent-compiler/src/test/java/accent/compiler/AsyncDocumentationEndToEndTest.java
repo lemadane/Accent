@@ -22,7 +22,7 @@ class AsyncDocumentationEndToEndTest {
         String section = readme.split("(?m)^### [0-9]+[.] Concurrency with virtual threads", 2)[1].split("(?m)^### ", 2)[0];
         String editor = Files.readString(root.resolve("tools/accent-vscode/README.md"));
         Path sources = Files.createDirectories(directory.resolve("source"));
-        Files.writeString(sources.resolve("Customer.accent"), "record Customer(String name) {}");
+        Files.writeString(sources.resolve("Customer.accent"), "record Customer(String name)");
         Files.writeString(sources.resolve("Service.accent"), """
                 class Service {
                     Customer findRequired(int id) { return new Customer("Alice"); }

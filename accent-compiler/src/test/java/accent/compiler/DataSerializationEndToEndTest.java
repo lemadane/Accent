@@ -31,19 +31,19 @@ class DataSerializationEndToEndTest {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
         runtimeClasspath = Path.of(AccentModel.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
         Map<String, String> fixtures = new LinkedHashMap<>();
-        fixtures.put("PersonRecord", "record PersonRecord(String name?) {}");
-        fixtures.put("PersonModel", "model PersonModel(String name?) {}");
+        fixtures.put("PersonRecord", "record PersonRecord(String name?)");
+        fixtures.put("PersonModel", "model PersonModel(String name?)");
         fixtures.put("Payload", """
                 import java.util.*;
                 record Payload(String text, boolean active, int count, double ratio,
                         char initial, int[] numbers, String missing?, PersonModel owner,
-                        List<PersonRecord> people, Map<String, PersonModel> indexed) {}
+                        List<PersonRecord> people, Map<String, PersonModel> indexed)
                 """);
-        fixtures.put("Node", "model Node(Object value?) {}");
-        fixtures.put("Box", "record Box(Object value?) {}");
-        fixtures.put("EmptyRecord", "record EmptyRecord() {}");
-        fixtures.put("GenericRecord", "record GenericRecord<T>(T value) {}");
-        fixtures.put("GenericModel", "model GenericModel<T>(T value) {}");
+        fixtures.put("Node", "model Node(Object value?)");
+        fixtures.put("Box", "record Box(Object value?)");
+        fixtures.put("EmptyRecord", "record EmptyRecord()");
+        fixtures.put("GenericRecord", "record GenericRecord<T>(T value)");
+        fixtures.put("GenericModel", "model GenericModel<T>(T value)");
         fixtures.put("OverloadedModel", """
                 model OverloadedModel(String name?) {
                     String toJson(String prefix) { return prefix; }
@@ -301,7 +301,7 @@ class DataSerializationEndToEndTest {
                                     + "String run(List<Person> items, Map<String, Person> indexed, String text) { return "
                                     + expression + "; } }");
                     var result = new AccentCompiler().check(List.of(
-                            new SourceFile(Path.of("Person.accent"), "record Person(String name?) {}"), source));
+                            new SourceFile(Path.of("Person.accent"), "record Person(String name?)"), source));
                     assertFalse(result.successful(), expression);
                     assertTrue(result.diagnostics().stream().anyMatch(d -> d.message().contains("Cannot resolve method")),
                             () -> result.diagnostics().toString());
@@ -368,8 +368,8 @@ class DataSerializationEndToEndTest {
                     String source = "import java.util.*; "
                             + "class Invalid { String run(" + container + " value) { return value.to" + format + "(); } }";
                     var result = new AccentCompiler().check(List.of(
-                            new SourceFile(Path.of("PersonRecord.accent"), "record PersonRecord(String name?) {}"),
-                            new SourceFile(Path.of("PersonModel.accent"), "model PersonModel(String name?) {}"),
+                            new SourceFile(Path.of("PersonRecord.accent"), "record PersonRecord(String name?)"),
+                            new SourceFile(Path.of("PersonModel.accent"), "model PersonModel(String name?)"),
                             new SourceFile(Path.of("Plain.accent"), "class Plain {}"),
                             new SourceFile(Path.of("Invalid.accent"), source)));
                     assertFalse(result.successful());

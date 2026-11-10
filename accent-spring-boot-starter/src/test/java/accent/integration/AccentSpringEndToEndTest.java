@@ -108,7 +108,7 @@ class AccentSpringEndToEndTest {
                     Html render() { return (<p>{this.name}</p>); }
                 }
                 """);
-        Files.writeString(sources.resolve("Payload.accent"), "package integrationfixture; record Payload(String message) {}");
+        Files.writeString(sources.resolve("Payload.accent"), "package integrationfixture; record Payload(String message)");
         Files.writeString(sources.resolve("Qualified.accent"), """
                 package integrationfixture;
                 import org.springframework.beans.factory.annotation.Qualifier;
@@ -121,12 +121,12 @@ class AccentSpringEndToEndTest {
         Files.writeString(sources.resolve("QualifiedRecord.accent"), """
                 package integrationfixture;
                 import org.springframework.beans.factory.annotation.Qualifier;
-                record QualifiedRecord(@Qualifier("right") String value) {}
+                record QualifiedRecord(@Qualifier("right") String value)
                 """);
         Files.writeString(sources.resolve("QualifiedModel.accent"), """
                 package integrationfixture;
                 import org.springframework.beans.factory.annotation.Qualifier;
-                model QualifiedModel(@Qualifier("right") String value) {}
+                model QualifiedModel(@Qualifier("right") String value)
                 """);
         Path output = tempDir.resolve("classes");
         List<String> classpath = Arrays.asList(System.getProperty("java.class.path").split(java.io.File.pathSeparator));
