@@ -121,7 +121,7 @@ supported string literal. Primitive names stay unmarked.
 > non-null elements, and a non-null result. Explicit is better than implicit.
 
 `!` and `!!` do not mean non-empty or immutable, and do not guarantee a valid index.
-`if (myList!)` tests non-emptiness; `if (not myList!)` tests emptiness. Logical
+`if (myList!) { ... }` tests non-emptiness; `if (not myList!) { ... }` tests emptiness. Logical
 negation uses `not`. A null check can prove a nullable value safe for insertion;
 the checked variable's name remains unmarked.
 
@@ -149,3 +149,10 @@ Use `if (user != null) { names!!.add(user); }`. `else if (...) { ... }` chains
 remain valid; empty branches use `{}`. The rule includes `for/else` fallback
 bodies. The language server reports unbraced branches as syntax errors; rebuild
 it to get the updated diagnostics. The formatter does not invent missing braces.
+
+For existing code, replace `if (ready) return;` with
+`if (ready) { return; }`, and `else return;` with `else { return; }`.
+The unbraced forms are compiler errors, regardless of indentation. This applies
+to Accent source; ordinary `.java` files retain Java's syntax. See the
+[language guide](https://github.com/accent-lang/accent/blob/main/README.md#11-if-expression)
+for a complete nested `if` / `else if` / `else` example.

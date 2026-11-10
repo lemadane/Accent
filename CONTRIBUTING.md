@@ -77,6 +77,12 @@ empty statements, nested branches, `else if`, loop fallbacks, and valid generate
 Java in `ConditionalBracesTest`. This rule does not change truthiness or add new
 null-flow proofs.
 
+When updating examples, wrap the whole branch in braces and preserve which `if`
+owns each `else`. Replace empty `;` branches with `{}`. Keep unbraced Accent
+only in explicitly labeled invalid examples or compiler rejection tests.
+Check statement examples, truthy conditions, if-expressions, HTML conditionals,
+and `for/else` fallbacks when reviewing documentation.
+
 ## Nullability contracts
 
 Keep declarations, examples, diagnostics, and editor support consistent:

@@ -727,7 +727,30 @@ not `;`. This rule also applies to the `else` body of a `for/else` loop.
 If-expressions and HTML conditionals already require braced bodies.
 
 Explicit block boundaries make the scope of each condition visible and avoid
-ambiguous nested branches. Readability counts.
+ambiguous nested branches. Readability counts. This is a compiler requirement,
+not just a formatting convention.
+
+For statements, brace every branch, including nested conditions:
+
+```java
+if (score > 0) {
+    if (score > 100) {
+        System.out.println("Above target");
+    }
+} else if (score < 0) {
+    System.out.println("Negative");
+} else {
+    System.out.println("Zero");
+}
+```
+
+When migrating existing code, wrap the entire branch body in `{ ... }`.
+For example, change `if (ready) return;` (rejected) to
+`if (ready) { return; }`. Change `else return;` to `else { return; }`.
+An intentionally empty branch is `if (ready) {}`. Ordinary `.java` files keep
+Java's syntax; this requirement applies to Accent source.
+
+An `if` expression also uses braced branches:
 
 ```java
 final status = if (order.isPaid()) {
@@ -752,6 +775,9 @@ final port = try {
 ### 13. `for` statements and expressions with `else`
 
 Accent uses Java's existing `for` keyword for both enhanced and traditional loops in statement and expression positions. Accent supports an optional `else` branch on `for` loops (`for/else`).
+
+The `else` body must use `{ ... }`, even for a single statement or an empty
+fallback. See the [conditional brace rules](#11-if-expression).
 
 #### `for/else` Semantics
 - **Falsy/Empty Iterable**: If the loop iterable is falsy (`null`, empty `List`, empty `Map`, empty array, etc.) or a traditional loop condition starts `false`, the loop body is skipped and the `else` branch executes immediately.
@@ -924,6 +950,10 @@ final val = condition ? "Zack" : "Guest";
 ### 16. Truthy and falsy conditions
 
 Accent supports JavaScript-style truthy and falsy condition evaluation. Values of any type can be used directly in conditional control flow statements (`if`, `while`, `do-while`, `for`, ternary `?:`, `if` expressions) as well as logical operators (`not`, `and`, `or`).
+
+Truthy conditions still require braced `if` and `else` bodies. Braces do not
+change truthiness or nullability analysis: use an explicit `user != null` check
+when proving a nullable value safe for insertion into a list with non-null elements.
 
 #### Truthy / Falsy rules table
 
