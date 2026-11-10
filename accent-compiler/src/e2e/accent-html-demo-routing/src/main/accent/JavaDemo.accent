@@ -1,7 +1,7 @@
 package accent.html.demo;
 
 class JavaDemo {
-    String _name;
+    private String _name;
 
     JavaDemo(String _name) {
         this._name = _name;

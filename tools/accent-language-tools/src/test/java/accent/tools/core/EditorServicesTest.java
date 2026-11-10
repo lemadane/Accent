@@ -106,7 +106,7 @@ class EditorServicesTest {
         assertTrue(members.stream().filter(item -> item.label().equals("await"))
                 .allMatch(item -> item.detail().contains("String")), "await completion should expose the result type");
         List<CompletionItem> keywords = CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1);
-        for (String visibility : List.of("public", "protected", "private")) {
+        for (String visibility : List.of("public", "protected", "private", "this", "super")) {
             assertTrue(keywords.stream().anyMatch(item -> item.label().equals(visibility)
                     && item.kind().equals("Keyword")), visibility);
         }
@@ -165,13 +165,13 @@ class EditorServicesTest {
     }
 
     @Test
-    void subclassMemberCompletionIncludesInheritedProtectedMembers() {
+    void superCompletionIncludesInheritedProtectedMembers() {
         List<CompletionItem> members = complete(baseContext(), "Child.accent", """
                 package other;
                 import owner.Base;
                 class Child extends Base {
                     void inspect() {
-                        this.<caret>
+                        super.<caret>
                     }
                 }
                 """);
@@ -194,6 +194,39 @@ class EditorServicesTest {
 
         assertMembersPresent(members, "visibleField", "visibleMethod");
         assertMembersAbsent(members, "_packageField", "_packageMethod", "__protectedField", "__protectedMethod");
+    }
+
+    @Test
+    void thisCompletionOnlyOffersCurrentDeclarationsAndOverrides() {
+        List<CompletionItem> members = complete(baseContext(), "Child.accent", """
+                package other;
+                import owner.Base;
+                class Child extends Base {
+                    private int _own;
+                    public void visibleMethod() {}
+                    void inspect() { this.<caret> }
+                }
+                """);
+        assertMembersPresent(members, "_own", "visibleMethod", "inspect");
+        assertMembersAbsent(members, "visibleField", "__protectedField", "__protectedMethod", "getClass");
+    }
+
+    @Test
+    void invalidInheritedThisAndMissingPrefixProduceEditorDiagnostics() {
+        ProjectContext context = baseContext();
+        Path path = Path.of("Child.accent");
+        context.putFile(path, """
+                package other;
+                import owner.Base;
+                class Child extends Base {
+                    int inspect() { return this.visibleField; }
+                }
+                """);
+        assertTrue(context.analyze(path, false).diagnostics().stream()
+                .anyMatch(d -> d.message().contains("super.visibleField")));
+        context.putFile(path, "class Child { private int count; }");
+        assertTrue(context.analyze(path, false).diagnostics().stream()
+                .anyMatch(d -> d.message().contains("must start with '_'")));
     }
 
     private static ProjectContext baseContext() {

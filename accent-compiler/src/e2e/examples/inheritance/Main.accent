@@ -1,0 +1,8 @@
+class Main {
+    static void main(String[] args) {
+        final counter = new FastCounter();
+        counter.increment();
+        System.out.println(counter.summary());
+        System.out.println(counter.total);
+    }
+}

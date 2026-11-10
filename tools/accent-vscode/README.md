@@ -20,7 +20,11 @@ Ordered by day-to-day developer usefulness:
 | `protected` | `protected` | Same package and subclasses, following Java protected-access rules |
 | `private` | No visibility modifier | Same package only |
 
-Explicit modifiers override name-based defaults. Without a modifier, `name` is public, `_name` is package-private, and `__name` is protected. Accent `private` does not generate a Java private member. Top-level types, declared constructors, and interface members remain public; explicit `public` is optional. Visibility words cannot be used as identifiers.
+Protected and private declarations require an underscore prefix (`protected int _step`, `private int _cache`). The modifier determines access; an underscore is a visual marker. Members without a modifier are public, even if their names begin with `_` or `__`. Accent `private` remains package-private. Top-level types, declared constructors, and interface members remain public.
+
+Use `this.member` / `this.method()` for declarations and overrides in the current class. Use `super.member` / `super.method()` for inherited instance members on the current object or to call a parent implementation. Calls through another object remain normal virtual calls. `super` bypasses overrides; `this` retains virtual dispatch. Completion filters `this.` and `super.` to follow these rules. Static members use their class name, and extension blocks keep `this` as their target receiver.
+
+Migrate old name-based declarations by adding `private` or `protected`; rename unprefixed non-public declarations and their references to include `_`. Change inherited `this.member` access to `super.member`. Keep Java library names unchanged; generated storage is exempt from the prefix rule.
 
 Declare at most one ordinary top-level type per `.accent` file; extension blocks may appear alone or accompany it. See [the language guide](https://github.com/accent-lang/accent/blob/main/README.md#visibility) for the complete rules.
 
@@ -71,13 +75,13 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.7.vsix` for the current syntax, including explicit `public`, `protected`, and `private` modifiers plus name-based defaults and `async` / `await` shorthand for `Async.run()` / `.await()`. Install it from the repository root:
+Use `accent-vscode-0.1.8.vsix` for the current syntax, with required non-public prefixes, `this`/`super` member qualification, and `async` / `await` support. Install it from the repository root:
 
 ```bash
-code --install-extension tools/accent-vscode/accent-vscode-0.1.7.vsix --force
+code --install-extension tools/accent-vscode/accent-vscode-0.1.8.vsix --force
 ```
 
-Reload VS Code after installation. Archives through `0.1.6` retain their original grammar; rebuild the language server and install `0.1.7` for explicit visibility support.
+Reload VS Code after installation. Archives through `0.1.7` retain their previous documentation. Rebuild the language server and install `0.1.8` for diagnostics and completion matching the new member rules.
 
 To rebuild the current package:
 
@@ -90,7 +94,7 @@ npm ci
 npm run compile
 node test/async-syntax.test.cjs
 node test/formatter.test.cjs
-npx @vscode/vsce package --out accent-vscode-0.1.7.vsix
+npx @vscode/vsce package --out accent-vscode-0.1.8.vsix
 python3 test/package.test.py
 ```
 

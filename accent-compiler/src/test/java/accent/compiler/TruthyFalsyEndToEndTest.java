@@ -234,7 +234,7 @@ class TruthyFalsyEndToEndTest {
             "    }\n" +
             "}\n" +
             "class CustomContainer {\n" +
-            "    final boolean _empty;\n" +
+            "    private final boolean _empty;\n" +
             "    CustomContainer(boolean _empty) { this._empty = _empty; }\n" +
             "    boolean isEmpty() { return this._empty; }\n" +
             "}\n";

@@ -1,0 +1,10 @@
+class Counter {
+    public int total;
+    protected int _step = 1;
+    private int _cache;
+
+    public void increment() { this.total = this.total + this._step; }
+    public String label() { return "counter"; }
+    protected void _grow() { this._step++; }
+    private void _reset() { this.total = 0; this._cache = 0; }
+}

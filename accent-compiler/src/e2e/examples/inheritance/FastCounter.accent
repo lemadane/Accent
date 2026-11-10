@@ -1,0 +1,16 @@
+class FastCounter extends Counter {
+    private int _bonus = 2;
+
+    @Override
+    public void increment() {
+        super.increment();
+        super.total = super.total + this._bonus;
+    }
+
+    @Override
+    public String label() { return "fast"; }
+
+    public String summary() {
+        return this.label() + " / " + super.label();
+    }
+}

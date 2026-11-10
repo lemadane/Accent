@@ -20,6 +20,9 @@ with zipfile.ZipFile(archive) as package:
     grammar = json.loads(grammar_bytes)
     patterns = [rule["match"] for rule in grammar["repository"]["accent-keywords"]["patterns"]]
     assert any(re.search(pattern, "async") for pattern in patterns)
+    receivers = [rule["match"] for rule in grammar["repository"]["numbers"]["patterns"]]
+    for keyword in ("this", "super"):
+        assert any(re.search(pattern, keyword) for pattern in receivers)
     assert any(re.search(pattern, "await") for pattern in patterns)
     assert not any(re.search(pattern, "ordersAsync.await()") for pattern in patterns)
     modifiers = [rule["match"] for rule in grammar["repository"]["storage-modifiers"]["patterns"]]
@@ -27,4 +30,4 @@ with zipfile.ZipFile(archive) as package:
         assert any(re.search(pattern, name) for pattern in modifiers), f"Missing visibility modifier highlighting: {name}"
     assert package.read("extension/readme.md") == (root / "README.md").read_bytes()
     assert package.read("extension/dist/extension.js") == (root / "dist/extension.js").read_bytes()
-print(f"Verified {archive.name}: explicit visibility and async/await syntax supported; version and contents match source")
+print(f"Verified {archive.name}: member qualification and async/await syntax supported; version and contents match source")

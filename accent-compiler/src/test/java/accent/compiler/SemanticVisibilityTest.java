@@ -98,8 +98,8 @@ class SemanticVisibilityTest {
                 import vis.Counter;
                 class Child extends Counter {
                     int peek(Child! sibling) {
-                        this.__grow(); super.__grow(); sibling.__grow();
-                        return this.__step + super.__step + sibling.__step;
+                        super.__grow(); sibling.__grow();
+                        return super.__step + sibling.__step;
                     }
                     static int shared() { Counter.__touch(); return Counter.__shared; }
                 }
@@ -249,8 +249,8 @@ class SemanticVisibilityTest {
                 import java.util.ArrayList;
                 class JavaChild extends ArrayList {
                     int read(JavaChild! sibling) {
-                        this.removeRange(0, 0); super.removeRange(0, 0); sibling.removeRange(0, 0);
-                        return this.modCount + super.modCount + sibling.modCount;
+                        super.removeRange(0, 0); sibling.removeRange(0, 0);
+                        return super.modCount + sibling.modCount;
                     }
                 }
                 """);
@@ -305,12 +305,12 @@ class SemanticVisibilityTest {
     }
 
     @Test
-    void extensionPrefixesUseTheDeclarationPackageForAccess() {
+    void extensionModifiersUseTheDeclarationPackageForAccess() {
         SourceFile extension = source("vis/Text.accent", """
                 package vis;
                 extension String {
-                    int _hidden() { return 1; }
-                    int __guarded() { return 2; }
+                    private int _hidden() { return 1; }
+                    protected int __guarded() { return 2; }
                     int exposed() { return 3; }
                 }
                 """);

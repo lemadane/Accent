@@ -17,3 +17,9 @@ for (const keyword of ['public', 'protected', 'private']) {
     assert.equal(modifierRules.some(rule => rule.test(keyword + 'Count')), false);
 }
 console.log('Visibility modifier highlighting checks passed');
+
+const receiverRules = grammar.repository.numbers.patterns.map(rule => new RegExp(rule.match));
+for (const keyword of ['this', 'super']) {
+    assert.equal(receiverRules.some(rule => rule.test(keyword)), true);
+}
+console.log('Member qualifier highlighting checks passed');

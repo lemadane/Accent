@@ -9,8 +9,8 @@ extension String! {
 }
 
 class DashboardService {
-    final CustomerService! _customerService;
-    final OrderService! _orderService;
+    private final CustomerService! _customerService;
+    private final OrderService! _orderService;
 
     DashboardService(
             CustomerService! _customerService,

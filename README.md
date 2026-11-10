@@ -69,40 +69,46 @@ Accent compiles to Java source and then ordinary JVM bytecode targeting Java 21.
 
 The compiler/runtime lives in `accent-compiler`; mixed Java and Accent builds can produce ordinary JARs. Class extensions lower to static Java helpers. Accent non-null types use compiler checks and generated parameter guards; the `!` suffix is not part of a JVM type descriptor.
 
-Accent has deliberate differences from Java, including [visibility](#visibility), explicit `this.` for instance members, and textual boolean operators. Third-party libraries must be present on the compilation and execution classpaths.
+Accent has deliberate differences from Java, including [visibility](#visibility), explicit `this`/`super` for instance members, and textual boolean operators. Third-party libraries must be present on the compilation and execution classpaths.
 
 ## Visibility
 
-Accent supports explicit visibility on fields and methods:
+Modifiers determine access. Protected and private field/method names **must begin with `_`** as a visual marker; the prefix remains part of the Java member name.
 
-| Accent modifier | Generated Java | Access |
+| Accent declaration | Generated Java visibility | Access |
 | --- | --- | --- |
-| `public` | `public` | Everywhere the declaring type is accessible |
-| `protected` | `protected` | Same package, plus subclasses in other packages under Java's protected-access rules |
-| `private` | No visibility modifier (package-private) | Same package only |
+| `public int total;` | `public` | Everywhere the declaring type is accessible |
+| `protected int _step;` | `protected` | Same package and subclasses, following Java's protected-access rules |
+| `private int _cache;` | Package-private | Same package only |
+
+**Counter.accent**:
 
 ```accent
 class Counter {
     public int total;
-    protected int step = 1;
-    private int cache;
+    protected int _step = 1;
+    private int _cache;
 
-    public void increment() { this.total = this.total + this.step; }
-    protected void grow() { this.step++; }
-    private void reset() { this.total = 0; }
+    public void increment() { this.total = this.total + this._step; }
+    public String label() { return "counter"; }
+    protected void _grow() { this._step++; }
+    private void _reset() { this.total = 0; this._cache = 0; }
 }
 ```
 
-Accent `private` does not restrict access to the declaring class: neighboring classes in the same package can access it. Outside the package, a subclass can access protected instance members through `this`, `super`, or a suitable subclass receiver; it cannot access them through an arbitrary base-class instance.
+`private int cache;` and `protected void grow() {}` are compile errors: use `_cache` and `_grow`. A trailing underscore (`cache_`) does not satisfy this rule. Bare underscore-only member names are rejected.
 
-Explicit modifiers override name-based visibility. Existing declarations without a modifier keep their defaults: `name` is public, `_name` is package-private, and `__name` is protected. Prefixes remain part of generated member names. For example, `public int _count` is public, while `private int count` is package-private. Parameters and locals are unaffected.
+Members without a visibility modifier are public. Underscores alone do not set access: `_name` and `__name` have no special visibility meaning. Use explicit `private` or `protected` for every non-public member. Existing name-based declarations must be migrated: `int _cache;` becomes `private int _cache;`, and `int __step;` becomes `protected int _step;` with matching call-site renames (keeping `__step` is also valid).
+
+Accent `private` remains package-private, not class-private. Same-package classes may access these members through an object reference. Protected/private members declared in the current class use `this._member`; inherited instance members accessed on the current object use `super._member`. See [instance member access](#17-explicit-this-and-super) for override and dispatch examples.
 
 * Only one visibility modifier is allowed per declaration.
-* Top-level types and declared constructors remain public; an explicit `public` is optional. Interface members are always public and reject `private` or `protected`.
-* Without an explicit modifier, interface members cannot start with `_`. Bare underscore-only member names are rejected.
-* Each `.accent` file declares at most one ordinary top-level type (`class`, `interface`, `record`, `enum`, `model`, or a `singleton` variant). Extension blocks may appear alone or accompany it. Type names cannot start with `_`.
-* Singletons cannot declare constructors; the compiler generates a private constructor for them. Generated implementation fields may also use Java `private`.
-* `public`, `protected`, and `private` cannot be used as identifiers. Imported `.java` sources retain Java's original visibility semantics.
+* Top-level types, declared constructors, and interface members remain public; explicit `public` is optional. `private` and `protected` are rejected in those positions.
+* Parameters and local variables have no visibility prefix requirement. Public member names may start with `_`, but that does not restrict their access.
+* Each `.accent` file declares at most one ordinary top-level type. Extension blocks may appear alone or accompany it. Type names cannot start with `_`.
+* Singletons cannot declare constructors; the compiler generates a Java private constructor. Generated implementation fields (including record/model storage and `@Logging`'s `log`) are exempt from source naming rules.
+* Imported `.java` sources and Java libraries retain their names and Java visibility. An Accent override declared `protected` still needs `_`; to override a Java protected method without an underscore, preserve its name and widen the override to `public`.
+* `public`, `protected`, and `private` cannot be used as identifiers.
 
 ## Features in developer priority order
 
@@ -801,22 +807,53 @@ if (not count) {
 }
 ```
 
-### 17. Explicit `this.`
+### 17. Explicit `this` and `super`
 
-Instance field access and instance method calls inside a class must use `this.`:
+Use the qualifier that identifies where the selected instance field or method is declared:
 
-```java
-this.repository.save(order);
-this.status = "SAVED";
-this.logStatus();
+| Member access | Required form |
+| --- | --- |
+| Declared in the current class, including an override | `this.member` / `this.method()` |
+| Inherited from a parent, on the current object | `super.member` / `super.method()` |
+| Explicit parent implementation of an overridden method | `super.method()` |
+| A member of another object | `object.member` / `object.method()` |
+
+The rule applies to public, protected, and accessible package-private instance members. An inherited field or matching method overload cannot be accessed through `this`. A same-named method with different parameters is an overload, not an override. If a child declares a same-named field, `this.field` selects the child's field and `super.field` selects the parent's field.
+
+**FastCounter.accent**, using `Counter` from [Visibility](#visibility):
+
+```accent
+class FastCounter extends Counter {
+    private int _bonus = 2;
+
+    @Override
+    public void increment() {
+        super.increment();
+        super.total = super.total + this._bonus;
+    }
+
+    @Override
+    public String label() { return "fast"; }
+
+    public String summary() {
+        return this.label() + " / " + super.label();
+    }
+}
 ```
 
-Calls on other objects remain normal Java-style calls:
+`this.label()` selects the override declared in `FastCounter`; `super.label()` selects the parent implementation. `super.total` is required because `total` is inherited. `this._bonus` is required because `_bonus` belongs to `FastCounter`.
 
-```java
-customer.name();
-order.calculateTotal();
+Normal calls on another object still dispatch dynamically. For example, `counter.increment()` can invoke `FastCounter.increment()` even when `counter` is declared as `Counter`. `this.method()` also retains virtual dispatch, so a further subclass can override it. `super.method()` deliberately bypasses overrides in the current and further subclasses.
+
+Static members use class-qualified access, such as `Counter.shared`. `super` is unavailable in static contexts and extension blocks. Inside an extension, `this` refers to the extension's target object, so calls such as `this.length()` remain valid. A class with no explicit parent may use `super` for its implicit `Object` parent. Abstract parent methods have no implementation to call through `super`; implement an override before calling them through `this`.
+
+Run the complete example from the repository root after building the CLI distribution:
+
+```bash
+accent-compiler/build/install/accent/bin/accent run accent-compiler/src/e2e/examples/inheritance/Main.accent
 ```
+
+It prints `fast / counter` and `3` on separate lines. All example files are in [the inheritance demo](accent-compiler/src/e2e/examples/inheritance).
 
 ### 18. Class extensions
 
@@ -848,7 +885,7 @@ Accent fully supports standard Java and framework annotations (such as Spring Bo
 class ProductController {
 
     @Autowired
-    ProductService! _productService;
+    private ProductService! _productService;
 
     @GetMapping("/{id}")
     Product! getProduct(@PathVariable String! id) {
@@ -1133,7 +1170,7 @@ Use `singleton` before `class`, `record`, or `model` to declare one lazily initi
 
 ```java
 singleton class CacheManager {
-    final Map<String, Object> _cache = new HashMap<>();
+    private final Map<String, Object> _cache = new HashMap<>();
 
     void put(String key, Object val) {
         this._cache.put(key, val);

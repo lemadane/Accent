@@ -581,6 +581,7 @@ public final class SymbolTable {
         if (Modifier.isPrivate(mod)) list.add("private");
         if (Modifier.isStatic(mod)) list.add("static");
         if (Modifier.isFinal(mod)) list.add("final");
+        if (Modifier.isAbstract(mod)) list.add("abstract");
         return list;
     }
 

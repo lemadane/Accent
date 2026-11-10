@@ -136,7 +136,7 @@ class AccentEndToEndTest {
         String code = 
             "package test;\n" +
             "class ThisCheck {\n" +
-            "    int _count = 0;\n" +
+            "    private int _count = 0;\n" +
             "    void inc() {\n" +
             "        _count = _count + 1;\n" + // Missing this.
             "    }\n" +
@@ -561,7 +561,7 @@ class AccentEndToEndTest {
             "        }\n" +
             "    }\n" +
             "\n" +
-            "    static int _recordCall(List<Integer> list, int id) {\n" +
+            "    private static int _recordCall(List<Integer> list, int id) {\n" +
             "        list.add(id);\n" +
             "        return id * 10;\n" +
             "    }\n" +
@@ -612,7 +612,7 @@ class AccentEndToEndTest {
             "    static void main(String[] args) {\n" +
             "        final bad = $\"Result: {_print()}\";\n" +
             "    }\n" +
-            "    static void _print() {}\n" +
+            "    private static void _print() {}\n" +
             "}\n";
 
         Path tempDir2 = createTempDir();
@@ -649,7 +649,7 @@ class AccentEndToEndTest {
             "}\n" +
             "\n" +
             "singleton class StateTracker {\n" +
-            "    int _counter = 0;\n" +
+            "    private int _counter = 0;\n" +
             "    void increment() {\n" +
             "        this._counter = this._counter + 1;\n" +
             "    }\n" +

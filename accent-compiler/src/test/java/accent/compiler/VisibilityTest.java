@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Name-based visibility: {@code x} → public, {@code _x} → package-private, {@code __x} → protected. */
+/** Explicit visibility with required underscore prefixes for non-public members. */
 class VisibilityTest {
 
     @TempDir
@@ -26,13 +26,13 @@ class VisibilityTest {
             package vis;
             class Counter {
                 int total = 0;
-                int _cache = 0;
-                int __step = 1;
+                private int _cache = 0;
+                protected int __step = 1;
                 static int shared = 0;
                 void inc() { this.total = this.total + this.__step; }
-                void _reset() { this.total = 0; }
-                void __grow() { this.__step++; }
-                static int _helper() { return 1; }
+                private void _reset() { this.total = 0; }
+                protected void __grow() { this.__step++; }
+                private static int _helper() { return 1; }
             }
             """;
 
@@ -59,7 +59,7 @@ class VisibilityTest {
     }
 
     @Test
-    void memberModifiersAreDerivedFromNames() throws Exception {
+    void memberModifiersComeFromExplicitVisibility() throws Exception {
         write("vis/Counter.accent", COUNTER);
         CompilationResult result = compileAll();
         assertTrue(result.successful(), () -> result.diagnostics().toString());
@@ -93,7 +93,7 @@ class VisibilityTest {
         write("vis/Point.accent", """
                 package vis;
                 class Point {
-                    int _x;
+                    private int _x;
                     Point(int x) { this._x = x; }
                     int x() { return this._x; }
                 }
@@ -114,7 +114,7 @@ class VisibilityTest {
                 package other;
                 import vis.Counter;
                 class FastCounter extends Counter {
-                    void boost() { this.__step = 10; this.__grow(); this.inc(); }
+                    void boost() { super.__step = 10; super.__grow(); super.inc(); }
                 }
                 """);
         CompilationResult result = compileAll();
@@ -149,22 +149,22 @@ class VisibilityTest {
     }
 
     @Test
-    void explicitPublicAndPrivateOverrideNameVisibility() throws Exception {
+    void explicitModifiersDetermineAccess() throws Exception {
         write("vis/Explicit.accent", """
                 package vis;
                 public class Explicit {
                     public Explicit() {}
                     public int _visible = 1;
-                    private int hidden = 2;
+                    private int _hidden = 2;
                     private static final int __shared = 3;
-                    public int _read() { return this.hidden; }
-                    private int read() { return this.hidden; }
+                    public int _read() { return this._hidden; }
+                    private int _readHidden() { return this._hidden; }
                 }
                 """);
         write("vis/Neighbor.accent", """
                 package vis;
                 class Neighbor {
-                    int read(Explicit! value) { return value.hidden + value.read(); }
+                    int read(Explicit! value) { return value._hidden + value._readHidden(); }
                 }
                 """);
         CompilationResult result = compileAll();
@@ -172,10 +172,10 @@ class VisibilityTest {
         try (var loader = new URLClassLoader(new java.net.URL[]{tempDir.resolve("classes").toUri().toURL()})) {
             Class<?> type = loader.loadClass("vis.Explicit");
             assertVisibility(type.getDeclaredField("_visible").getModifiers(), "public");
-            assertVisibility(type.getDeclaredField("hidden").getModifiers(), "package");
+            assertVisibility(type.getDeclaredField("_hidden").getModifiers(), "package");
             assertVisibility(type.getDeclaredField("__shared").getModifiers(), "package");
             assertVisibility(type.getDeclaredMethod("_read").getModifiers(), "public");
-            assertVisibility(type.getDeclaredMethod("read").getModifiers(), "package");
+            assertVisibility(type.getDeclaredMethod("_readHidden").getModifiers(), "package");
         }
     }
 
@@ -184,25 +184,25 @@ class VisibilityTest {
         write("vis/Base.accent", """
                 package vis;
                 class Base {
-                    protected int value = 2;
-                    protected int read() { return this.value; }
+                    protected int _value = 2;
+                    protected int _read() { return this._value; }
                 }
                 """);
         write("vis/Neighbor.accent", """
                 package vis;
-                class Neighbor { int read(Base! base) { return base.value + base.read(); } }
+                class Neighbor { int read(Base! base) { return base._value + base._read(); } }
                 """);
         write("other/Child.accent", """
                 package other;
                 import vis.Base;
-                class Child extends Base { int total() { return this.value + this.read(); } }
+                class Child extends Base { int total() { return super._value + super._read(); } }
                 """);
         CompilationResult result = compileAll();
         assertTrue(result.successful(), () -> result.diagnostics().toString());
         try (var loader = new URLClassLoader(new java.net.URL[]{tempDir.resolve("classes").toUri().toURL()})) {
             Class<?> base = loader.loadClass("vis.Base");
-            assertVisibility(base.getDeclaredField("value").getModifiers(), "protected");
-            assertVisibility(base.getDeclaredMethod("read").getModifiers(), "protected");
+            assertVisibility(base.getDeclaredField("_value").getModifiers(), "protected");
+            assertVisibility(base.getDeclaredMethod("_read").getModifiers(), "protected");
             Class<?> child = loader.loadClass("other.Child");
             assertEquals(4, child.getMethod("total").invoke(child.getConstructor().newInstance()));
         }
@@ -210,11 +210,11 @@ class VisibilityTest {
 
     @Test
     void explicitPrivateIsHiddenFromOtherPackages() throws Exception {
-        write("vis/Secret.accent", "package vis; class Secret { private int value = 1; }");
+        write("vis/Secret.accent", "package vis; class Secret { private int _value = 1; }");
         write("other/Reader.accent", """
                 package other;
                 import vis.Secret;
-                class Reader { int read(Secret! secret) { return secret.value; } }
+                class Reader { int read(Secret! secret) { return secret._value; } }
                 """);
         assertFalse(compileAll().successful());
     }
@@ -260,11 +260,30 @@ class VisibilityTest {
     }
 
     @Test
-    void prefixedInterfaceMembersAreRejected() {
-        assertError(check("Shape.accent", "interface Shape { double _area(); }"),
-                "Interface members are always public");
-        CompilationResult ok = check("Shape.accent", "interface Shape { double area(); }");
-        assertTrue(ok.successful(), () -> ok.diagnostics().toString());
+    void underscoresAloneDoNotChangeDefaultPublicVisibility() throws Exception {
+        write("vis/Names.accent", "package vis; class Names { int _one; int __two; void _run() {} }");
+        assertTrue(compileAll().successful());
+        try (var loader = new URLClassLoader(new java.net.URL[]{tempDir.resolve("classes").toUri().toURL()})) {
+            Class<?> names = loader.loadClass("vis.Names");
+            assertVisibility(names.getDeclaredField("_one").getModifiers(), "public");
+            assertVisibility(names.getDeclaredField("__two").getModifiers(), "public");
+            assertVisibility(names.getDeclaredMethod("_run").getModifiers(), "public");
+        }
+        assertTrue(check("Shape.accent", "interface Shape { double _area(); }").successful());
+    }
+
+    @Test
+    void nonPublicDeclarationsRequireLeadingUnderscores() {
+        for (String visibility : List.of("private", "protected")) {
+            for (String member : List.of("int count;", "static int count;", "final int count = 1;",
+                    "void count() {}", "static void count() {}", "int count_ = 1;")) {
+                assertError(check("A.accent", "class A { " + visibility + " " + member + " }"), "must start with '_'");
+            }
+            assertError(check("Extensions.accent", "extension String { " + visibility
+                    + " int count() { return 1; } }"), "must start with '_'");
+            assertTrue(check("A.accent", "class A { " + visibility + " int _count; "
+                    + visibility + " void _run() {} }").successful());
+        }
     }
 
     @Test

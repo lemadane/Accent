@@ -201,13 +201,6 @@ public final class AccentParser {
         return !name.isEmpty() && name.chars().allMatch(c -> c == '_');
     }
 
-    /** Java modifier derived from an Accent member name, or null for package-private. */
-    public static String visibilityModifierFor(String name) {
-        if (name.startsWith("__")) return "protected";
-        if (name.startsWith("_")) return null;
-        return "public";
-    }
-
     private static String withPrefix(String name, String prefix) {
         String bare = name;
         while (bare.startsWith("_")) bare = bare.substring(1);
@@ -216,41 +209,26 @@ public final class AccentParser {
 
     private String currentTypeKind = "";
 
-    /**
-     * Explicit Accent modifiers override name-based defaults. Accent private is
-     * represented by the absence of a Java visibility modifier.
-     */
+    /** Visibility comes from modifiers; a leading underscore marks non-public declarations. */
     private void applyMemberVisibility(List<String> modifiers, List<Token> explicitVisibility, String name, Token nameToken) {
+        if (isOnlyUnderscores(name)) {
+            report(nameToken, "'" + name + "' is not a valid member name");
+        }
         if (explicitVisibility.size() > 1) {
             report(explicitVisibility.get(1), "Only one visibility modifier is allowed");
         }
-        if (!explicitVisibility.isEmpty()) {
-            Token visibility = explicitVisibility.getFirst();
-            if (currentTypeKind.equals("interface") && !visibility.lexeme().equals("public")) {
-                report(visibility, "Interface members are always public");
+        String visibility = explicitVisibility.isEmpty() ? "public" : explicitVisibility.getFirst().lexeme();
+        if (!visibility.equals("public")) {
+            if (currentTypeKind.equals("interface")) {
+                report(nameToken, "Interface members are always public");
             }
-            switch (visibility.lexeme()) {
-                case "public" -> modifiers.add(annotationCount(modifiers), "public");
-                case "private" -> { /* Accent private means Java package-private. */ }
-                case "protected" -> modifiers.add(annotationCount(modifiers), "protected");
-                default -> throw new IllegalStateException("Unknown visibility: " + visibility.lexeme());
+            if (!name.startsWith("_")) {
+                report(nameToken, "'" + visibility + "' member '" + name
+                        + "' must start with '_'; rename it to '_" + name + "'");
             }
-            if (isOnlyUnderscores(name)) report(nameToken, "'" + name + "' is not a valid member name");
-            return;
         }
-        if (isOnlyUnderscores(name)) {
-            report(nameToken, "'" + name + "' is not a valid member name");
-            return;
-        }
-        if (currentTypeKind.equals("interface")) {
-            if (name.startsWith("_")) {
-                report(nameToken, "Interface members are always public; rename '" + name + "' to '"
-                        + withPrefix(name, "") + "'");
-            }
-            return;
-        }
-        String visibility = visibilityModifierFor(name);
-        if (visibility != null) modifiers.add(annotationCount(modifiers), visibility);
+        // Accent private lowers to package-private; Java sources bypass this method.
+        if (!visibility.equals("private")) modifiers.add(annotationCount(modifiers), visibility);
     }
 
     private ParseError error(Token token, String message) {

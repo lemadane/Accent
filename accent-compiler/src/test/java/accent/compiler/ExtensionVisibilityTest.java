@@ -87,13 +87,13 @@ class ExtensionVisibilityTest {
     }
 
     @Test
-    void extensionMethodsKeepTheirNameBasedVisibilityAndAnnotations() throws Exception {
+    void extensionMethodsKeepExplicitVisibilityAndAnnotations() throws Exception {
         write("vis/Extensions.accent", """
                 package vis;
                 extension String! {
                     @Deprecated int visible() { return 1; }
-                    static int _hidden() { return 2; }
-                    int __protected() { return 3; }
+                    private static int _hidden() { return 2; }
+                    protected int __protected() { return 3; }
                 }
                 """);
         write("vis/Caller.accent", """

@@ -38,8 +38,8 @@ class SingletonVariantsEndToEndTest {
                 """);
         fixtures.put("Config", """
                 singleton class Config implements java.io.Serializable {
-                    int _count = 0;
-                    int _created = Probe.classCreated();
+                    private int _count = 0;
+                    private int _created = Probe.classCreated();
                     int count() { return this._count; }
                     void increment() { this._count++; }
                 }

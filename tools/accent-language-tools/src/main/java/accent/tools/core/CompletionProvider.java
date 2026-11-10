@@ -91,7 +91,7 @@ public final class CompletionProvider {
         String[] keywords = {
             "class", "interface", "record", "model", "singleton", "enum", "extension",
             "public", "protected", "private", "static", "final",
-            "void", "return", "if", "else", "for", "while", "do",
+            "this", "super", "void", "return", "if", "else", "for", "while", "do",
             "try", "catch", "finally", "throw", "yield", "break",
             "continue", "async", "await", "generator", "emit"
         };

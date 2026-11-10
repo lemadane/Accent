@@ -30,7 +30,7 @@ cd accent
 ./gradlew :accent-compiler:run --args="tokens src/e2e/examples/hello/HelloAccent.accent"
 ```
 
-Use at most one ordinary top-level type per `.accent` file; extension blocks may appear alone or accompany it. Explicit member visibility maps `public` to Java public, `protected` to Java protected (same package plus subclasses), and `private` to Java package-private. Without an explicit modifier, unprefixed members are public, `_name` is package-private, and `__name` is protected. Top-level types, declared constructors, and interface members remain public. Check a directory when a feature spans several source files, and compile it to verify the generated Java as well.
+Use at most one ordinary top-level type per `.accent` file; extension blocks may appear alone or accompany it. Explicit member visibility maps `public` to Java public, `protected` to Java protected (same package plus subclasses), and `private` to Java package-private. Protected/private members require an underscore prefix; the modifier determines access and unmodified members are public. Prefixes alone never determine access. Use `this` for members declared or overridden in the current class and `super` for inherited instance members on the current object. Calls on other objects retain normal virtual dispatch. Top-level types, declared constructors, and interface members remain public. Check a directory when a feature spans several source files, and compile it to verify the generated Java as well.
 
 ## Repository map
 
@@ -53,7 +53,7 @@ Run compiler and editor tests when changing syntax or visibility:
 ./gradlew :accent-compiler:test :tools:accent-language-tools:test
 ```
 
-Visibility changes must cover generated JVM modifiers, same-package access, cross-package subclasses, unrelated callers, Java interoperability, and editor completion filtering. Preserve the distinction between Accent `private` (package-private) and Java source `private` (class-private).
+Visibility changes must cover generated JVM modifiers, same-package access, cross-package subclasses, unrelated callers, Java interoperability, and editor completion filtering. Check required non-public prefixes and `this`/`super` qualifiers for fields, matching overloads, overrides, hidden fields, and multilevel inheritance. Generated storage and imported Java declarations retain their existing naming. Preserve the distinction between Accent `private` (package-private) and Java source `private` (class-private).
 
 The README prioritizes broadly useful features before specialized utilities. Describe implemented behavior and limitations; frontend acceptance alone does not prove an example compiles to executable bytecode. Keep CLI paths, module names, and editor instructions aligned with the checkout.
 
