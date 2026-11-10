@@ -22,16 +22,24 @@ public interface Ast {
     sealed interface TypeNode extends Node permits BaseTypeNode, ArrayTypeNode, PrimitiveTypeNode {
         boolean isNonNull();
         TypeNode withNonNull(boolean nonNull);
+        default TypeNode withNullableElements() {
+            if (this instanceof ArrayTypeNode a && !(a.elementType() instanceof PrimitiveTypeNode))
+                return new ArrayTypeNode(a.elementType().withNonNull(false), false);
+            if (this instanceof BaseTypeNode b && (b.name().equals("List") || b.name().equals("java.util.List"))
+                    && b.typeArguments().size() == 1)
+                return new BaseTypeNode(b.name(), List.of(b.typeArguments().getFirst().withNonNull(false)), false);
+            throw new IllegalArgumentException("'??' requires a reference array or List<T> binding.");
+        }
         default boolean hasNonNullElements() {
-            return this instanceof ArrayTypeNode a && a.elementType().isNonNull()
+            return this instanceof ArrayTypeNode a && !(a.elementType() instanceof PrimitiveTypeNode) && a.elementType().isNonNull()
                     || this instanceof BaseTypeNode b && (b.name().equals("List") || b.name().equals("java.util.List"))
                         && b.typeArguments().size() == 1 && b.typeArguments().getFirst().isNonNull();
         }
         default TypeNode withNonNullElements() {
-            if (this instanceof ArrayTypeNode a) return new ArrayTypeNode(a.elementType().withNonNull(true), true);
+            if (this instanceof ArrayTypeNode a) return new ArrayTypeNode(a.elementType().withNonNull(true), a.isNonNull());
             if (this instanceof BaseTypeNode b && (b.name().equals("List") || b.name().equals("java.util.List"))
                     && b.typeArguments().size() == 1)
-                return new BaseTypeNode(b.name(), List.of(b.typeArguments().getFirst().withNonNull(true)), true);
+                return new BaseTypeNode(b.name(), List.of(b.typeArguments().getFirst().withNonNull(true)), b.isNonNull());
             throw new IllegalArgumentException("'!!' requires an array or List<T> binding.");
         }
     }
@@ -49,7 +57,7 @@ public interface Ast {
                 }
                 sb.append(">");
             }
-            if (isNonNull) sb.append("!");
+            if (!isNonNull) sb.append("?");
             return sb.toString();
         }
     }
@@ -58,7 +66,7 @@ public interface Ast {
         @Override public boolean isNonNull() { return isNonNull; }
         @Override public TypeNode withNonNull(boolean nonNull) { return new ArrayTypeNode(elementType, nonNull); }
         @Override public String toString() {
-            return elementType.toString() + "[]" + (isNonNull ? "!" : "");
+            return elementType.toString() + "[]" + (isNonNull ? "" : "?");
         }
     }
 
@@ -256,7 +264,7 @@ public interface Ast {
     record CatchClause(Parameter parameter, BlockStmt body) implements Node {}
 
     // Expressions
-    sealed interface Expression extends Node permits LiteralExpr, IdentifierExpr, ThisExpr, SuperExpr, BinaryExpr, UnaryExpr, MemberAccessExpr, MethodCallExpr, NewObjectExpr, NewArrayExpr, ArrayInitializerExpr, ArrayAccessExpr, LambdaExpr, IfExpr, TryExpr, LoopExpr, NamedArgExpr, MarkupExpr, TernaryExpr, SqlExpr, JsonExpr, InterpolatedStringExpression {
+    sealed interface Expression extends Node permits NullableExpr, LiteralExpr, IdentifierExpr, ThisExpr, SuperExpr, BinaryExpr, UnaryExpr, MemberAccessExpr, MethodCallExpr, NewObjectExpr, NewArrayExpr, ArrayInitializerExpr, ArrayAccessExpr, LambdaExpr, IfExpr, TryExpr, LoopExpr, NamedArgExpr, MarkupExpr, TernaryExpr, SqlExpr, JsonExpr, InterpolatedStringExpression {
         // Source location helper
         default Token token() { return null; }
     }
@@ -266,6 +274,10 @@ public interface Ast {
     record IdentifierExpr(String name, Token token, boolean nonNullBinding, boolean nonNullElements) implements Expression {
         public IdentifierExpr(String name, Token token, boolean nonNullBinding) { this(name, token, nonNullBinding, false); }
         public IdentifierExpr(String name, Token token) { this(name, token, false); }
+    }
+
+    record NullableExpr(Expression expression, Token token, boolean nullableElements) implements Expression {
+        public NullableExpr(Expression expression, Token token) { this(expression, token, false); }
     }
 
     record ThisExpr(Token token) implements Expression {}

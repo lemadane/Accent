@@ -9,25 +9,25 @@ class SlugDemo {
         System.out.println("=== Accent Slug Demo ===\n");
 
         // 1. Generation
-        Slug basicSlug = Slug.from("Aircon Cleaning Services");
-        System.out.println("Generated from 'Aircon Cleaning Services': " + basicSlug);
+        Slug basicSlug? = Slug.from("Aircon Cleaning Services");
+        System.out.println("Generated from 'Aircon Cleaning Services': " + basicSlug?);
 
-        Slug punctuatedSlug = Slug.from("  Hello,   World!!!  ");
-        System.out.println("Generated from '  Hello,   World!!!  ': " + punctuatedSlug);
+        Slug punctuatedSlug? = Slug.from("  Hello,   World!!!  ");
+        System.out.println("Generated from '  Hello,   World!!!  ': " + punctuatedSlug?);
 
-        Slug diacriticsSlug = Slug.from("Café Déjà Vu");
-        System.out.println("Generated from 'Café Déjà Vu': " + diacriticsSlug);
+        Slug diacriticsSlug? = Slug.from("Café Déjà Vu");
+        System.out.println("Generated from 'Café Déjà Vu': " + diacriticsSlug?);
 
         // 2. Appending
-        Slug category = Slug.from("Home Services");
-        Slug combined = category.append("Aircon Cleaning");
-        System.out.println("Appended slug: " + combined);
+        Slug category? = Slug.from("Home Services");
+        Slug combined? = category?.append("Aircon Cleaning");
+        System.out.println("Appended slug: " + combined?);
 
         // 3. Parsing & Validation
         String input = "cafe-deja-vu";
         if (Slug.isValid(input)) {
-            Slug parsed = Slug.parse(input);
-            System.out.println("Successfully parsed valid slug: " + parsed);
+            Slug parsed? = Slug.parse(input);
+            System.out.println("Successfully parsed valid slug: " + parsed?);
         }
 
         try {
@@ -38,11 +38,11 @@ class SlugDemo {
         }
 
         // 4. Unicode Policy
-        SlugOptions unicodeOptions = SlugOptions.builder()
+        SlugOptions unicodeOptions? = SlugOptions.builder()
                 .characterPolicy(SlugCharacterPolicy.UNICODE)
                 .build();
-        Slug unicodeSlug = Slug.from("東京 レストラン", unicodeOptions);
-        System.out.println("Unicode slug: " + unicodeSlug);
+        Slug unicodeSlug? = Slug.from("東京 レストラン", unicodeOptions?);
+        System.out.println("Unicode slug: " + unicodeSlug?);
 
         System.out.println("Slug Demo finished successfully.");
     }

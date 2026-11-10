@@ -59,6 +59,7 @@ public enum TokenType {
 
     OPTIONAL_CHAIN,
     NULL_COALESCING,
+    DOUBLE_QUESTION,
     BANG,
     QUESTION,
     DOT,

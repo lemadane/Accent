@@ -89,38 +89,31 @@ Keep declarations, examples, diagnostics, and editor support consistent:
 
 | Contract | Declaration | Use |
 | --- | --- | --- |
-| Non-null reference | `String name! = "John";` | `name!` |
-| Non-null method result | `String name!() { return "John"; }` | `this.name!()` |
-| Non-null list and elements | `List<String> names!! = new ArrayList<String>();` | `names!!.get!(0)` |
-| Non-null array and elements | `String[] names!! = {"John"};` | `names![0]!` |
+| Non-null reference | `String name = "John";` | `name` |
+| Nullable reference | `String name? = null;` | `name?` |
+| Non-null method result | `String name() { return "John"; }` | `this.name()` |
+| Nullable method result | `String name?() { return null; }` | `this.name()?` |
+| Non-null list and elements | `List<String> names = new ArrayList<String>();` | `names.get(0)` |
+| Nullable list and elements | `List<String> names?? = null;` | `names?.get(0)?` |
+| Nullable array and elements | `String[] names?? = null;` | `names?[0]?` |
 
-Marked fields and locals require initializers; parameters and record/model
-components receive values from callers. Empty strings (`""`) and empty collections
-are non-null. Single-quoted strings are unsupported. Primitive names stay unmarked.
-Markers describe declared contracts, never unchecked assertions. A nullable value
-may be inserted into a `!!` collection only when the compiler proves it non-null,
-for example inside `if (value != null)`. Keep that variable's name unmarked.
+Reference types and elements are non-null by default. `List<String?> names`
+and `String?[] names` allow nullable elements in a non-null collection. The
+`??` binding suffix permits both a nullable collection and nullable elements.
+Use `?:` for null coalescing; `??` is no longer a coalescing operator.
 
-Non-null method calls retain `!()`. Optional calls such as `receiver?.name!()`
-remain nullable because the call can be skipped. Overrides must preserve inherited
-guarantees. Extension receiver types retain type-level nullability. Collection
-bindings use name-level `!!`, replacing `List<String!> names!` and `String![] names!`.
-Preserve compiled-library contracts through `@accent.runtime.NonNullReturn` and
-`@accent.runtime.NonNullElements`.
+Non-null fields and locals require initializers. Nullable bindings keep `?` at
+use sites, including after a proof such as `if (value? != null) { ... }`.
+Optional calls remain nullable because they can be skipped. Preserve inherited
+return guarantees and separately compiled contract metadata.
 
-**Readability counts:** `names!!.get!(0)` shows a non-null list, non-null elements,
-and a non-null result at the call site without looking up the declaration.
-Explicit is better than implicit. The markers do not guarantee a non-empty
-collection, a valid index, or immutable contents. Parameters are immutable bindings,
-not deeply immutable objects.
-
-Test initialization, mutations, null proofs, alias compatibility, argument and
-return contracts, overrides, generated Java, and separately compiled libraries.
-Include Java mutations through iterators, sublists, and bulk operations. Guarded
-lists copy ordinary inputs; array boundaries copy and validate inputs. Raw JVM
-arrays cannot reject arbitrary Java null stores; marked Accent reads detect them.
-Guarded `!!` method/constructor parameters have generated JVM names; HTTP binding
-annotations should specify names explicitly.
+Test all four collection/element combinations, initializers, mutations, null
+proofs, aliases, optional calls, return contracts, overrides, and Java boundaries.
+Include iterator, sublist, and bulk mutations. Guarded lists copy ordinary inputs;
+reference-array boundaries copy and validate inputs. JVM array writes from Java
+cannot be intercepted, so guarded Accent reads must detect introduced nulls.
+The contracts guarantee neither non-emptiness nor deep immutability. HTTP binding
+annotations should specify parameter names explicitly when guards rename JVM parameters.
 
 Run the contract and documentation regression tests:
 

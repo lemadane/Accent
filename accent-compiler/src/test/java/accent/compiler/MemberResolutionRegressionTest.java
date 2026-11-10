@@ -63,7 +63,7 @@ class MemberResolutionRegressionTest {
         write("src/client/Caller.accent", """
                 package client;
                 import api.Calls;
-                class Caller { static String run!() { return Calls.collect("count:", 1) ?? ""; } }
+                class Caller { static String run() { return Calls.collect("count:", 1) ?: ""; } }
                 """);
 
         assertEquals("count:1", compileAndRun("client.Caller", List.of(library)));
@@ -78,7 +78,7 @@ class MemberResolutionRegressionTest {
         write("src/client/Caller.accent", """
                 package client;
                 import api.Calls;
-                class Caller { static String run!() { return Calls.boxed(1) ?? ""; } }
+                class Caller { static String run() { return Calls.boxed(1) ?: ""; } }
                 """);
 
         assertEquals("boxed:1", compileAndRun("client.Caller", List.of(library)));
@@ -94,8 +94,8 @@ class MemberResolutionRegressionTest {
                 package library;
                 import domain.Token;
                 class Service {
-                    Token token! = new Token();
-                    Token value!() { return this.token!; }
+                    Token token = new Token();
+                    Token value() { return this.token; }
                 }
                 """);
         Path caller = write("src/client/Caller.accent", """
@@ -104,7 +104,7 @@ class MemberResolutionRegressionTest {
                 class Caller {
                     static int run() {
                         var service = new Service();
-                        return service.token!.number() + service.value!().number();
+                        return service.token.number() + service.value().number();
                     }
                 }
                 """);

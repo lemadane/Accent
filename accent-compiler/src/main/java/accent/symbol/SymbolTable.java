@@ -134,6 +134,11 @@ public final class SymbolTable {
         return resolveTypeInUnit(node, unit);
     }
 
+    public boolean isAccentMember(MemberOwner owner) {
+        CompilationUnit unit = owner == null ? null : sourceUnits.get(owner.typeName());
+        return unit != null && !unit.sourceFile().path().toString().endsWith(".java");
+    }
+
     public ResolvedType resolveFieldType(FieldInfo field) {
         return resolveMemberType(field.type(), declaringOwner(field));
     }
@@ -330,7 +335,7 @@ public final class SymbolTable {
             return new ResolvedType(getType(prim.name()), true, List.of(), 0);
         } else if (node instanceof ArrayTypeNode arr) {
             ResolvedType elem = resolveTypeNode(arr.elementType(), resolver);
-            return new ResolvedType(elem.info(), arr.isNonNull(), elem.typeArguments(), elem.arrayDimensions() + 1, elem.isNonNull());
+            return new ResolvedType(elem.info(), arr.isNonNull(), elem.typeArguments(), elem.arrayDimensions() + 1, arr.hasNonNullElements());
         } else if (node instanceof BaseTypeNode base) {
             TypeInfo info = resolver != null ? resolver.resolve(base.name()) : null;
             if (info == null) {
@@ -556,7 +561,7 @@ public final class SymbolTable {
         // Map fields
         for (Field f : clazz.getDeclaredFields()) {
             if (f.isSynthetic()) continue;
-            fields.add(new FieldInfo(f.getName(), getModifiersList(f.getModifiers()), reflectedContract(f.getGenericType(), f.getAnnotations())));
+            fields.add(new FieldInfo(f.getName(), contractModifiers(f.getModifiers(), f.getAnnotations()), reflectedContract(f.getGenericType(), f.getAnnotations())));
         }
 
         // Map methods
@@ -569,7 +574,7 @@ public final class SymbolTable {
                 params.add(new Parameter(reflectedContract(varargs ? pType.getComponentType() : m.getGenericParameterTypes()[idx], m.getParameterAnnotations()[idx]),
                         "p" + idx++, varargs, Optional.empty()));
             }
-            methods.add(new MethodInfo(m.getName(), getModifiersList(m.getModifiers()), reflectedContract(m.getGenericReturnType(), m.getAnnotations()), params));
+            methods.add(new MethodInfo(m.getName(), contractModifiers(m.getModifiers(), m.getAnnotations()), reflectedContract(m.getGenericReturnType(), m.getAnnotations()), params));
         }
 
         // Map constructors
@@ -588,6 +593,17 @@ public final class SymbolTable {
 
         return registerMembers(new TypeInfo(fullName, isInterface, isRecord, isEnum, false,
                 superclass, interfaces, methods, fields, constructors), clazz.getPackageName());
+    }
+
+    private List<String> contractModifiers(int modifiers, java.lang.annotation.Annotation[] annotations) {
+        List<String> result = getModifiersList(modifiers);
+        for (var annotation : annotations) {
+            if (Set.of("accent.runtime.Nullable", "accent.runtime.NonNullReturn").contains(annotation.annotationType().getName())) {
+                result.add("$accent$contract");
+                break;
+            }
+        }
+        return result;
     }
 
     private List<String> getModifiersList(int mod) {
@@ -611,6 +627,7 @@ public final class SymbolTable {
         } else node = mapClassToTypeNode(type instanceof Class<?> c ? c : Object.class);
         for (var annotation : annotations) {
             if (annotation.annotationType().getName().equals("accent.runtime.NonNullReturn")) node = node.withNonNull(true);
+            if (annotation.annotationType().getName().equals("accent.runtime.Nullable")) node = node.withNonNull(false);
             if (annotation.annotationType().getName().equals("accent.runtime.NonNullElements")) node = node.withNonNullElements();
         }
         return node;
@@ -636,7 +653,9 @@ public final class SymbolTable {
             boolean nonNullElements
     ) {
         public ResolvedType(TypeInfo info, boolean isNonNull, List<ResolvedType> typeArguments, int arrayDimensions) {
-            this(info, isNonNull, typeArguments, arrayDimensions, false);
+            this(info, isNonNull, typeArguments, arrayDimensions,
+                    arrayDimensions == 0 && info.fullName().equals("java.util.List")
+                            && typeArguments.size() == 1 && typeArguments.getFirst().isNonNull());
         }
         public ResolvedType withNonNullElements(boolean value) {
             return new ResolvedType(info, isNonNull, typeArguments, arrayDimensions, value);
@@ -730,8 +749,8 @@ public final class SymbolTable {
             for (int i = 0; i < arrayDimensions; i++) {
                 sb.append("[]");
             }
-            if (isNonNull && !info.isPrimitive()) {
-                sb.append("!");
+            if (!isNonNull && !isPrimitive()) {
+                sb.append("?");
             }
             return sb.toString();
         }

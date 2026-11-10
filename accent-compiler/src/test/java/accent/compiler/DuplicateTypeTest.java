@@ -56,8 +56,8 @@ class DuplicateTypeTest {
         Path first = tempDir.resolve("src/first.accent");
         Path second = tempDir.resolve("src/second.accent");
         Files.createDirectories(first.getParent());
-        String firstSource = "package vis; extension String! { int first() { return 1; } }";
-        String secondSource = "package vis; extension String! { int second() { return 2; } }";
+        String firstSource = "package vis; extension String { int first() { return 1; } }";
+        String secondSource = "package vis; extension String { int second() { return 2; } }";
         Files.writeString(first, firstSource);
         Files.writeString(second, secondSource);
 
@@ -70,14 +70,14 @@ class DuplicateTypeTest {
                 tempDir.resolve("classes"), List.of("build/classes/java/main"), tempDir.resolve("generated"), true);
         assertFalse(result.successful());
         assertTrue(result.diagnostics().stream().anyMatch(d -> d.code().equals("ACCENT-C007")));
-        assertFalse(Files.exists(tempDir.resolve("generated/vis/Extension_String_.java")));
+        assertFalse(Files.exists(tempDir.resolve("generated/vis/Extension_String.java")));
     }
 
     @Test
     void extensionHelpersCannotOverwriteAnOrdinaryType() {
-        CompilationResult result = new AccentCompiler().check(new SourceFile(Path.of("Extension_String_.accent"), """
-                class Extension_String_ {}
-                extension String! { int value() { return 1; } }
+        CompilationResult result = new AccentCompiler().check(new SourceFile(Path.of("Extension_String.accent"), """
+                class Extension_String {}
+                extension String { int value() { return 1; } }
                 """));
         assertFalse(result.successful());
         assertTrue(result.diagnostics().stream().anyMatch(d -> d.code().equals("ACCENT-C007")));

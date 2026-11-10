@@ -36,13 +36,13 @@ class ExtensionVisibilityTest {
         write("vis/Text.accent", """
                 package vis;
                 class Text {}
-                extension String! {
-                    String decorate!() { return "<" + this + ">"; }
+                extension String {
+                    String decorate() { return "<" + this + ">"; }
                 }
-                extension String! {
+                extension String {
                     int extra() { return 4; }
                 }
-                extension StringBuilder! {
+                extension StringBuilder {
                     int size() { return this.length(); }
                 }
                 """);
@@ -50,18 +50,18 @@ class ExtensionVisibilityTest {
                 package other;
                 import vis.Text;
                 class Caller {
-                    static String run!() { return "x".decorate!() + (new StringBuilder("abc").size() + "x".extra()); }
+                    static String run() { return "x".decorate() + (new StringBuilder("abc").size() + "x".extra()); }
                 }
                 """);
 
         compile();
 
         assertTrue(Files.isRegularFile(tempDir.resolve("generated/vis/Text.java")));
-        assertTrue(Files.isRegularFile(tempDir.resolve("generated/vis/Extension_String_.java")));
-        assertTrue(Files.isRegularFile(tempDir.resolve("generated/vis/Extension_StringBuilder_.java")));
+        assertTrue(Files.isRegularFile(tempDir.resolve("generated/vis/Extension_String.java")));
+        assertTrue(Files.isRegularFile(tempDir.resolve("generated/vis/Extension_StringBuilder.java")));
         try (var loader = loader()) {
             assertEquals("<x>7", loader.loadClass("other.Caller").getMethod("run").invoke(null));
-            assertTrue(Modifier.isPublic(loader.loadClass("vis.Extension_String_").getModifiers()));
+            assertTrue(Modifier.isPublic(loader.loadClass("vis.Extension_String").getModifiers()));
         }
     }
 
@@ -69,8 +69,8 @@ class ExtensionVisibilityTest {
     void extensionOnlyFilesCanExportMultipleHelpers() throws Exception {
         write("vis/Extensions.accent", """
                 package vis;
-                extension String! { int size() { return this.length(); } }
-                extension StringBuilder! { int size() { return this.length(); } }
+                extension String { int size() { return this.length(); } }
+                extension StringBuilder { int size() { return this.length(); } }
                 """);
         write("other/Caller.accent", """
                 package other;
@@ -90,7 +90,7 @@ class ExtensionVisibilityTest {
     void extensionMethodsKeepExplicitVisibilityAndAnnotations() throws Exception {
         write("vis/Extensions.accent", """
                 package vis;
-                extension String! {
+                extension String {
                     @Deprecated int visible() { return 1; }
                     private static int _hidden() { return 2; }
                     protected int __protected() { return 3; }
@@ -106,7 +106,7 @@ class ExtensionVisibilityTest {
         compile();
 
         try (var loader = loader()) {
-            Class<?> helper = loader.loadClass("vis.Extension_String_");
+            Class<?> helper = loader.loadClass("vis.Extension_String");
             var visible = helper.getDeclaredMethod("visible", String.class);
             var hidden = helper.getDeclaredMethod("_hidden", String.class);
             var protectedMethod = helper.getDeclaredMethod("__protected", String.class);

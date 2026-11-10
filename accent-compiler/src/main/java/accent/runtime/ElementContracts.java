@@ -3,7 +3,7 @@ package accent.runtime;
 import java.util.*;
 import java.util.function.UnaryOperator;
 
-/** Runtime boundaries for Accent's !! collection contracts. */
+/** Runtime boundaries for Accent's non-null element contracts. */
 public final class ElementContracts {
     private ElementContracts() {}
 
@@ -17,6 +17,14 @@ public final class ElementContracts {
         E[] copy = Objects.requireNonNull(source, "Non-null array").clone();
         for (E value : copy) Objects.requireNonNull(value, "Non-null array element");
         return copy;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T protectNullable(T source) {
+        if (source == null) return null;
+        if (source instanceof List<?> list) return (T) protect(list);
+        if (source instanceof Object[] array) return (T) protect(array);
+        throw new IllegalArgumentException("Element contracts require a reference array or List");
     }
 
     private static final class GuardedList<E> extends AbstractList<E> implements RandomAccess {

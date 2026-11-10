@@ -19,10 +19,10 @@
       "include": "#strings"
     },
     {
-      "include": "#non-null-methods"
+      "include": "#nullable-methods"
     },
     {
-      "include": "#non-null-bindings"
+      "include": "#nullable-bindings"
     },
     {
       "include": "#accent-keywords"
@@ -213,23 +213,23 @@
         }
       ]
     },
-    "non-null-bindings": {
+    "nullable-bindings": {
       "patterns": [
         {
-          "name": "variable.other.non-null.accent",
-          "match": "\\b[A-Za-z_]\\w*!{1,2}(?!=)"
+          "name": "variable.other.nullable.accent",
+          "match": "\\b[A-Za-z_]\\w*(?:\\?\\?|\\?(?![.:?]))"
         },
         {
-          "name": "keyword.operator.non-null-element.accent",
-          "match": "(?<=\\])!(?!=)"
+          "name": "keyword.operator.nullable-result.accent",
+          "match": "(?<=[\\]\\)])\\?(?![:.?])"
         }
       ]
     },
-    "non-null-methods": {
+    "nullable-methods": {
       "patterns": [
         {
-          "name": "entity.name.function.non-null.accent",
-          "match": "\\b[A-Za-z_]\\w*!(?=\\s*\\()"
+          "name": "entity.name.function.nullable.accent",
+          "match": "\\b[A-Za-z_]\\w*\\?(?=\\s*\\()"
         }
       ]
     }

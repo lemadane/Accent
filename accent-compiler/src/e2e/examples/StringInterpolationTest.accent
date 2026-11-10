@@ -23,7 +23,7 @@ class StringInterpolationTest {
         // 3. Double Brace Escaping
         final braces = $"{{name: \"{name}\", rating: {count}}}";
         System.out.println("3. Double Braces:  " + braces);
-        final quote = Character.toString(34);
+        final quote = Character.toString(34) ?: "";
         final expectedBraces = "{name: " + quote + "Accent Developer" + quote + ", rating: 5}";
         _assertBraces(braces, expectedBraces);
 
@@ -36,8 +36,8 @@ Line 3: Finished.";
         _assertMultiline(multiline, expectedMultiline);
 
         // 5. Null Conversion
-        final Object nullable = null;
-        final nullStr = $"Value: {nullable}";
+        final Object nullable? = null;
+        final nullStr = $"Value: {nullable?}";
         System.out.println("5. Null Handling:  " + nullStr);
         _assertNull(nullStr, "Value: null");
 

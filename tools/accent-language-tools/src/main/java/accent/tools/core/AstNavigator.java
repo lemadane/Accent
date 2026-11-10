@@ -108,6 +108,11 @@ public final class AstNavigator {
         } else if (node instanceof BinaryExpr be) {
             traverse(be.left(), line, col, path);
             traverse(be.right(), line, col, path);
+        } else if (node instanceof NullableExpr nullable) {
+            traverse(nullable.expression(), line, col, path);
+        } else if (node instanceof ArrayAccessExpr array) {
+            traverse(array.receiver(), line, col, path);
+            traverse(array.index(), line, col, path);
         } else if (node instanceof UnaryExpr ue) {
             traverse(ue.expression(), line, col, path);
         } else if (node instanceof MemberAccessExpr mae) {

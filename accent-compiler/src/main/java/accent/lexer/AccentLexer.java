@@ -62,7 +62,8 @@ public final class AccentLexer {
             case '%' -> add(TokenType.PERCENT);
             case '.' -> add(TokenType.DOT);
             case '?' -> add(match('.') ? TokenType.OPTIONAL_CHAIN
-                    : match('?') ? TokenType.NULL_COALESCING
+                    : match(':') ? TokenType.NULL_COALESCING
+                    : match('?') ? TokenType.DOUBLE_QUESTION
                     : TokenType.QUESTION);
             case '!' -> add(match('=') ? TokenType.BANG_EQUAL : TokenType.BANG);
             case '=' -> add(match('=') ? TokenType.EQUAL_EQUAL : TokenType.ASSIGN);

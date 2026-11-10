@@ -162,8 +162,8 @@ class AccentEndToEndTest {
             "package test;\n" +
             "class NullMain {\n" +
             "    static void main(String[] args) {\n" +
-            "        final String name = null;\n" +
-            "        final fallback = name ?? \"Default\";\n" +
+            "        final String name? = null;\n" +
+            "        final fallback = name? ?: \"Default\";\n" +
             "        if (not fallback.equals(\"Default\")) { throw new RuntimeException(\"Null coalescing failed\"); }\n" +
             "    }\n" +
             "}\n";
@@ -186,15 +186,15 @@ class AccentEndToEndTest {
     void testClassExtensions() throws Exception {
         String code = 
             "package test;\n" +
-            "extension String! {\n" +
-            "    String shout!() {\n" +
-            "        return this.toUpperCase() ?? \"\";\n" +
+            "extension String {\n" +
+            "    String shout() {\n" +
+            "        return this.toUpperCase() ?: \"\";\n" +
             "    }\n" +
             "}\n" +
             "class ExtMain {\n" +
             "    static void main(String[] args) {\n" +
             "        final text = \"hello\";\n" +
-            "        final result = text.shout!();\n" +
+            "        final result = text.shout();\n" +
             "        if (not result.equals(\"HELLO\")) { throw new RuntimeException(\"Extension method failed\"); }\n" +
             "    }\n" +
             "}\n";
@@ -483,8 +483,8 @@ class AccentEndToEndTest {
             "\n" +
             "        // 3. Double brace literal braces\n" +
             "        final braces = $\"{{name: \\\"{name}\\\", age: {age}}}\";\n" +
-            "        final quote = Character.toString(34);\n" +
-            "        final expectedBraces = \"{name: \" + quote + \"Lemuel\" + quote + \", age: 42}\";\n" +
+            "        final quote? = Character.toString(34);\n" +
+            "        final expectedBraces = \"{name: \" + quote? + \"Lemuel\" + quote? + \", age: 42}\";\n" +
             "        if (not braces.equals(expectedBraces)) {\n" +
             "            throw new RuntimeException(\"Fail braces: \" + braces);\n" +
             "        }\n" +
@@ -501,8 +501,8 @@ class AccentEndToEndTest {
             "        }\n" +
             "\n" +
             "        // 5. Null handling\n" +
-            "        final Object nullVal = null;\n" +
-            "        final nullTest = $\"Value: {nullVal}\";\n" +
+            "        final Object nullVal? = null;\n" +
+            "        final nullTest = $\"Value: {nullVal?}\";\n" +
             "        if (not nullTest.equals(\"Value: null\")) {\n" +
             "            throw new RuntimeException(\"Fail null handling: \" + nullTest);\n" +
             "        }\n" +
@@ -551,13 +551,13 @@ class AccentEndToEndTest {
             "        }\n" +
             "\n" +
             "        // 9. Singleton class testing (.instance!() accessor)\n" +
-            "        final cfg1 = AppConfig.instance!();\n" +
-            "        final cfg2 = AppConfig.instance!();\n" +
+            "        final cfg1 = AppConfig.instance();\n" +
+            "        final cfg2 = AppConfig.instance();\n" +
             "        if (cfg1 != cfg2) {\n" +
             "            throw new RuntimeException(\"Fail singleton instance equality check!\");\n" +
             "        }\n" +
-            "        if (not cfg1.appName!().equals(\"JatotApp\")) {\n" +
-            "            throw new RuntimeException(\"Fail singleton method call: \" + cfg1.appName!());\n" +
+            "        if (not cfg1.appName().equals(\"JatotApp\")) {\n" +
+            "            throw new RuntimeException(\"Fail singleton method call: \" + cfg1.appName());\n" +
             "        }\n" +
             "    }\n" +
             "\n" +
@@ -568,7 +568,7 @@ class AccentEndToEndTest {
             "}\n" +
             "\n" +
             "singleton class AppConfig {\n" +
-            "    String appName!() {\n" +
+            "    String appName() {\n" +
             "        return \"JatotApp\";\n" +
             "    }\n" +
             "}\n";
@@ -630,8 +630,8 @@ class AccentEndToEndTest {
             "package test;\n" +
             "class SingletonMain {\n" +
             "    static void main(String[] args) {\n" +
-            "        final s1 = StateTracker.instance!();\n" +
-            "        final s2 = StateTracker.instance!();\n" +
+            "        final s1 = StateTracker.instance();\n" +
+            "        final s2 = StateTracker.instance();\n" +
             "        if (s1 != s2) {\n" +
             "            throw new RuntimeException(\"Singleton identity check failed!\");\n" +
             "        }\n" +
@@ -640,9 +640,9 @@ class AccentEndToEndTest {
             "        if (s1.count() != 2) {\n" +
             "            throw new RuntimeException(\"Singleton state persistence failed: \" + s1.count());\n" +
             "        }\n" +
-            "        final c1 = CacheManager.instance!();\n" +
-            "        final c2 = CacheManager.instance!();\n" +
-            "        if (c1 != c2 or not c1.getApp!().equals(\"Jatot\")) {\n" +
+            "        final c1 = CacheManager.instance();\n" +
+            "        final c2 = CacheManager.instance();\n" +
+            "        if (c1 != c2 or not c1.getApp().equals(\"Jatot\")) {\n" +
             "            throw new RuntimeException(\"Singleton class syntax check failed!\");\n" +
             "        }\n" +
             "    }\n" +
@@ -659,7 +659,7 @@ class AccentEndToEndTest {
             "}\n" +
             "\n" +
             "singleton class CacheManager {\n" +
-            "    String getApp!() {\n" +
+            "    String getApp() {\n" +
             "        return \"Jatot\";\n" +
             "    }\n" +
             "}\n";
@@ -699,19 +699,19 @@ class AccentEndToEndTest {
             "class ModelMain {\n" +
             "    static void main(String[] args) {\n" +
             "        final user = new User(\"U101\", \"Lemuel\", 42);\n" +
-            "        if (not user.id!().equals(\"U101\") or not user.name!().equals(\"Lemuel\") or user.age() != 42) {\n" +
+            "        if (not user.id().equals(\"U101\") or not user.name().equals(\"Lemuel\") or user.age() != 42) {\n" +
             "            throw new RuntimeException(\"Fail model getter check: \" + user);\n" +
             "        }\n" +
             "        user.name(\"Lemuel A.\");\n" +
             "        user.age(43);\n" +
-            "        if (not user.name!().equals(\"Lemuel A.\") or user.age() != 43) {\n" +
+            "        if (not user.name().equals(\"Lemuel A.\") or user.age() != 43) {\n" +
             "            throw new RuntimeException(\"Fail model setter check: \" + user);\n" +
             "        }\n" +
-            "        final str = user.toString!();\n" +
+            "        final str = user.toString();\n" +
             "        if (not str.equals(\"User[id=U101, name=Lemuel A., age=43]\")) {\n" +
             "            throw new RuntimeException(\"Fail model toString check: \" + str);\n" +
             "        }\n" +
-            "        final userCopy = user.copy!(\"U101\", \"Lemuel A.\", 43);\n" +
+            "        final userCopy = user.copy(\"U101\", \"Lemuel A.\", 43);\n" +
             "        if (not user.equals(userCopy) or user.hashCode() != userCopy.hashCode()) {\n" +
             "            throw new RuntimeException(\"Fail model equals/hashCode/copy check!\");\n" +
             "        }\n" +
@@ -721,7 +721,7 @@ class AccentEndToEndTest {
             "    }\n" +
             "}\n" +
             "\n" +
-            "model User(final String id!, String name!, int age) {}\n";
+            "model User(final String id, String name, int age) {}\n";
 
         Path tempDir = createTempDir();
         Path srcDir = tempDir.resolve("src");
@@ -745,7 +745,7 @@ class AccentEndToEndTest {
             "        user.id(\"U102\");\n" +
             "    }\n" +
             "}\n" +
-            "model User(final String id!, var String name!) {}\n";
+            "model User(final String id, var String name) {}\n";
 
         Path tempDir = createTempDir();
         Path srcDir = tempDir.resolve("src");
@@ -773,7 +773,7 @@ class AccentEndToEndTest {
                             %s
                         }
                     }
-                    model Customer(final String id!, String name!, int age) {}
+                    model Customer(final String id, String name, int age) {}
                     """.formatted(statement));
             CompilationResult result = compile(source, tempDir.resolve("bin"), tempDir.resolve("gen"));
             assertFalse(result.successful(), "Must reject invalid model mutation: " + statement);

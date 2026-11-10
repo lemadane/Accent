@@ -17,7 +17,7 @@ class AccentCliExecutionTest {
         Path source = directory.resolve("Main.accent");
         Files.writeString(source, """
                 package demo;
-                extension String! {
+                extension String {
                     int answer() { return 42; }
                 }
                 class Main {

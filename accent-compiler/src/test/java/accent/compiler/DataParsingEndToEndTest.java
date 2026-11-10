@@ -25,8 +25,8 @@ class DataParsingEndToEndTest {
     @BeforeAll
     static void compileProgram() throws Exception {
         Path sources = Files.createDirectory(tempDir.resolve("src"));
-        Files.writeString(sources.resolve("Item.accent"), "record Item(String name) {}");
-        Files.writeString(sources.resolve("Person.accent"), "model Person(String name) {}");
+        Files.writeString(sources.resolve("Item.accent"), "record Item(String name?) {}");
+        Files.writeString(sources.resolve("Person.accent"), "model Person(String name?) {}");
         Files.writeString(sources.resolve("Envelope.accent"), """
                 import java.util.*;
                 record Envelope(List<Item> items, Map<String, Person> people, int[] numbers, char initial) {}
@@ -36,41 +36,41 @@ class DataParsingEndToEndTest {
                 import accent.xml.Xml;
                 import java.util.*;
                 class Parsing {
-                    static Object json(String text) { return Json.parse(text); }
-                    static Object xml(String text) { return Xml.parse(text); }
-                    static Object jsonObject(String text) { return Json.parse(text, Object.class); }
-                    static Object xmlObject(String text) { return Xml.parse(text, Object.class); }
-                    static List jsonList(String text) { return Json.parse(text, List.class); }
-                    static List xmlList(String text) { return Xml.parse(text, List.class); }
-                    static Map jsonMap(String text) { return Json.parse(text, Map.class); }
-                    static Map xmlMap(String text) { return Xml.parse(text, Map.class); }
-                    static Item jsonRecord(String text) { return Json.parse(text, Item.class); }
-                    static Item xmlRecord(String text) { return Xml.parse(text, Item.class); }
-                    static Person jsonModel(String text) { return Json.parse(text, Person.class); }
-                    static Person xmlModel(String text) { return Xml.parse(text, Person.class); }
-                    static List<Item> jsonRecords(String text) { return Json.parseList(text, Item.class); }
-                    static List<Item> xmlRecords(String text) { return Xml.parseList(text, Item.class); }
-                    static List<Person> jsonModels(String text) { return Json.parseList(text, Person.class); }
-                    static List<Person> xmlModels(String text) { return Xml.parseList(text, Person.class); }
-                    static Map<String, Item> jsonRecordMap(String text) { return Json.parseMap(text, Item.class); }
-                    static Map<String, Item> xmlRecordMap(String text) { return Xml.parseMap(text, Item.class); }
-                    static Map<String, Person> jsonModelMap(String text) { return Json.parseMap(text, Person.class); }
-                    static Map<String, Person> xmlModelMap(String text) { return Xml.parseMap(text, Person.class); }
-                    static Envelope jsonEnvelope(String text) { return Json.parse(text, Envelope.class); }
-                    static Envelope xmlEnvelope(String text) { return Xml.parse(text, Envelope.class); }
-                    static String jsonRoundTrip(List<Item> items) {
-                        List<Item> parsed = Json.parseList(items.toJson!(), Item.class);
-                        return parsed.toJson!();
+                    static Object json?(String text?) { return Json.parse(text?); }
+                    static Object xml?(String text?) { return Xml.parse(text?); }
+                    static Object jsonObject?(String text?) { return Json.parse(text?, Object.class); }
+                    static Object xmlObject?(String text?) { return Xml.parse(text?, Object.class); }
+                    static List jsonList?(String text?) { return Json.parse(text?, List.class); }
+                    static List xmlList?(String text?) { return Xml.parse(text?, List.class); }
+                    static Map jsonMap?(String text?) { return Json.parse(text?, Map.class); }
+                    static Map xmlMap?(String text?) { return Xml.parse(text?, Map.class); }
+                    static Item jsonRecord?(String text?) { return Json.parse(text?, Item.class); }
+                    static Item xmlRecord?(String text?) { return Xml.parse(text?, Item.class); }
+                    static Person jsonModel?(String text?) { return Json.parse(text?, Person.class); }
+                    static Person xmlModel?(String text?) { return Xml.parse(text?, Person.class); }
+                    static List<Item?> jsonRecords?(String text?) { return Json.parseList(text?, Item.class); }
+                    static List<Item?> xmlRecords?(String text?) { return Xml.parseList(text?, Item.class); }
+                    static List<Person?> jsonModels?(String text?) { return Json.parseList(text?, Person.class); }
+                    static List<Person?> xmlModels?(String text?) { return Xml.parseList(text?, Person.class); }
+                    static Map<String, Item> jsonRecordMap?(String text?) { return Json.parseMap(text?, Item.class); }
+                    static Map<String, Item> xmlRecordMap?(String text?) { return Xml.parseMap(text?, Item.class); }
+                    static Map<String, Person> jsonModelMap?(String text?) { return Json.parseMap(text?, Person.class); }
+                    static Map<String, Person> xmlModelMap?(String text?) { return Xml.parseMap(text?, Person.class); }
+                    static Envelope jsonEnvelope?(String text?) { return Json.parse(text?, Envelope.class); }
+                    static Envelope xmlEnvelope?(String text?) { return Xml.parse(text?, Envelope.class); }
+                    static String jsonRoundTrip?(List<Item?> items) {
+                        List<Item?> parsed? = Json.parseList(items.toJson(), Item.class);
+                        return parsed?.toJson();
                     }
-                    static String xmlRoundTrip(Map<String, Person> people) {
-                        Map<String, Person> parsed = Xml.parseMap(people.toXml!(), Person.class);
-                        return parsed.toXml!();
+                    static String xmlRoundTrip?(Map<String, Person> people) {
+                        Map<String, Person> parsed? = Xml.parseMap(people.toXml(), Person.class);
+                        return parsed?.toXml();
                     }
                     static void main(String[] args) {
-                        List<Item> items = List.of(new Item("Lem"));
-                        Map<String, Person> people = Map.of("U1", new Person("Ana"));
-                        System.out.println(Parsing.jsonRoundTrip(items));
-                        System.out.println(Parsing.xmlRoundTrip(people));
+                        List<Item?> items = List.of(new Item("Lem"));
+                        Map<String, Person> people? = Map.of("U1", new Person("Ana"));
+                        System.out.println(Parsing.jsonRoundTrip(items)?);
+                        System.out.println(Parsing.xmlRoundTrip(people?)?);
                     }
                 }
                 """);

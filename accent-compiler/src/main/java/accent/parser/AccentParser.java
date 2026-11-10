@@ -9,6 +9,7 @@ import accent.source.SourceFile;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public final class AccentParser {
     private final SourceFile sourceFile;
@@ -582,21 +583,12 @@ public final class AccentParser {
             applyMemberVisibility(modifiers, explicitVisibility, name, previous());
         }
 
-        boolean markedMethod = check(TokenType.BANG) && lookAhead(1).type() == TokenType.LEFT_PAREN;
+        boolean markedMethod = check(TokenType.QUESTION) && lookAhead(1).type() == TokenType.LEFT_PAREN;
         if (markedMethod) advance();
         if (match(TokenType.LEFT_PAREN)) {
-            // Method
-            if (!isJava) {
-                if (type.isNonNull() && !(type instanceof PrimitiveTypeNode)) {
-                    throw error(previous(), "Place '!' after the method name, not its return type.");
-                }
-                if (markedMethod) {
-                    if (type instanceof PrimitiveTypeNode) {
-                        throw error(previous(), "Primitive and void methods must not use '!'.");
-                    }
-                    if (isGenerator) throw error(previous(), "Generator methods do not support a return marker.");
-                    type = type.withNonNull(true);
-                }
+            if (markedMethod) {
+                if (type instanceof PrimitiveTypeNode) throw error(previous(), "Primitive and void returns cannot be nullable.");
+                type = type.withNonNull(false);
             }
             List<Parameter> parameters = new ArrayList<>();
             if (!check(TokenType.RIGHT_PAREN)) {
@@ -630,7 +622,7 @@ public final class AccentParser {
                 initializer = Optional.of(parseExpression(Precedence.NONE));
             }
             if (!isJava && type.isNonNull() && !(type instanceof PrimitiveTypeNode) && initializer.isEmpty()) {
-                throw error(peek(), "Non-null field '" + name + "!' requires an initializer.");
+                throw error(peek(), "Non-null field '" + name + "' requires an initializer.");
             }
             consume(TokenType.SEMICOLON, "Expected ';' after field declaration.");
             return new FieldDecl(modifiers, type, name, initializer);
@@ -675,7 +667,7 @@ public final class AccentParser {
         int idx = current + 1;
         while (idx < tokens.size()) {
             TokenType tt = tokens.get(idx).type();
-            if (tt == TokenType.BANG) {
+            if (tt == TokenType.QUESTION) {
                 idx++;
             } else if (tt == TokenType.DOT) {
                 idx++;
@@ -695,7 +687,7 @@ public final class AccentParser {
                 if (idx < tokens.size() && tokens.get(idx).type() == TokenType.RIGHT_BRACKET) {
                     idx++;
                 }
-                if (idx < tokens.size() && tokens.get(idx).type() == TokenType.BANG) {
+                if (idx < tokens.size() && tokens.get(idx).type() == TokenType.QUESTION) {
                     idx++;
                 }
             } else {
@@ -734,7 +726,7 @@ public final class AccentParser {
                 isMutable = !isExplicitFinal;
                 type = parseType();
             } else {
-                type = new BaseTypeNode("var", List.of(), false);
+                type = new BaseTypeNode("var", List.of(), !isJava);
             }
         } else {
             type = parseType();
@@ -757,7 +749,7 @@ public final class AccentParser {
     private boolean startsInferredBinding() {
         if (!check(TokenType.IDENTIFIER)) return false;
         int afterName = 1;
-        while (lookAhead(afterName).type() == TokenType.BANG) afterName++;
+        if (lookAhead(afterName).type() == TokenType.QUESTION || lookAhead(afterName).type() == TokenType.DOUBLE_QUESTION) afterName++;
         TokenType next = lookAhead(afterName).type();
         return next == TokenType.ASSIGN || next == TokenType.SEMICOLON;
     }
@@ -765,24 +757,15 @@ public final class AccentParser {
     /** A binding's outer nullability is written on its name, never its type. */
     private TypeNode parseBindingSuffix(TypeNode type) {
         if (isJava) return type;
-        if (type.hasNonNullElements() && !(type instanceof ArrayTypeNode a && a.elementType() instanceof PrimitiveTypeNode))
-            throw error(previous(), "Place both non-null collection markers on the binding name: use 'names!!'.");
-        if (type.isNonNull() && !(type instanceof PrimitiveTypeNode)) {
-            throw error(previous(), "Place '!' after the binding name, not its type.");
+        if (match(TokenType.DOUBLE_QUESTION)) {
+            try { return type.withNullableElements(); }
+            catch (IllegalArgumentException ex) { throw error(previous(), ex.getMessage()); }
         }
-        if (match(TokenType.BANG)) {
-            if (type instanceof PrimitiveTypeNode) {
-                throw error(previous(), "Primitive bindings are already non-null and must not use '!'.");
-            }
-            type = type.withNonNull(true);
-            if (match(TokenType.BANG)) {
-                try { type = type.withNonNullElements(); }
-                catch (IllegalArgumentException ex) { throw error(previous(), ex.getMessage()); }
-            } else if (type.hasNonNullElements()) {
-                throw error(previous(), "Use '!!' on the binding name for non-null elements.");
-            }
-            return type;
+        if (match(TokenType.QUESTION)) {
+            if (type instanceof PrimitiveTypeNode) throw error(previous(), "Primitive bindings cannot be nullable; use a boxed type.");
+            return type.withNonNull(false);
         }
+        if (check(TokenType.BANG)) throw error(peek(), "Non-null is the default; remove '!' and '!!'. Use '?' for nullable bindings.");
         return type;
     }
 
@@ -816,8 +799,11 @@ public final class AccentParser {
                 } while (match(TokenType.COMMA));
                 consume(TokenType.GREATER, "Expected '>' after type arguments.");
             }
-            boolean isNonNull = match(TokenType.BANG);
-            type = new BaseTypeNode(name, typeArgs, isNonNull);
+            boolean isNonNull = !isJava && !match(TokenType.QUESTION);
+            if (Set.of("int", "long", "double", "float", "boolean", "char", "byte", "short").contains(name)) {
+                if (!isNonNull && !isJava) throw error(previous(), "Primitive types cannot be nullable; use a boxed type.");
+                type = new PrimitiveTypeNode(name);
+            } else type = new BaseTypeNode(name, typeArgs, isNonNull);
         } else {
             // Check primitive types
             Token t = peek();
@@ -835,7 +821,7 @@ public final class AccentParser {
         while (check(TokenType.LEFT_BRACKET) && lookAhead(1).type() == TokenType.RIGHT_BRACKET) {
             advance();
             consume(TokenType.RIGHT_BRACKET, "Expected ']' for array type.");
-            boolean isNonNull = match(TokenType.BANG);
+            boolean isNonNull = !isJava && !match(TokenType.QUESTION);
             type = new ArrayTypeNode(type, isNonNull);
         }
 
@@ -1090,8 +1076,7 @@ public final class AccentParser {
             nonNullBinding = bindingType.isNonNull() && !(bindingType instanceof PrimitiveTypeNode);
             nonNullElements = bindingType.hasNonNullElements();
         } else {
-            nonNullBinding = match(TokenType.BANG);
-            nonNullElements = nonNullBinding && match(TokenType.BANG);
+            nonNullBinding = !match(TokenType.QUESTION);
         }
         Optional<Expression> initializer = Optional.empty();
         if (match(TokenType.ASSIGN)) {
@@ -1105,7 +1090,7 @@ public final class AccentParser {
         }
 
         if (nonNullBinding && initializer.isEmpty()) {
-            throw error(previous(), "Non-null variable '" + name + "!' requires an initializer.");
+            throw error(previous(), "Non-null variable '" + name + "' requires an initializer.");
         }
         return new LocalVarDeclStmt(isFinal, isInferred, type, name, initializer, nonNullBinding, nonNullElements);
     }
@@ -1117,7 +1102,7 @@ public final class AccentParser {
         ASSIGNMENT,       // = += -=
         TERNARY,          // ? :
         LAMBDA,           // ->
-        NULL_COALESCING,  // ??
+        NULL_COALESCING,  // ?: (null-only fallback)
         OR,               // or
         AND,              // and
         EQUALITY,         // == !=
@@ -1150,12 +1135,34 @@ public final class AccentParser {
         Token token = advance();
         Expression left = parsePrefix(token);
 
-        while (precedence.ordinal() < getPrecedence(peek().type()).ordinal()) {
+        while (true) {
+            if (check(TokenType.DOUBLE_QUESTION)) {
+                Token marker = advance();
+                left = new NullableExpr(left, marker, true);
+                continue;
+            }
+            if (isNullablePostfix()) {
+                Token marker = advance();
+                left = new NullableExpr(left, marker);
+                continue;
+            }
+            if (precedence.ordinal() >= getPrecedence(peek().type()).ordinal()) break;
             Token op = advance();
             left = parseInfix(left, op);
         }
 
         return left;
+    }
+
+    private boolean isNullablePostfix() {
+        if (!check(TokenType.QUESTION) || previous().endOffset() != peek().startOffset()) return false;
+        return switch (lookAhead(1).type()) {
+            case SEMICOLON, COMMA, RIGHT_PAREN, RIGHT_BRACKET, RIGHT_BRACE, INTERPOLATION_END, EOF, DOT, OPTIONAL_CHAIN,
+                 LEFT_BRACKET, ASSIGN, EQUAL_EQUAL, BANG_EQUAL, NULL_COALESCING, QUESTION,
+                 PLUS, MINUS, STAR, SLASH, LESS, GREATER, LESS_EQUAL, GREATER_EQUAL,
+                 AND, OR, COLON, ARROW -> true;
+            default -> false;
+        };
     }
 
     private Expression parsePrefix(Token token) {
@@ -1197,13 +1204,13 @@ public final class AccentParser {
                     }
                 }
                 // Could be start of lambda: x -> x or x! -> x!
-                boolean nonNullBinding = match(TokenType.BANG);
-                boolean nonNullElements = nonNullBinding && match(TokenType.BANG);
+                boolean nonNullBinding = false;
+                boolean nonNullElements = false;
                 if (check(TokenType.ARROW)) {
                     if (nonNullElements) throw error(token, "Use an explicitly typed array or List<T> parameter for '!!' lambdas.");
                     advance(); // consume ->
                     Node body = check(TokenType.LEFT_BRACE) ? parseStatement() : parseExpression(Precedence.NONE);
-                    yield new LambdaExpr(List.of(new Parameter(new BaseTypeNode("var", List.of(), nonNullBinding), token.lexeme(), false, Optional.empty())), body, token);
+                    yield new LambdaExpr(List.of(new Parameter(new BaseTypeNode("var", List.of(), true), token.lexeme(), false, Optional.empty())), body, token);
                 }
                 yield new IdentifierExpr(token.lexeme(), token, nonNullBinding, nonNullElements);
             }
@@ -1232,9 +1239,9 @@ public final class AccentParser {
                         do {
                             if (check(TokenType.IDENTIFIER)
                                     && (lookAhead(1).type() == TokenType.COMMA || lookAhead(1).type() == TokenType.RIGHT_PAREN
-                                        || lookAhead(1).type() == TokenType.BANG)) {
+                                        || lookAhead(1).type() == TokenType.QUESTION)) {
                                 String parameterName = consume(TokenType.IDENTIFIER, "Expected lambda parameter name.").lexeme();
-                                parameters.add(new Parameter(new BaseTypeNode("var", List.of(), match(TokenType.BANG)),
+                                parameters.add(new Parameter(new BaseTypeNode("var", List.of(), !match(TokenType.QUESTION)),
                                         parameterName, false, Optional.empty()));
                             } else parameters.add(parseParameter());
                         } while (match(TokenType.COMMA));
@@ -1597,8 +1604,8 @@ public final class AccentParser {
                     memberName = consume(TokenType.IDENTIFIER, "Expected member name after '" + op.lexeme() + "'.").lexeme();
                 }
 
-                boolean marked = match(TokenType.BANG);
-                boolean elements = marked && match(TokenType.BANG);
+                boolean marked = false;
+                boolean elements = false;
                 if (match(TokenType.LEFT_PAREN)) {
                     if (elements) throw error(op, "Methods use a single return marker '!()', not '!!()'.");
                     List<Expression> arguments = parseCallArguments();
@@ -1625,7 +1632,7 @@ public final class AccentParser {
             case LEFT_BRACKET -> {
                 Expression index = parseExpression(Precedence.NONE);
                 consume(TokenType.RIGHT_BRACKET, "Expected ']' after array index.");
-                yield new ArrayAccessExpr(left, index, op, match(TokenType.BANG));
+                yield new ArrayAccessExpr(left, index, op);
             }
             case QUESTION -> {
                 Expression thenBranch = parseExpression(Precedence.NONE);

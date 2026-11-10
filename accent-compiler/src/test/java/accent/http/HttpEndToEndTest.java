@@ -55,8 +55,8 @@ class HttpEndToEndTest {
                         app.get("/users/new", req -> Response.text("literal"));
                         app.post("/echo", req -> Response.text(req.body()));
                         app.post("/records", (Request req) -> {
-                            final User user = req.json(User.class);
-                            return Response.json(user).status(201);
+                            final User user? = req.json(User.class);
+                            return Response.json(user?).status(201);
                         });
                         app.post("/json", req -> Response.json(req.json()));
                         app.get("/inspect/:id", req -> Response.json(Map.of(

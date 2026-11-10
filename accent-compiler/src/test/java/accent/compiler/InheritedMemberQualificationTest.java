@@ -69,7 +69,7 @@ class InheritedMemberQualificationTest {
                                 + this.count + "|" + super.count + "|" + super._read()
                                 + "|" + super._cache + "|" + this._own + "|" + Parent.shared;
                     }
-                    public String other(Parent parent!) { return parent!.label(); }
+                    public String other(Parent parent) { return parent.label(); }
                 }
                 """), source("Grandchild", """
                 class Grandchild extends Child {
@@ -97,7 +97,7 @@ class InheritedMemberQualificationTest {
     @Test
     void implicitObjectParentAndImportedJavaMembersSupportSuper() {
         var object = new AccentCompiler().check(source("Plain", """
-                class Plain { String describe() { return super.toString(); } }
+                class Plain { String describe?() { return super.toString(); } }
                 """));
         assertTrue(object.successful(), () -> object.diagnostics().toString());
         var java = new AccentCompiler().check(source("JavaChild", """
@@ -145,9 +145,9 @@ class InheritedMemberQualificationTest {
     @Test
     void extensionsKeepThisAsTheirTargetReceiver() {
         var result = new AccentCompiler().check(source("Extensions", """
-                extension StringBuilder! {
+                extension StringBuilder {
                     private int _length() { return this.length(); }
-                    public String description() { return this.toString(); }
+                    public String description?() { return this.toString(); }
                 }
                 """));
         assertTrue(result.successful(), () -> result.diagnostics().toString());

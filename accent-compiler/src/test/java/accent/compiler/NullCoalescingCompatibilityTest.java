@@ -17,8 +17,10 @@ class NullCoalescingCompatibilityTest {
         Path source = tempDir.resolve("Coalesce.accent");
         Files.writeString(source, """
             class Coalesce {
-                static Object value(Object x) {
-                    return x ?? "fallback";
+                static int fallbacks = 0;
+                static String fallback() { Coalesce.fallbacks++; return "fallback"; }
+                static Object value(Object x?) {
+                    return x? ?: Coalesce.fallback();
                 }
             }
             """);
@@ -28,7 +30,12 @@ class NullCoalescingCompatibilityTest {
             var method = loader.loadClass("Coalesce").getMethod("value", Object.class);
             Object value = new Object();
             assertSame(value, method.invoke(null, value));
+            assertEquals("", method.invoke(null, ""));
+            assertEquals(false, method.invoke(null, false));
+            assertEquals(0, method.invoke(null, 0));
+            assertEquals(0, loader.loadClass("Coalesce").getField("fallbacks").getInt(null));
             assertEquals("fallback", method.invoke(null, new Object[]{null}));
+            assertEquals(1, loader.loadClass("Coalesce").getField("fallbacks").getInt(null));
         }
     }
 }

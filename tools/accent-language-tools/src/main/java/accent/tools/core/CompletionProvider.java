@@ -33,7 +33,7 @@ public final class CompletionProvider {
     }
 
     private static String bindingName(String name, TypeNode type) {
-        return name + (type.isNonNull() && !(type instanceof PrimitiveTypeNode) ? "!" : "");
+        return name + (!type.isNonNull() && !(type instanceof PrimitiveTypeNode) ? "?" : "");
     }
 
     public static List<CompletionItem> getCompletions(CompilationUnit unit, SemanticAnalyzer analyzer, int line, int column) {
@@ -72,11 +72,14 @@ public final class CompletionProvider {
                         if (methodDetails.add(m.name() + ":" + resultType)) {
                             boolean nonNullElementResult = type.nonNullElements() && info.fullName().equals("java.util.List")
                                     && Set.of("get", "getFirst", "getLast", "set", "removeFirst", "removeLast").contains(m.name());
-                            items.add(new CompletionItem(nonNullElementResult ? m.name() + "!" : bindingName(m.name(), m.returnType()), "Method", resultType));
+                            boolean nonNullAsyncResult = info.fullName().equals("accent.runtime.Async")
+                                    && m.name().equals("await") && !type.typeArguments().isEmpty()
+                                    && type.typeArguments().getFirst().isNonNull();
+                            items.add(new CompletionItem(nonNullAsyncResult || nonNullElementResult || m.returnType().isNonNull() || m.returnType() instanceof PrimitiveTypeNode ? m.name() : m.name() + "()?", "Method", resultType));
                         }
                     }
                     for (FieldInfo f : analyzer.accessibleFields(expr)) {
-                        items.add(new CompletionItem(bindingName(f.name(), f.type()) + (f.type().hasNonNullElements() ? "!" : ""), "Field", f.type().toString()));
+                        items.add(new CompletionItem(bindingName(f.name(), f.type()), "Field", f.type().toString()));
                     }
                     return items;
                 }
@@ -111,9 +114,9 @@ public final class CompletionProvider {
                 items.add(new CompletionItem(td.name(), "Class", td.name()));
                 for (Member m : td.members()) {
                     if (m instanceof FieldDecl fd) {
-                        items.add(new CompletionItem(bindingName(fd.name(), fd.type()) + (fd.type().hasNonNullElements() ? "!" : ""), "Field", fd.type().toString()));
+                        items.add(new CompletionItem(bindingName(fd.name(), fd.type()), "Field", fd.type().toString()));
                     } else if (m instanceof MethodDecl md) {
-                        items.add(new CompletionItem(bindingName(md.name(), md.returnType()), "Method", md.returnType().toString()));
+                        items.add(new CompletionItem((md.returnType().isNonNull() || md.returnType() instanceof PrimitiveTypeNode ? md.name() : md.name() + "()?"), "Method", md.returnType().toString()));
                     }
                 }
             }

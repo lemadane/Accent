@@ -316,7 +316,7 @@ function isStatementContinuation(line: string): boolean {
     if (
         trimmed.endsWith(',') || trimmed.endsWith('+') || trimmed.endsWith('-') ||
         trimmed.endsWith('*') || trimmed.endsWith('/') || trimmed.endsWith('=') ||
-        trimmed.endsWith('&&') || trimmed.endsWith('||') || trimmed.endsWith('??') ||
+        trimmed.endsWith('&&') || trimmed.endsWith('||') || trimmed.endsWith('?:') ||
         trimmed.endsWith('?') || trimmed.endsWith(':') || trimmed.endsWith('and') ||
         trimmed.endsWith('or') || trimmed.endsWith('->') || trimmed.endsWith('=>')
     ) {

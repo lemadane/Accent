@@ -104,10 +104,10 @@ class BooleanOperatorTest {
     void preservesNonNullTypesInequalityAndLiteralSymbols() {
         var source = new SourceFile(Path.of("Test.accent"), """
                 class Test {
-                    boolean run(String value!, String[] values!) {
+                    boolean run(String value, String[] values) {
                         final symbols = "! && ||";
                         // ! && || in comments are harmless.
-                        return value! != null and not false or true;
+                        return value != null and not false or true;
                     }
                 }
                 """);

@@ -25,10 +25,10 @@ public final class HoverProvider {
             if (type != null) {
                 StringBuilder sb = new StringBuilder();
                 if (expr instanceof IdentifierExpr id) {
-                    sb.append("Local variable/symbol: `").append(id.name()).append(id.nonNullBinding() ? "!" : "").append(id.nonNullElements() ? "!" : "").append("`\n\n");
+                    sb.append("Local variable/symbol: `").append(id.name()).append(!type.isNonNull() && !type.isPrimitive() ? "?" : "").append("`\n\n");
                 } else if (expr instanceof MethodCallExpr call) {
                     sb.append("Method call: `").append(call.methodName())
-                            .append(call.nonNullResult() ? "!()" : "()").append("`\n\n");
+                            .append(!type.isNonNull() && !type.isPrimitive() ? "()?" : "()").append("`\n\n");
                 } else if (expr instanceof MemberAccessExpr) {
                     sb.append("Field access: `").append(token.lexeme()).append("`\n\n");
                 }

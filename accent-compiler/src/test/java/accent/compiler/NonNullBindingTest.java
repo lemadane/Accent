@@ -24,49 +24,39 @@ class NonNullBindingTest {
     }
 
     @Test void requiresInitializersAndRejectsNullAssignments() {
-        rejects("class Sample { void run() { String name!; } }", "requires an initializer");
-        rejects("class Sample { String name!; }", "requires an initializer");
-        rejects("class Sample { void run() { String name! = null; } }", "Incompatible types");
-        rejects("class Sample { String name! = null; }", "Incompatible types");
-        rejects("class Sample { void run() { var name! = null; } }", "Incompatible types");
-        rejects("class Sample { void run() { String name! = \"ok\"; name! = null; } }", "Incompatible types");
-        rejects("class Sample { String! name = \"ok\"; }", "after the binding name");
-        rejects("class Sample { void run(String! name) {} }", "after the binding name");
-        rejects("class Sample { void run() { int count! = 1; } }", "Primitive bindings");
-        rejects("class Sample { final count! = 1; }", "Primitive bindings");
-        rejects("record Sample(String name! = null) {}", "Incompatible types");
-        rejects("class Sample { void run(String name! = null) {} }", "Incompatible types");
+        rejects("class Sample { void run() { String name; } }", "requires an initializer");
+        rejects("class Sample { String name; }", "requires an initializer");
+        rejects("class Sample { void run() { String name = null; } }", "Incompatible types");
+        rejects("class Sample { String name = null; }", "Incompatible types");
+        rejects("class Sample { void run() { var name = null; } }", "Incompatible types");
+        rejects("class Sample { void run() { String name = \"ok\"; name = null; } }", "Incompatible types");
+        rejects("class Sample { void run() { int count? = 1; } }", "Primitive bindings");
+        rejects("record Sample(String name = null) {}", "Incompatible types");
+        rejects("class Sample { void run(String name = null) {} }", "Incompatible types");
     }
 
     @Test void markerIsRequiredAndCannotAssertNullableBindings() {
-        rejects("class Sample { void run(String name!) { System.out.println(name); } }", "every use");
-        rejects("class Sample { void run(String name) { System.out.println(name!); } }", "not declared");
-        rejects("class Sample { String name! = \"ok\"; String run() { return this.name; } }", "every use");
-        rejects("class Sample { void run() { final name! = \"ok\"; System.out.println(name); } }", "every use");
-        var result = check("""
-                class Sample {
-                    void run(String name) {
-                        if (name != null) { System.out.println(name); }
-                    }
-                }
-                """);
+        rejects("class Sample { void run(String name?) { System.out.println(name); } }", "every use");
+        rejects("class Sample { void run(String name) { System.out.println(name?); } }", "must not use");
+        rejects("class Sample { String name? = null; String run?() { return this.name; } }", "every use");
+        var result = check("class Sample { void run(String name?) { if (name? != null) { System.out.println(name?); } } }");
         assertTrue(result.successful(), () -> result.diagnostics().toString());
     }
 
     @Test void javaCallersCannotSupplyNullToMarkedParametersOrComponents() throws Exception {
-        Files.writeString(temp.resolve("Required.accent"), "record Required(String name!) {}");
-        Files.writeString(temp.resolve("Mutable.accent"), "model Mutable(String name!) {}");
+        Files.writeString(temp.resolve("Required.accent"), "record Required(String name) {}");
+        Files.writeString(temp.resolve("Mutable.accent"), "model Mutable(String name) {}");
         Files.writeString(temp.resolve("Sample.accent"), """
                 class Sample {
-                    static String echo(String name!) { return name!; }
+                    static String echo(String name) { return name; }
                     static java.util.function.Function<String, String> function() {
-                        java.util.function.Function<String, String> greet! = (name!) -> $"Hi {name!}";
-                        return greet!;
+                        java.util.function.Function<String, String> greet = (name) -> $"Hi {name}";
+                        return greet;
                     }
                     static void loop() {
-                        final values! = new java.util.ArrayList<String>();
-                        values!.add(null);
-                        for (String value! : values!) { System.out.println(value!); }
+                        final values = new java.util.ArrayList<String?>();
+                        values.add(null);
+                        for (String value : values) { System.out.println(value); }
                     }
                 }
                 """);
@@ -102,21 +92,21 @@ class NonNullBindingTest {
 
     @Test void executesInterpolationTruthinessAndInheritedFieldAccess() throws Exception {
         Files.writeString(temp.resolve("Parent.accent"), """
-                class Parent { protected String _customer! = "John"; }
+                class Parent { protected String _customer = "John"; }
                 """);
         Files.writeString(temp.resolve("Sample.accent"), """
                 class Sample extends Parent {
-                    private String _name! = "Doe";
-                    String message() { return $"{super._customer!} {this._name!}"; }
+                    private String _name = "Doe";
+                    String message() { return $"{super._customer} {this._name}"; }
                     static String run() {
-                        java.util.List<String> myList! = new java.util.ArrayList<String>();
-                        if (myList!) { throw new RuntimeException("empty list was truthy"); }
-                        if (not myList!) { myList!.add("item"); }
-                        if (not myList!) { throw new RuntimeException("populated list was falsy"); }
-                        String[] names! = new String[0];
-                        if (names!) { throw new RuntimeException("empty array was truthy"); }
-                        final sample! = new Sample();
-                        return sample!.message();
+                        java.util.List<String> myList = new java.util.ArrayList<String>();
+                        if (myList) { throw new RuntimeException("empty list was truthy"); }
+                        if (not myList) { myList.add("item"); }
+                        if (not myList) { throw new RuntimeException("populated list was falsy"); }
+                        String[] names = new String[0];
+                        if (names) { throw new RuntimeException("empty array was truthy"); }
+                        final sample = new Sample();
+                        return sample.message();
                     }
                 }
                 """);

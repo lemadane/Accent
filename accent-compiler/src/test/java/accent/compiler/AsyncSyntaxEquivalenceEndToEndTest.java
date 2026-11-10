@@ -45,30 +45,30 @@ class AsyncSyntaxEquivalenceEndToEndTest {
                     import java.util.List;
                     import java.util.ArrayList;
                     class $NAME {
-                        static Async<String> launch(AsyncConcurrencyProbe probe) { return $LAUNCH; }
-                        static String finish(Async<String> valueAsync) { return $WAIT; }
-                        static Async<Void> launchVoid(AsyncConcurrencyProbe probe) { return $VOID; }
-                        static Async<String> capture(String prefix, AsyncConcurrencyProbe probe) {
+                        static Async<String?> launch(AsyncConcurrencyProbe probe) { return $LAUNCH; }
+                        static String finish?(Async<String?> valueAsync) { return $WAIT; }
+                        static Async<Void?> launchVoid(AsyncConcurrencyProbe probe) { return $VOID; }
+                        static Async<String?> capture(String prefix, AsyncConcurrencyProbe probe) {
                             final suffix = "!";
                             return $CAPTURE;
                         }
-                        static Async<String> shared(AsyncConcurrencyProbe probe) {
-                            final values = new ArrayList<String>();
+                        static Async<String?> shared(AsyncConcurrencyProbe probe) {
+                            final values = new ArrayList<String?>();
                             final valueAsync = $SHARED;
                             values.add("later");
                             return valueAsync;
                         }
-                        static String factory(AsyncConcurrencyProbe probe) { return $FACTORY; }
+                        static String factory?(AsyncConcurrencyProbe probe) { return $FACTORY; }
                         static int arithmetic() { return $ARITHMETIC; }
-                        static String sequence(AsyncConcurrencyProbe first, AsyncConcurrencyProbe second) { return $SEQUENCE; }
+                        static String sequence?(AsyncConcurrencyProbe first, AsyncConcurrencyProbe second) { return $SEQUENCE; }
                         static boolean skipped(AsyncConcurrencyProbe probe) {
                             final left = false and ($SKIPPED.length() > 0);
                             final right = true or ($SKIPPED.length() > 0);
                             return not left and right;
                         }
                         static boolean nested(Async<Async<Boolean>> valueAsync) { return $NESTED; }
-                        static Async<List<String>> list(List<String> values) { return $LIST; }
-                        static List<String> finishList(Async<List<String>> valueAsync) { return $WAIT; }
+                        static Async<List<String?>> list(List<String?> values) { return $LIST; }
+                        static List<String?> finishList(Async<List<String?>> valueAsync) { return $WAIT; }
                     }
                     """
                     .replace("$NAME", name)
@@ -253,7 +253,7 @@ class AsyncSyntaxEquivalenceEndToEndTest {
         Files.writeString(sources.resolve("Invalid.accent"), """
                 import accent.runtime.Async;
                 class Invalid {
-                    static String run() {
+                    static String run?() {
                         var value = "before";
                         final valueAsync = %s;
                         value = "after";

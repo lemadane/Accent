@@ -81,17 +81,17 @@ class TruthyFalsyEndToEndTest {
             "        if (not dblRan) { throw new RuntimeException(\"non-zero double should be truthy\"); }\n" +
             "\n" +
             "        // Null, objects, collections, maps, optionals\n" +
-            "        final Object nullObj = null;\n" +
+            "        final Object nullObj? = null;\n" +
             "        final Object realObj = new Object();\n" +
-            "        final emptyList = List.of();\n" +
+            "        final List<String> emptyList = List.of();\n" +
             "        final nonEmptyList = List.of(\"item\");\n" +
-            "        final emptyMap = Map.of();\n" +
-            "        final nonEmptyMap = Map.of(\"key\", \"val\");\n" +
-            "        final emptyOptional = Optional.empty();\n" +
-            "        final nonEmptyOptional = Optional.of(\"item\");\n"
+            "        final emptyMap? = Map.of();\n" +
+            "        final nonEmptyMap? = Map.of(\"key\", \"val\");\n" +
+            "        final emptyOptional? = Optional.empty();\n" +
+            "        final nonEmptyOptional? = Optional.of(\"item\");\n"
  +
             "\n" +
-            "        if (nullObj) { throw new RuntimeException(\"null should be falsy\"); }\n" +
+            "        if (nullObj?) { throw new RuntimeException(\"null should be falsy\"); }\n" +
             "\n" +
             "        boolean objRan = false;\n" +
             "        if (realObj) { objRan = true; }\n" +
@@ -102,14 +102,14 @@ class TruthyFalsyEndToEndTest {
             "        if (nonEmptyList) { listRan = true; }\n" +
             "        if (not listRan) { throw new RuntimeException(\"non-empty list should be truthy\"); }\n" +
             "\n" +
-            "        if (emptyMap) { throw new RuntimeException(\"empty map should be falsy\"); }\n" +
+            "        if (emptyMap?) { throw new RuntimeException(\"empty map should be falsy\"); }\n" +
             "        boolean mapRan = false;\n" +
-            "        if (nonEmptyMap) { mapRan = true; }\n" +
+            "        if (nonEmptyMap?) { mapRan = true; }\n" +
             "        if (not mapRan) { throw new RuntimeException(\"non-empty map should be truthy\"); }\n" +
             "\n" +
-            "        if (emptyOptional) { throw new RuntimeException(\"empty optional should be falsy\"); }\n" +
+            "        if (emptyOptional?) { throw new RuntimeException(\"empty optional should be falsy\"); }\n" +
             "        boolean optRan = false;\n" +
-            "        if (nonEmptyOptional) { optRan = true; }\n" +
+            "        if (nonEmptyOptional?) { optRan = true; }\n" +
             "        if (not optRan) { throw new RuntimeException(\"non-empty optional should be truthy\"); }\n" +
             "    }\n" +
             "}\n";
@@ -218,7 +218,7 @@ class TruthyFalsyEndToEndTest {
             "        if (emptyCustomMap) { throw new RuntimeException(\"empty custom map should be falsy\"); }\n" +
             "\n" +
             "        final nonEmptyCustomMap = new CustomMap();\n" +
-            "        nonEmptyCustomMap.put(\"a\", 1);\n" +
+            "        nonEmptyCustomMap.put(\"a\", 1)?;\n" +
             "        if (not nonEmptyCustomMap) { throw new RuntimeException(\"non-empty custom map should be truthy\"); }\n" +
             "\n" +
             "        final emptyContainer = new CustomContainer(true);\n" +
@@ -229,7 +229,7 @@ class TruthyFalsyEndToEndTest {
             "    }\n" +
             "}\n" +
             "class CustomMap extends HashMap {\n" +
-            "    Object put(Object key, Object value) {\n" +
+            "    Object put?(Object key, Object value) {\n" +
             "        return super.put(key, value);\n" +
             "    }\n" +
             "}\n" +
@@ -394,7 +394,7 @@ class TruthyFalsyEndToEndTest {
             "\n" +
             "        final emptyStrArr = new String[](0);\n" +
             "        if (emptyStrArr) { throw new RuntimeException(\"empty String array should be falsy\"); }\n" +
-            "        final fullStrArr = new String[](1);\n" +
+            "        final fullStrArr = new String?[](1);\n" +
             "        if (not fullStrArr) { throw new RuntimeException(\"full String array should be truthy\"); }\n" +
             "\n" +
             "        // 6. CharSequence & Characters\n" +
@@ -403,17 +403,17 @@ class TruthyFalsyEndToEndTest {
             "        final fullSb = new StringBuilder(\"data\");\n" +
             "        if (not fullSb) { throw new RuntimeException(\"full StringBuilder should be truthy\"); }\n" +
             "\n" +
-            "        final Character nullChar = Character.valueOf(Character.MIN_VALUE);\n" +
-            "        if (nullChar) { throw new RuntimeException(\"null character Character.MIN_VALUE should be falsy\"); }\n" +
-            "        final Character validChar = Character.valueOf(Character.MAX_VALUE);\n" +
-            "        if (not validChar) { throw new RuntimeException(\"character Character.MAX_VALUE should be truthy\"); }\n" +
+            "        final Character nullChar? = Character.valueOf(Character.MIN_VALUE);\n" +
+            "        if (nullChar?) { throw new RuntimeException(\"null character Character.MIN_VALUE should be falsy\"); }\n" +
+            "        final Character validChar? = Character.valueOf(Character.MAX_VALUE);\n" +
+            "        if (not validChar?) { throw new RuntimeException(\"character Character.MAX_VALUE should be truthy\"); }\n" +
             "\n" +
             "        // 7. Edge Cases: Nested containers & collections containing null/zero\n" +
             "        final nestedList = List.of(List.of());\n" +
             "        if (not nestedList) { throw new RuntimeException(\"List containing empty list should be truthy (outer list has 1 element)\"); }\n" +
             "\n" +
-            "        final nullContainingList = Collections.singletonList(null);\n" +
-            "        if (not nullContainingList) { throw new RuntimeException(\"List containing null element should be truthy (size 1)\"); }\n" +
+            "        final nullContainingList? = Collections.singletonList(null);\n" +
+            "        if (not nullContainingList?) { throw new RuntimeException(\"List containing null element should be truthy (size 1)\"); }\n" +
             "\n" +
             "        final zeroContainingList = List.of(0);\n" +
             "        if (not zeroContainingList) { throw new RuntimeException(\"List containing 0 should be truthy (size 1)\"); }\n" +
@@ -442,10 +442,10 @@ class TruthyFalsyEndToEndTest {
             "import java.util.Map;\n" +
             "class IfElseForMain {\n" +
             "    static void main(String[] args) {\n" +
-            "        final emptyList = List.of();\n" +
+            "        final List<String> emptyList = List.of();\n" +
             "        final nonEmptyList = List.of(\"item1\", \"item2\");\n" +
-            "        final emptyMap = Map.of();\n" +
-            "        final nonEmptyMap = Map.of(\"k1\", \"v1\");\n" +
+            "        final emptyMap? = Map.of();\n" +
+            "        final nonEmptyMap? = Map.of(\"k1\", \"v1\");\n" +
             "\n" +
             "        // 1. if / else with empty list -> MUST go to else branch\n" +
             "        boolean emptyListElseRan = false;\n" +
@@ -467,21 +467,21 @@ class TruthyFalsyEndToEndTest {
             "\n" +
             "        // 3. if / else with empty map -> MUST go to else branch\n" +
             "        boolean emptyMapElseRan = false;\n" +
-            "        if (emptyMap) {\n" +
-            "            throw new RuntimeException(\"emptyMap should not enter then branch\");\n" +
+            "        if (emptyMap?) {\n" +
+            "            throw new RuntimeException(\"emptyMap? should not enter then branch\");\n" +
             "        } else {\n" +
             "            emptyMapElseRan = true;\n" +
             "        }\n" +
-            "        if (not emptyMapElseRan) { throw new RuntimeException(\"emptyMap failed to enter else branch\"); }\n" +
+            "        if (not emptyMapElseRan) { throw new RuntimeException(\"emptyMap? failed to enter else branch\"); }\n" +
             "\n" +
             "        // 4. if / else with non-empty map -> MUST go to then branch\n" +
             "        boolean nonEmptyMapThenRan = false;\n" +
-            "        if (nonEmptyMap) {\n" +
+            "        if (nonEmptyMap?) {\n" +
             "            nonEmptyMapThenRan = true;\n" +
             "        } else {\n" +
-            "            throw new RuntimeException(\"nonEmptyMap should not enter else branch\");\n" +
+            "            throw new RuntimeException(\"nonEmptyMap? should not enter else branch\");\n" +
             "        }\n" +
-            "        if (not nonEmptyMapThenRan) { throw new RuntimeException(\"nonEmptyMap failed to enter then branch\"); }\n" +
+            "        if (not nonEmptyMapThenRan) { throw new RuntimeException(\"nonEmptyMap? failed to enter then branch\"); }\n" +
             "\n" +
             "        // 5. for loop condition with List (drain list until empty)\n" +
             "        var listToDrain = new ArrayList<String>(List.of(\"a\", \"b\", \"c\"));\n" +
@@ -497,8 +497,8 @@ class TruthyFalsyEndToEndTest {
             "        int mapLoopRuns = 0;\n" +
             "        for (; mapToDrain; ) {\n" +
             "            mapLoopRuns++;\n" +
-            "            var firstKey = mapToDrain.keySet().iterator().next();\n" +
-            "            mapToDrain.remove(firstKey);\n" +
+            "            var firstKey? = mapToDrain.keySet().iterator().next();\n" +
+            "            mapToDrain.remove(firstKey?);\n" +
             "        }\n" +
             "        if (mapLoopRuns != 2) { throw new RuntimeException(\"for loop with Map condition expected 2 runs, got \" + mapLoopRuns); }\n" +
             "    }\n" +
@@ -549,7 +549,7 @@ class TruthyFalsyEndToEndTest {
             "        if (else2Ran) { throw new RuntimeException(\"For/else with break should NOT execute else branch\"); }\n" +
             "\n" +
             "        // 3. Enhanced for/else with empty list\n" +
-            "        final emptyList = List.of();\n" +
+            "        final List<String> emptyList = List.of();\n" +
             "        boolean else3Ran = false;\n" +
             "        int count3 = 0;\n" +
             "        for (var item : emptyList) {\n" +
@@ -561,9 +561,9 @@ class TruthyFalsyEndToEndTest {
             "        if (not else3Ran) { throw new RuntimeException(\"For/else with empty list should execute else branch\"); }\n" +
             "\n" +
             "        // 4. Enhanced for/else with null iterable\n" +
-            "        final List nullList = null;\n" +
+            "        final List nullList? = null;\n" +
             "        boolean else4Ran = false;\n" +
-            "        for (var item : nullList) {\n" +
+            "        for (var item : nullList?) {\n" +
             "            throw new RuntimeException(\"Should not run loop body for null\");\n" +
             "        } else {\n" +
             "            else4Ran = true;\n" +

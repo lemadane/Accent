@@ -33,11 +33,11 @@ class EditorProjectRegressionTest {
     void resolvesImportsUnderConventionalSourceRootsWithNonmatchingPackagePrefixes() throws Exception {
         for (String sourceSet : List.of("main", "test")) {
             String root = "src/" + sourceSet + "/accent/";
-            write(root + "User.accent", "package demo; class User { String name!() { return \"Alice\"; } }");
+            write(root + "User.accent", "package demo; class User { String name() { return \"Alice\"; } }");
             String page = """
                     package demo.routes;
                     import demo.User;
-                    class Page { String title!() { return new User().name!(); } }
+                    class Page { String title() { return new User().name(); } }
                     """;
             Path path = write(root + "routes/Page.accent", page);
             ProjectContext context = new ProjectContext(List.of());
@@ -71,8 +71,8 @@ class EditorProjectRegressionTest {
         String extension = """
                 package shared;
                 class Text {}
-                extension String! {
-                    String decorate!() { return "<" + this + ">"; }
+                extension String {
+                    String decorate() { return "<" + this + ">"; }
                 }
                 """;
         Path text = write("shared/Text.accent", extension);
@@ -80,7 +80,7 @@ class EditorProjectRegressionTest {
                 package client;
                 import shared.Text;
                 class Caller {
-                    static String run!() { return "x".decorate!(); }
+                    static String run() { return "x".decorate(); }
                 }
                 """;
         Path path = write("client/Caller.accent", caller);
@@ -93,7 +93,7 @@ class EditorProjectRegressionTest {
 
         String generated = AccentLanguageService.getGeneratedJava(result.unit(), context.getClassLoader());
 
-        assertTrue(generated.contains("shared.Extension_String_.decorate(\"x\")"), generated);
+        assertTrue(generated.contains("shared.Extension_String.decorate(\"x\")"), generated);
         assertFalse(generated.contains("\"x\".decorate()"), generated);
     }
 
@@ -101,15 +101,15 @@ class EditorProjectRegressionTest {
     void projectPreviewUsesUnsavedSiblingExtensions() {
         ProjectContext context = new ProjectContext(List.of());
         Path text = directory.resolve("Text.accent");
-        context.putFile(text, "package shared; class Text {} extension String! { int oldValue() { return 1; } }");
+        context.putFile(text, "package shared; class Text {} extension String { int oldValue() { return 1; } }");
         context.analyze(text, false);
-        context.putFile(text, "package shared; class Text {} extension String! { int newValue() { return 42; } }");
+        context.putFile(text, "package shared; class Text {} extension String { int newValue() { return 42; } }");
         Path caller = directory.resolve("Caller.accent");
         context.putFile(caller, "package client; class Caller { int call() { return \"x\".newValue(); } }");
 
         String generated = context.getGeneratedJava(caller);
 
-        assertTrue(generated.contains("shared.Extension_String_.newValue(\"x\")"), generated);
+        assertTrue(generated.contains("shared.Extension_String.newValue(\"x\")"), generated);
         assertFalse(generated.contains("\"x\".newValue()"), generated);
     }
 

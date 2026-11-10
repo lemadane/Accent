@@ -24,24 +24,17 @@ for (const keyword of ['this', 'super']) {
 }
 console.log('Member qualifier highlighting checks passed');
 
-const bindingRule = new RegExp(grammar.repository['non-null-bindings'].patterns[0].match);
-for (const value of ['name!', 'this._customer!', 'super._customer!', 'myList!.add("x")']) {
+const bindingRule = new RegExp(grammar.repository['nullable-bindings'].patterns[0].match);
+for (const value of ['name?', 'this._customer?', 'super._customer?', 'names??']) {
     assert.equal(bindingRule.test(value), true);
 }
-for (const value of ['name', 'name!=null', 'not myList']) {
+for (const value of ['name', 'name!=null', 'names?.add(null)', 'value?:fallback']) {
     assert.equal(bindingRule.test(value), false);
 }
-console.log('Non-null binding highlighting checks passed');
-
-const methodRule = new RegExp(grammar.repository['non-null-methods'].patterns[0].match);
-for (const value of ['name!()', 'customer!.getName!()', 'customer?.getName!()', 'super._label!()']) {
-    assert.equal(methodRule.test(value), true);
-}
-for (const value of ['name!', 'name()', 'name!=null']) {
-    assert.equal(methodRule.test(value), false);
-}
-console.log('Non-null method highlighting checks passed');
-
-assert.equal(bindingRule.exec('names!!.add("John")')[0], 'names!!');
-const elementRule = new RegExp(grammar.repository['non-null-bindings'].patterns[1].match);
-assert.equal(elementRule.test('names![0]!'), true);
+const methodRule = new RegExp(grammar.repository['nullable-methods'].patterns[0].match);
+assert.equal(methodRule.test('getName?()'), true);
+assert.equal(methodRule.test('getName()'), false);
+const resultRule = new RegExp(grammar.repository['nullable-bindings'].patterns[1].match);
+assert.equal(resultRule.test('names.get(0)?'), true);
+assert.equal(resultRule.test('names?[0]?'), true);
+console.log('Nullable binding, method, and result highlighting checks passed');

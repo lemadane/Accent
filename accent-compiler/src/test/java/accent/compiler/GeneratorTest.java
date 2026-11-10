@@ -81,10 +81,10 @@ class GeneratorTest {
         String accentSrc =
             "package test;\n" +
             "class StringGen {\n" +
-            "    generator String greetings(String name!) {\n" +
-            "        emit \"Hello, \" + name! + \"!\";\n" +
-            "        emit \"Welcome, \" + name! + \".\";\n" +
-            "        emit \"Goodbye, \" + name! + \".\";\n" +
+            "    generator String greetings(String name) {\n" +
+            "        emit \"Hello, \" + name + \"!\";\n" +
+            "        emit \"Welcome, \" + name + \".\";\n" +
+            "        emit \"Goodbye, \" + name + \".\";\n" +
             "    }\n" +
             "}\n";
 

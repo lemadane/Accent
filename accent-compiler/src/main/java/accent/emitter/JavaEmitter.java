@@ -133,8 +133,6 @@ public final class JavaEmitter {
             for (int i = 0; i < rd.components().size(); i++) {
                 if (i > 0) sb.append(", ");
                 Parameter p = rd.components().get(i);
-                if (p.type().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
-                if (p.type().isNonNull() && !isPrimitive(p.type())) sb.append("@accent.runtime.NonNullReturn ");
                 emitParameter(p);
             }
             sb.append(")");
@@ -188,7 +186,7 @@ public final class JavaEmitter {
             sb.append("public ").append(rd.name()).append(" {\n");
             indentLevel++;
             for (Parameter p : rd.components()) {
-                if (p.type().isNonNull() && !isPrimitive(p.type())) {
+                if ((p.type().isNonNull() || p.type().hasNonNullElements()) && !isPrimitive(p.type())) {
                     printIndent();
                     if (p.type().hasNonNullElements() && guardedParameterNames.contains(p.name()))
                         sb.append("final ").append(emitType(p.type())).append(" ").append(p.name()).append(" = ")
@@ -240,7 +238,7 @@ public final class JavaEmitter {
             for (Parameter p : md.components()) {
                 printIndent();
                 if (p.type().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
-                if (p.type().isNonNull() && !isPrimitive(p.type())) sb.append("@accent.runtime.NonNullReturn ");
+                emitNullabilityAnnotation(p.type());
                 sb.append("public ").append(emitType(p.type())).append(" ").append(p.name()).append("() {\n");
                 indentLevel++;
                 printIndent();
@@ -459,6 +457,7 @@ public final class JavaEmitter {
         nonNullMethodReturn = member instanceof MethodDecl method && !method.isGenerator()
                 && method.returnType().isNonNull() && !isPrimitive(method.returnType());
         if (member instanceof FieldDecl fd) {
+            emitNullabilityAnnotation(fd.type());
             if (fd.type().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
             printIndent();
             for (String mod : fd.modifiers()) {
@@ -495,7 +494,7 @@ public final class JavaEmitter {
             }
             // Inject runtime null checks for non-null parameters
             for (Parameter p : cd.parameters()) {
-                if (p.type().isNonNull() && !isPrimitive(p.type())) {
+                if ((p.type().isNonNull() || p.type().hasNonNullElements()) && !isPrimitive(p.type())) {
                     printIndent();
                     if (p.type().hasNonNullElements() && guardedParameterNames.contains(p.name()))
                         sb.append("final ").append(emitType(p.type())).append(" ").append(p.name()).append(" = ")
@@ -513,7 +512,7 @@ public final class JavaEmitter {
             sb.append("}\n");
         } else if (member instanceof MethodDecl md) {
             printIndent();
-            if (nonNullMethodReturn) sb.append("@accent.runtime.NonNullReturn ");
+            if (!md.isGenerator()) emitNullabilityAnnotation(md.returnType());
             if (md.returnType().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
             
             // Extension method modifier mapping: static helper
@@ -551,7 +550,7 @@ public final class JavaEmitter {
                     sb.append("java.util.Objects.requireNonNull(_this, \"Receiver '_this' must not be null\");\n");
                 }
                 for (Parameter p : md.parameters()) {
-                    if (p.type().isNonNull() && !isPrimitive(p.type())) {
+                    if ((p.type().isNonNull() || p.type().hasNonNullElements()) && !isPrimitive(p.type())) {
                         printIndent();
                         if (p.type().hasNonNullElements() && guardedParameterNames.contains(p.name()))
                         sb.append("final ").append(emitType(p.type())).append(" ").append(p.name()).append(" = ")
@@ -619,7 +618,12 @@ public final class JavaEmitter {
         return type instanceof PrimitiveTypeNode;
     }
 
+    private void emitNullabilityAnnotation(TypeNode type) {
+        if (!isPrimitive(type)) sb.append(type.isNonNull() ? "@accent.runtime.NonNullReturn " : "@accent.runtime.Nullable ");
+    }
+
     private void emitParameter(Parameter parameter) {
+        emitNullabilityAnnotation(parameter.type());
         if (parameter.type().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
         for (String annotation : parameter.annotations()) sb.append(annotation).append(" ");
         sb.append(emitType(parameter.type())).append(parameter.isVarargs() ? "... " : " ").append(beforeParameterGuards && guardedParameterNames.contains(parameter.name())
@@ -691,8 +695,8 @@ public final class JavaEmitter {
             sb.append(varDecl.name());
             if (varDecl.initializer().isPresent()) {
                 sb.append(" = ").append(varDecl.nonNullElements()
-                        ? "accent.runtime.ElementContracts.protect(" + emitInitializer(varDecl.initializer().get(), varDecl.type().orElse(null)) + ")"
-                        : guardBinding(emitExpression(varDecl.initializer().get()), varDecl.nonNullBinding()));
+                        ? "accent.runtime.ElementContracts." + (varDecl.nonNullBinding() ? "protect" : "protectNullable") + "(" + emitInitializer(varDecl.initializer().get(), varDecl.type().orElse(null)) + ")"
+                        : guardBinding(emitInitializer(varDecl.initializer().get(), varDecl.type().orElse(null)), varDecl.nonNullBinding()));
             }
             sb.append(";\n");
         } else if (stmt instanceof IfStmt ifs) {
@@ -868,7 +872,7 @@ public final class JavaEmitter {
             printIndent();
             sb.append("return");
             if (rs.expression().isPresent()) {
-                sb.append(" ").append(nonNullMethodReturn && methodReturnType != null ? guardValue(emitExpression(rs.expression().get()), methodReturnType) : guardBinding(emitExpression(rs.expression().get()), nonNullMethodReturn));
+                sb.append(" ").append(methodReturnType != null && (nonNullMethodReturn || methodReturnType.hasNonNullElements()) ? guardValue(emitExpression(rs.expression().get()), methodReturnType) : guardBinding(emitExpression(rs.expression().get()), nonNullMethodReturn));
             }
             sb.append(";\n");
         } else if (stmt instanceof YieldStmt ys) {
@@ -963,7 +967,7 @@ public final class JavaEmitter {
     }
 
     private String guardValue(String value, TypeNode type) {
-        if (type.hasNonNullElements()) return "accent.runtime.ElementContracts.protect(" + value + ")";
+        if (type.hasNonNullElements()) return "accent.runtime.ElementContracts." + (type.isNonNull() ? "protect" : "protectNullable") + "(" + value + ")";
         return guardBinding(value, type.isNonNull() && !isPrimitive(type));
     }
 
@@ -1080,7 +1084,7 @@ public final class JavaEmitter {
                     return target + " = " + guardBinding(emitExpression(bin.right()), aa.nonNullElement());
                 }
                 return emitExpression(bin.left()) + " = " + (elements
-                        ? "accent.runtime.ElementContracts.protect(" + emitExpression(bin.right()) + ")"
+                        ? "accent.runtime.ElementContracts." + (nonNull ? "protect" : "protectNullable") + "(" + emitExpression(bin.right()) + ")"
                         : guardBinding(emitExpression(bin.right()), nonNull));
             }
             accent.lexer.TokenType type = bin.operator().type();

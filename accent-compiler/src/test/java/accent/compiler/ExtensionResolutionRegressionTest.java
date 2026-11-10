@@ -45,23 +45,23 @@ class ExtensionResolutionRegressionTest {
         write("domain/Widget.accent", """
                 package domain;
                 class Widget {
-                    String name! = "";
-                    Widget(String name!) { this.name! = name!; }
+                    String name = "";
+                    Widget(String name) { this.name = name; }
                 }
                 """);
         write("domain/Label.accent", """
                 package domain;
                 class Label {
-                    String text! = "";
-                    Label(String text!) { this.text! = text!; }
+                    String text = "";
+                    Label(String text) { this.text = text; }
                 }
                 """);
         write("extensions/WidgetExtensions.accent", """
                 package extensions;
                 import domain.Widget;
                 import domain.Label;
-                extension Widget! {
-                    Label label!(Label prefix!) { return new Label(prefix!.text! + this.name!); }
+                extension Widget {
+                    Label label(Label prefix) { return new Label(prefix.text + this.name); }
                 }
                 """);
     }
@@ -72,8 +72,8 @@ class ExtensionResolutionRegressionTest {
         write("app/Caller.accent", """
                 package app;
                 class Caller {
-                    static String run!() {
-                        return new domain.Widget("x").label!(new domain.Label("id=")).text!;
+                    static String run() {
+                        return new domain.Widget("x").label(new domain.Label("id=")).text;
                     }
                 }
                 """);
@@ -89,7 +89,7 @@ class ExtensionResolutionRegressionTest {
         write("app/Caller.accent", """
                 package app;
                 class Caller {
-                    static void run() { "x".label!(new domain.Label("id=")); }
+                    static void run() { "x".label(new domain.Label("id=")); }
                 }
                 """);
 
@@ -103,19 +103,19 @@ class ExtensionResolutionRegressionTest {
     void repeatedExtensionOverloadsBindNamedAndDefaultArgumentsToTheMatchingSignature() throws Exception {
         write("extensions/TextExtensions.accent", """
                 package extensions;
-                extension String! {
-                    String decorate!(int count) { return this + count; }
+                extension String {
+                    String decorate(int count) { return this + count; }
                 }
-                extension String! {
-                    String decorate!(String prefix! = "<", String suffix! = ">") {
-                        return prefix! + this + suffix!;
+                extension String {
+                    String decorate(String prefix = "<", String suffix = ">") {
+                        return prefix + this + suffix;
                     }
                 }
                 """);
         write("app/Caller.accent", """
                 package app;
                 class Caller {
-                    static String run!() { return "x".decorate!(suffix: "]") + "|" + "y".decorate!(); }
+                    static String run() { return "x".decorate(suffix: "]") + "|" + "y".decorate(); }
                 }
                 """);
 
@@ -128,8 +128,8 @@ class ExtensionResolutionRegressionTest {
     void optionalExtensionCallsEvaluateReceiverOnceAndSkipArgumentsForNull() throws Exception {
         write("extensions/TextExtensions.accent", """
                 package extensions;
-                extension String! {
-                    String decorate!(String prefix!, String suffix! = "]") { return prefix! + this + suffix!; }
+                extension String {
+                    String decorate(String prefix, String suffix = "]") { return prefix + this + suffix; }
                 }
                 """);
         write("app/Caller.accent", """
@@ -137,10 +137,10 @@ class ExtensionResolutionRegressionTest {
                 class Caller {
                     static int receiverCalls = 0;
                     static int argumentCalls = 0;
-                    static String receiver() { Caller.receiverCalls++; return null; }
-                    static String argument!() { Caller.argumentCalls++; return "["; }
-                    static String absent() { return Caller.receiver()?.decorate!(Caller.argument!()); }
-                    static String present() { return "x"?.decorate!(Caller.argument!()); }
+                    static String receiver?() { Caller.receiverCalls++; return null; }
+                    static String argument() { Caller.argumentCalls++; return "["; }
+                    static String absent?() { return (Caller.receiver()?)?.decorate(Caller.argument()); }
+                    static String present?() { return "x"?.decorate(Caller.argument()); }
                 }
                 """);
 
@@ -164,7 +164,7 @@ class ExtensionResolutionRegressionTest {
         write("extensions/CounterExtensions.accent", """
                 package extensions;
                 import domain.Counter;
-                extension Counter! {
+                extension Counter {
                     void add(int value) { this.total = this.total + value; }
                 }
                 """);
@@ -173,9 +173,9 @@ class ExtensionResolutionRegressionTest {
                 class Caller {
                     static int receiverCalls = 0;
                     static int argumentCalls = 0;
-                    static domain.Counter receiver(domain.Counter value) { Caller.receiverCalls++; return value; }
+                    static domain.Counter receiver?(domain.Counter value?) { Caller.receiverCalls++; return value?; }
                     static int argument() { Caller.argumentCalls++; return 3; }
-                    static void run(domain.Counter value) { Caller.receiver(value)?.add(Caller.argument()); }
+                    static void run(domain.Counter value?) { (Caller.receiver(value?)?)?.add(Caller.argument()); }
                 }
                 """);
 

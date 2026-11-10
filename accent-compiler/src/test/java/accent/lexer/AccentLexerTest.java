@@ -16,7 +16,7 @@ class AccentLexerTest {
                 """
                 extension String! {
                     String normalized!() {
-                        final result = this?.trim() ?? \"\";
+                        final result = this?.trim() ?: \"\";
                         return result;
                     }
                 }
@@ -42,6 +42,21 @@ class AccentLexerTest {
         assertTrue(types.contains(TokenType.FOR));
         assertTrue(types.contains(TokenType.YIELD));
         assertEquals(TokenType.EOF, types.getLast());
+    }
+
+    @Test
+    void distinguishesNullableMarkersCoalescingAndTernary() {
+        var result = new AccentLexer(new SourceFile(Path.of("Operators.accent"),
+                "users??; user? ?: fallback; user?.name(); flag ? yes : no;")).lex();
+        assertTrue(result.successful());
+        assertEquals(List.of(TokenType.IDENTIFIER, TokenType.DOUBLE_QUESTION, TokenType.SEMICOLON,
+                TokenType.IDENTIFIER, TokenType.QUESTION, TokenType.NULL_COALESCING,
+                TokenType.IDENTIFIER, TokenType.SEMICOLON,
+                TokenType.IDENTIFIER, TokenType.OPTIONAL_CHAIN, TokenType.IDENTIFIER,
+                TokenType.LEFT_PAREN, TokenType.RIGHT_PAREN, TokenType.SEMICOLON,
+                TokenType.IDENTIFIER, TokenType.QUESTION, TokenType.IDENTIFIER, TokenType.COLON,
+                TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF),
+                result.tokens().stream().map(Token::type).toList());
     }
 
     @Test

@@ -32,33 +32,31 @@ class NonNullMethodTest {
     }
 
     @Test void declarationsAndCallsMustUseTheNameSuffix() {
-        rejects("class Sample { String! name() { return \"John\"; } }", "after the method name");
-        rejects("class Sample { int count!() { return 1; } }", "Primitive and void");
-        rejects("class Sample { void save!() {} }", "Primitive and void");
-        rejects("class Sample { String name!() { return \"John\"; } String run() { return this.name(); } }", "every call");
-        rejects("class Sample { String name() { return null; } String run() { return this.name!(); } }", "not an assertion");
-        rejects("class Sample { String run() { return System.getProperty!(\"missing\"); } }", "not an assertion");
-        accepts("class Sample { static String name!() { return \"John\"; } String run!() { return name!(); } }");
+        rejects("class Sample { int count?() { return 1; } }", "Primitive and void");
+        rejects("class Sample { void save?() {} }", "Primitive and void");
+        rejects("class Sample { String name?() { return null; } String run?() { return this.name(); } }", "Nullable result requires");
+        rejects("class Sample { String name() { return \"John\"; } String run?() { return this.name()?; } }", "Non-null result");
+        accepts("class Sample { static String name() { return \"John\"; } String run() { return name(); } }");
     }
 
     @Test void nullableReturnsAndFallthroughAreErrors() {
-        rejects("class Sample { String name!() { return null; } }", "must return a non-null value");
-        rejects("class Sample { String name!() { return; } }", "must return a non-null value");
-        rejects("class Sample { String name!(String input) { return input; } }", "must return a non-null value");
-        rejects("class Sample { String name!() {} }", "every completing path");
-        rejects("class Sample { String name!(boolean flag) { if (flag) { return \"John\"; } } }", "every completing path");
-        rejects("class Sample { String name!() { final action = () -> { return \"John\"; }; } }", "every completing path");
+        rejects("class Sample { String name() { return null; } }", "must return a non-null value");
+        rejects("class Sample { String name() { return; } }", "must return a non-null value");
+        rejects("class Sample { String name(String input?) { return input?; } }", "must return a non-null value");
+        rejects("class Sample { String name() {} }", "every completing path");
+        rejects("class Sample { String name(boolean flag) { if (flag) { return \"John\"; } } }", "every completing path");
+        rejects("class Sample { String name() { final action = () -> { return \"John\"; }; } }", "every completing path");
         accepts("""
                 class Sample {
-                    String name!(String input) {
-                        if (input != null) { return input; }
+                    String name(String input?) {
+                        if (input? != null) { return input?; }
                         throw new IllegalArgumentException("name required");
                     }
-                    String either!(boolean flag) {
+                    String either(boolean flag) {
                         if (flag) { return "John"; } else { return "Jane"; }
                     }
-                    String stopped!() { throw new RuntimeException("unavailable"); }
-                    String attempt!() {
+                    String stopped() { throw new RuntimeException("unavailable"); }
+                    String attempt() {
                         try { return "John"; } catch (RuntimeException failure) { return "Jane"; }
                     }
                 }
@@ -66,79 +64,69 @@ class NonNullMethodTest {
     }
 
     @Test void optionalCallsKeepTheWholeExpressionNullable() {
-        String prefix = "class Sample { String name!() { return \"John\"; } ";
-        rejects(prefix + "String read!(Sample customer) { return customer?.name!(); } }", "must return a non-null value");
-        rejects(prefix + "void read(Sample customer) { String name! = customer?.name!(); } }", "Incompatible types");
-        accepts(prefix + "String read!(Sample customer) { return customer?.name!() ?? \"Unknown\"; } }");
-        accepts(prefix + "String read!(Sample customer!) { return customer!.name!(); } }");
+        String prefix = "class Sample { String name() { return \"John\"; } ";
+        rejects(prefix + "String read(Sample customer?) { return customer?.name(); } }", "must return a non-null value");
+        rejects(prefix + "void read(Sample customer?) { String name = customer?.name(); } }", "Incompatible types");
+        accepts(prefix + "String read(Sample customer?) { return customer?.name() ?: \"Unknown\"; } }");
+        accepts(prefix + "String read(Sample customer) { return customer.name(); } }");
     }
 
     @Test void overridesCannotWeakenTheInheritedContract() {
         rejects("""
-                class Parent { String name!() { return "parent"; } }
-                class Sample extends Parent { String name() { return null; } }
+                class Parent { String name() { return "parent"; } }
+                class Sample extends Parent { String name?() { return null; } }
                 """, "preserve the inherited non-null return contract");
         rejects("""
-                interface Named { String name!(); }
-                class Sample implements Named { String name() { return null; } }
+                interface Named { String name(); }
+                class Sample implements Named { String name?() { return null; } }
                 """, "preserve the inherited non-null return contract");
         accepts("""
-                class Parent { String name!() { return "parent"; } }
+                class Parent { String name() { return "parent"; } }
                 class Sample extends Parent {
-                    String name!() { return super.name!(); }
-                    String name(int count) { return null; }
+                    String name() { return super.name(); }
+                    String name?(int count) { return null; }
                 }
                 """);
     }
 
     @Test void generatedAccessorsAndFactoriesExposeTheirContracts() {
-        rejects("""
-                record Customer(String name!) {}
-                class Sample { String read(Customer customer!) { return customer!.name(); } }
-                """, "every call");
-        accepts("""
-                model Customer(String name!) {}
-                class Sample {
-                    String read!(Customer customer!) { return customer!.name!(); }
-                    void change(Customer customer!) { customer!.name("Jane"); }
-                }
-                """);
-        rejects("singleton class Sample { static Sample read() { return Sample.instance(); } }", "every call");
-        accepts("singleton class Sample { static Sample read!() { return Sample.instance!(); } }");
+        rejects("record Customer(String name?) {} class Sample { String read(Customer customer) { return customer.name(); } }", "Nullable result requires");
+        accepts("model Customer(String name) {} class Sample { String read(Customer customer) { return customer.name(); } void change(Customer customer) { customer.name(\"Jane\"); } }");
+        accepts("singleton class Sample { static Sample read() { return Sample.instance(); } }");
     }
 
     @Test void conditionalAssignmentsCannotInventANonNullGuarantee() {
         rejects("""
                 class Sample {
-                    String name!(boolean flag) {
-                        String value = null;
-                        if (flag) { value = "John"; }
-                        return value;
+                    String name(boolean flag) {
+                        String value? = null;
+                        if (flag) { value? = "John"; }
+                        return value?;
                     }
                 }
                 """, "must return a non-null value");
         rejects("""
                 class Sample {
-                    String name!(boolean flag) {
-                        String value = "John";
-                        if (value != null) { value = null; }
-                        return value;
+                    String name(boolean flag) {
+                        String value? = "John";
+                        if (value? != null) { value? = null; }
+                        return value?;
                     }
                 }
                 """, "must return a non-null value");
         rejects("""
                 class Sample {
-                    String name!(boolean flag) {
+                    String name(boolean flag) {
                         do { if (flag) { continue; } return "John"; } while (false);
                     }
                 }
                 """, "every completing path");
         accepts("""
                 class Sample {
-                    String name!(boolean flag) {
-                        String value = null;
-                        if (flag) { value = "John"; } else { value = "Jane"; }
-                        return value;
+                    String name(boolean flag) {
+                        String value? = null;
+                        if (flag) { value? = "John"; } else { value? = "Jane"; }
+                        return value?;
                     }
                 }
                 """);
@@ -147,7 +135,7 @@ class NonNullMethodTest {
     @Test void compiledLibrariesRetainMarkedMethodAndAccessorContracts() throws Exception {
         Path library = Files.createDirectories(temp.resolve("library"));
         Files.writeString(library.resolve("Customer.accent"), """
-                record Customer(String name!) { String label!() { return this.name!; } }
+                record Customer(String name) { String label() { return this.name; } }
                 """);
         Path classes = temp.resolve("library-classes");
         var libraryResult = new AccentCompiler().compile(List.of(library), classes,
@@ -156,9 +144,9 @@ class NonNullMethodTest {
         Path consumer = temp.resolve("Consumer.accent");
         Files.writeString(consumer, """
                 class Consumer {
-                    static String run!() {
-                        final customer! = new Customer("John");
-                        return customer!.label!() + customer!.name!() + customer!.toString!();
+                    static String run() {
+                        final customer = new Customer("John");
+                        return customer.label() + customer.name() + customer.toString();
                     }
                 }
                 """);
@@ -166,11 +154,11 @@ class NonNullMethodTest {
         var result = new AccentCompiler().compile(List.of(consumer), temp.resolve("consumer-classes"),
                 classpath, temp.resolve("consumer-generated"), true);
         assertTrue(result.successful(), () -> result.diagnostics().toString());
-        Files.writeString(consumer, "class Consumer { String run(Customer customer!) { return customer!.label(); } }");
+        Files.writeString(consumer, "class Consumer { String run(Customer customer) { return customer.label()?; } }");
         var invalid = new AccentCompiler().compile(List.of(consumer), temp.resolve("invalid-classes"),
                 classpath, temp.resolve("invalid-generated"), true);
         assertFalse(invalid.successful());
-        assertTrue(invalid.diagnostics().stream().anyMatch(d -> d.message().contains("every call")),
+        assertTrue(invalid.diagnostics().stream().anyMatch(d -> d.message().contains("Non-null result")),
                 () -> invalid.diagnostics().toString());
     }
 
@@ -187,20 +175,20 @@ class NonNullMethodTest {
     @Test void executesDispatchOptionalCallsAndReturnGuardsWithoutChangingJavaNames() throws Exception {
         Files.writeString(temp.resolve("Parent.accent"), """
                 class Parent {
-                    protected String _label!() { return "parent"; }
-                    String name!() { return "John"; }
+                    protected String _label() { return "parent"; }
+                    String name() { return "John"; }
                 }
                 """);
         Files.writeString(temp.resolve("Sample.accent"), """
                 class Sample extends Parent {
-                    String value! = "Jane";
-                    String name!() { return this.value!; }
-                    String label!() { return super._label!(); }
-                    static String read!(Parent customer!) { return customer!.name!(); }
-                    static String optional!(Parent customer) { return customer?.name!() ?? "Unknown"; }
-                    static java.util.function.Supplier<String> supplier!() {
-                        java.util.function.Supplier<String> result! = () -> { return null; };
-                        return result!;
+                    String value = "Jane";
+                    String name() { return this.value; }
+                    String label() { return super._label(); }
+                    static String read(Parent customer) { return customer.name(); }
+                    static String optional(Parent customer?) { return customer?.name() ?: "Unknown"; }
+                    static java.util.function.Supplier<String> supplier() {
+                        java.util.function.Supplier<String> result = () -> { return null; };
+                        return result;
                     }
                 }
                 """);

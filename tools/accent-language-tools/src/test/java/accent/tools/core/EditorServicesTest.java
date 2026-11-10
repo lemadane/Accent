@@ -29,44 +29,44 @@ class EditorServicesTest {
     void completionPreservesNonNullMethodSuffix() {
         List<CompletionItem> members = complete(new ProjectContext(List.of()), "Sample.accent", """
                 class Sample {
-                    String name!() { return "John"; }
-                    String nullableName() { return null; }
+                    String name() { return "John"; }
+                    String nullableName?() { return null; }
                     void inspect() { this.<caret> }
                 }
                 """);
-        assertMembersPresent(members, "name!", "nullableName");
-        assertMembersAbsent(members, "name", "nullableName!");
+        assertMembersPresent(members, "name", "nullableName()?");
+        assertMembersAbsent(members, "name!", "nullableName!");
     }
 
     @Test
     void completionPreservesCollectionSuffix() {
         List<CompletionItem> members = complete(new ProjectContext(List.of()), "Sample.accent", """
                 class Sample {
-                    private java.util.List<String> _names!! = new java.util.ArrayList<String>();
+                    private java.util.List<String> _names = new java.util.ArrayList<String>();
                     void inspect() { this.<caret> }
                 }
                 """);
-        assertMembersPresent(members, "_names!!");
-        assertMembersAbsent(members, "_names!", "_names");
+        assertMembersPresent(members, "_names");
+        assertMembersAbsent(members, "_names!", "_names!!");
         List<CompletionItem> methods = complete(new ProjectContext(List.of()), "Names.accent", """
                 class Names {
-                    void inspect(java.util.List<String> names!!) { names!!.<caret> }
+                    void inspect(java.util.List<String> names) { names.<caret> }
                 }
                 """);
-        assertMembersPresent(methods, "get!");
-        assertMembersAbsent(methods, "get");
+        assertMembersPresent(methods, "get");
+        assertMembersAbsent(methods, "get!");
     }
 
     @Test
     void completionPreservesNonNullFieldSuffix() {
         List<CompletionItem> members = complete(new ProjectContext(List.of()), "Sample.accent", """
                 class Sample {
-                    private String _name! = "John";
+                    private String _name = "John";
                     void inspect() { this.<caret> }
                 }
                 """);
-        assertMembersPresent(members, "_name!");
-        assertMembersAbsent(members, "_name");
+        assertMembersPresent(members, "_name");
+        assertMembersAbsent(members, "_name!");
     }
 
     @Test
@@ -164,14 +164,14 @@ class EditorServicesTest {
                 package test;
                 class Dummy {
                     void inspect() {
-                        String text! = "hello";
-                        text!.<caret>
+                        String text = "hello";
+                        text.<caret>
                     }
                 }
                 """);
 
-        assertMembersPresent(members, "length", "getClass", "wait");
-        assertEquals(1, members.stream().filter(member -> member.label().equals("toString")).count(),
+        assertMembersPresent(members, "length", "getClass()?", "wait");
+        assertEquals(1, members.stream().filter(member -> member.label().equals("toString()?")).count(),
                 "Overrides and inherited methods with identical completion details should appear once");
         assertMembersAbsent(members, "value", "coder", "isLatin1", "hash", "serialVersionUID",
                 "COMPACT_STRINGS", "clone", "finalize");
@@ -182,8 +182,8 @@ class EditorServicesTest {
         List<CompletionItem> members = complete(baseContext(), "Neighbor.accent", """
                 package owner;
                 class Neighbor {
-                    void inspect(Base value!) {
-                        value!.<caret>
+                    void inspect(Base value) {
+                        value.<caret>
                     }
                 }
                 """);
@@ -198,13 +198,13 @@ class EditorServicesTest {
                 package other;
                 import owner.Base;
                 class Caller {
-                    void inspect(Base value!) {
-                        value!.<caret>
+                    void inspect(Base value) {
+                        value.<caret>
                     }
                 }
                 """);
 
-        assertMembersPresent(members, "visibleField", "visibleMethod", "getClass");
+        assertMembersPresent(members, "visibleField", "visibleMethod", "getClass()?");
         assertMembersAbsent(members, "_packageField", "_packageMethod", "__protectedField", "__protectedMethod");
     }
 
@@ -220,7 +220,7 @@ class EditorServicesTest {
                 }
                 """);
 
-        assertMembersPresent(members, "visibleField", "visibleMethod", "__protectedField", "__protectedMethod", "getClass");
+        assertMembersPresent(members, "visibleField", "visibleMethod", "__protectedField", "__protectedMethod", "getClass()?");
         assertMembersAbsent(members, "_packageField", "_packageMethod");
     }
 
@@ -230,8 +230,8 @@ class EditorServicesTest {
                 package other;
                 import owner.Base;
                 class Child extends Base {
-                    void inspect(Base value!) {
-                        value!.<caret>
+                    void inspect(Base value) {
+                        value.<caret>
                     }
                 }
                 """);
@@ -252,7 +252,7 @@ class EditorServicesTest {
                 }
                 """);
         assertMembersPresent(members, "_own", "visibleMethod", "inspect");
-        assertMembersAbsent(members, "visibleField", "__protectedField", "__protectedMethod", "getClass");
+        assertMembersAbsent(members, "visibleField", "__protectedField", "__protectedMethod", "getClass()?");
     }
 
     @Test

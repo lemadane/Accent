@@ -97,7 +97,7 @@ class AccentSpringEndToEndTest {
                     @GetMapping("/json")
                     Payload json() { return new Payload("hello"); }
                     @GetMapping("/null-html")
-                    Html empty() { return null; }
+                    Html empty?() { return null; }
                 }
                 """);
         Files.writeString(sources.resolve("Welcome.accent"), """
@@ -113,9 +113,9 @@ class AccentSpringEndToEndTest {
                 package integrationfixture;
                 import org.springframework.beans.factory.annotation.Qualifier;
                 class Qualified {
-                    final String _value;
-                    Qualified(@Qualifier("right") String value) { this._value = value; }
-                    String value() { return this._value; }
+                    final String _value?;
+                    Qualified(@Qualifier("right") String value) { this._value? = value; }
+                    String value() { return this._value? ?: ""; }
                 }
                 """);
         Files.writeString(sources.resolve("QualifiedRecord.accent"), """

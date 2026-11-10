@@ -35,7 +35,7 @@ class MDCLoggingEndToEndTest {
                 class Server {
                     static String work() {
                         log.info("async work");
-                        return log.get("requestId");
+                        return log.get("requestId") ?: "";
                     }
                     static App start() {
                         final app = new App();
@@ -54,7 +54,7 @@ class MDCLoggingEndToEndTest {
                         app.get("/fail/:id", req -> {
                             throw new RuntimeException("expected failure");
                         });
-                        return app.listen("127.0.0.1", 0);
+                        app.listen("127.0.0.1", 0); return app;
                     }
                 }
                 """);
