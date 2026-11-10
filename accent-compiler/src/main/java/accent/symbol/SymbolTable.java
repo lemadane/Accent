@@ -142,6 +142,10 @@ public final class SymbolTable {
         return resolveMemberType(method.returnType(), declaringOwner(method));
     }
 
+    public ResolvedType resolveConstructorParameterType(TypeInfo owner, ConstructorInfo constructor, int index) {
+        return resolveTypeInUnit(constructor.parameters().get(index).type(), sourceUnits.get(owner.fullName()));
+    }
+
     public ResolvedType resolveParameterType(MethodInfo method, int index) {
         return resolveMemberType(method.parameters().get(index).type(), declaringOwner(method));
     }
@@ -326,7 +330,7 @@ public final class SymbolTable {
             return new ResolvedType(getType(prim.name()), true, List.of(), 0);
         } else if (node instanceof ArrayTypeNode arr) {
             ResolvedType elem = resolveTypeNode(arr.elementType(), resolver);
-            return new ResolvedType(elem.info(), arr.isNonNull(), elem.typeArguments(), elem.arrayDimensions() + 1);
+            return new ResolvedType(elem.info(), arr.isNonNull(), elem.typeArguments(), elem.arrayDimensions() + 1, elem.isNonNull());
         } else if (node instanceof BaseTypeNode base) {
             TypeInfo info = resolver != null ? resolver.resolve(base.name()) : null;
             if (info == null) {
@@ -345,7 +349,7 @@ public final class SymbolTable {
             for (TypeNode arg : base.typeArguments()) {
                 args.add(resolveTypeNode(arg, resolver));
             }
-            return new ResolvedType(info, base.isNonNull(), args, 0);
+            return new ResolvedType(info, base.isNonNull(), args, 0, base.hasNonNullElements());
         }
         return null;
     }
@@ -448,16 +452,16 @@ public final class SymbolTable {
                 if (type instanceof BaseTypeNode base && (base.name().equals("final") || base.name().equals("var"))) {
                     if (fd.initializer().isPresent() && fd.initializer().get() instanceof LiteralExpr lit) {
                         if (lit.value() instanceof String) {
-                            type = new BaseTypeNode("java.lang.String", List.of(), true);
+                            type = new BaseTypeNode("java.lang.String", List.of(), base.isNonNull());
                         } else if (lit.value() instanceof Boolean) {
                             type = new PrimitiveTypeNode("boolean");
                         } else if (lit.value() instanceof Number) {
                             type = new PrimitiveTypeNode("int");
                         } else {
-                            type = new BaseTypeNode("java.lang.Object", List.of(), false);
+                            type = new BaseTypeNode("java.lang.Object", List.of(), base.isNonNull());
                         }
                     } else {
-                        type = new BaseTypeNode("java.lang.Object", List.of(), false);
+                        type = new BaseTypeNode("java.lang.Object", List.of(), base.isNonNull());
                     }
                 }
                 List<String> modifiers = new ArrayList<>(fd.modifiers());
@@ -470,7 +474,19 @@ public final class SymbolTable {
             } else if (member instanceof MethodDecl md) {
                 List<String> modifiers = new ArrayList<>(md.modifiers());
                 if (isInterface) addImplicitPublic(modifiers);
-                methods.add(new MethodInfo(md.name(), modifiers, md.returnType(), md.parameters()));
+                methods.removeIf(existing -> existing.name().equals(md.name())
+                        && existing.parameters().size() == md.parameters().size()
+                        && java.util.stream.IntStream.range(0, md.parameters().size()).allMatch(i ->
+                            existing.parameters().get(i).type().withNonNull(false).toString()
+                                .equals(md.parameters().get(i).type().withNonNull(false).toString())));
+                TypeNode returnType = md.returnType();
+                if (unit.sourceFile().path().toString().endsWith(".java")
+                        && (modifiers.contains("@accent.runtime.NonNullReturn")
+                            || (modifiers.contains("@NonNullReturn") && (unit.imports().contains("accent.runtime.NonNullReturn")
+                                || unit.imports().contains("accent.runtime.*"))))) {
+                    returnType = returnType.withNonNull(true);
+                }
+                methods.add(new MethodInfo(md.name(), modifiers, returnType, md.parameters()));
             } else if (member instanceof ConstructorDecl cd) {
                 constructors.add(new ConstructorInfo(cd.modifiers(), cd.parameters()));
             }
@@ -540,7 +556,7 @@ public final class SymbolTable {
         // Map fields
         for (Field f : clazz.getDeclaredFields()) {
             if (f.isSynthetic()) continue;
-            fields.add(new FieldInfo(f.getName(), getModifiersList(f.getModifiers()), mapClassToTypeNode(f.getType())));
+            fields.add(new FieldInfo(f.getName(), getModifiersList(f.getModifiers()), reflectedContract(f.getGenericType(), f.getAnnotations())));
         }
 
         // Map methods
@@ -550,10 +566,10 @@ public final class SymbolTable {
             int idx = 0;
             for (Class<?> pType : m.getParameterTypes()) {
                 boolean varargs = m.isVarArgs() && idx == m.getParameterCount() - 1;
-                params.add(new Parameter(mapClassToTypeNode(varargs ? pType.getComponentType() : pType),
+                params.add(new Parameter(reflectedContract(varargs ? pType.getComponentType() : m.getGenericParameterTypes()[idx], m.getParameterAnnotations()[idx]),
                         "p" + idx++, varargs, Optional.empty()));
             }
-            methods.add(new MethodInfo(m.getName(), getModifiersList(m.getModifiers()), mapClassToTypeNode(m.getReturnType()), params));
+            methods.add(new MethodInfo(m.getName(), getModifiersList(m.getModifiers()), reflectedContract(m.getGenericReturnType(), m.getAnnotations()), params));
         }
 
         // Map constructors
@@ -563,7 +579,7 @@ public final class SymbolTable {
                 int idx = 0;
                 for (Class<?> pType : c.getParameterTypes()) {
                     boolean varargs = c.isVarArgs() && idx == c.getParameterCount() - 1;
-                    params.add(new Parameter(mapClassToTypeNode(varargs ? pType.getComponentType() : pType),
+                    params.add(new Parameter(reflectedContract(varargs ? pType.getComponentType() : c.getGenericParameterTypes()[idx], c.getParameterAnnotations()[idx]),
                             "p" + idx++, varargs, Optional.empty()));
                 }
                 constructors.add(new ConstructorInfo(getModifiersList(c.getModifiers()), params));
@@ -585,6 +601,21 @@ public final class SymbolTable {
         return list;
     }
 
+    private TypeNode reflectedContract(java.lang.reflect.Type type, java.lang.annotation.Annotation[] annotations) {
+        TypeNode node;
+        if (type instanceof java.lang.reflect.ParameterizedType p && p.getRawType() instanceof Class<?> c) {
+            node = new BaseTypeNode(c.getName().replace('$', '.'), java.util.Arrays.stream(p.getActualTypeArguments())
+                    .map(t -> reflectedContract(t, new java.lang.annotation.Annotation[0])).toList(), false);
+        } else if (type instanceof java.lang.reflect.GenericArrayType a) {
+            node = new ArrayTypeNode(reflectedContract(a.getGenericComponentType(), new java.lang.annotation.Annotation[0]), false);
+        } else node = mapClassToTypeNode(type instanceof Class<?> c ? c : Object.class);
+        for (var annotation : annotations) {
+            if (annotation.annotationType().getName().equals("accent.runtime.NonNullReturn")) node = node.withNonNull(true);
+            if (annotation.annotationType().getName().equals("accent.runtime.NonNullElements")) node = node.withNonNullElements();
+        }
+        return node;
+    }
+
     private TypeNode mapClassToTypeNode(Class<?> clazz) {
         if (clazz.isPrimitive()) {
             return new PrimitiveTypeNode(clazz.getName());
@@ -601,14 +632,26 @@ public final class SymbolTable {
             TypeInfo info,
             boolean isNonNull,
             List<ResolvedType> typeArguments,
-            int arrayDimensions
+            int arrayDimensions,
+            boolean nonNullElements
     ) {
+        public ResolvedType(TypeInfo info, boolean isNonNull, List<ResolvedType> typeArguments, int arrayDimensions) {
+            this(info, isNonNull, typeArguments, arrayDimensions, false);
+        }
+        public ResolvedType withNonNullElements(boolean value) {
+            return new ResolvedType(info, isNonNull, typeArguments, arrayDimensions, value);
+        }
+        public ResolvedType elementType(SymbolTable table) {
+            if (arrayDimensions > 0) return new ResolvedType(info, nonNullElements || info.isPrimitive(), typeArguments, arrayDimensions - 1);
+            return typeArguments.isEmpty() ? new ResolvedType(table.getType("java.lang.Object"), nonNullElements, List.of(), 0)
+                    : typeArguments.getFirst().withNonNull(nonNullElements);
+        }
         public boolean isPrimitive() {
             return info.isPrimitive() && arrayDimensions == 0;
         }
 
         public ResolvedType withNonNull(boolean nonNull) {
-            return new ResolvedType(info, nonNull, typeArguments, arrayDimensions);
+            return new ResolvedType(info, nonNull, typeArguments, arrayDimensions, nonNullElements);
         }
 
         public boolean isCompatibleWith(ResolvedType other, SymbolTable table) {
@@ -629,6 +672,18 @@ public final class SymbolTable {
 
             // Nullability check: cannot assign nullable to non-null
             if (!this.isNonNull && other.isNonNull) return false;
+
+            // A mutable alias must not erase or invent an element contract.
+            if (other.nonNullElements && !nonNullElements) return false;
+            if (nonNullElements != other.nonNullElements
+                    && (arrayDimensions > 0 || info.fullName().equals("java.util.List"))
+                    && (other.arrayDimensions > 0 || other.info.fullName().equals("java.util.List"))) return false;
+
+            if (nonNullElements && other.nonNullElements && !typeArguments.isEmpty() && !other.typeArguments.isEmpty()) {
+                ResolvedType element = typeArguments.getFirst(), target = other.typeArguments.getFirst();
+                if (!element.info().fullName().equals(target.info().fullName())
+                        || element.arrayDimensions() != target.arrayDimensions()) return false;
+            }
 
             // Array compatibility
             if (this.arrayDimensions != other.arrayDimensions) {

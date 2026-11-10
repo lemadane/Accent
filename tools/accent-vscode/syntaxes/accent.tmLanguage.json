@@ -19,6 +19,12 @@
       "include": "#strings"
     },
     {
+      "include": "#non-null-methods"
+    },
+    {
+      "include": "#non-null-bindings"
+    },
+    {
       "include": "#accent-keywords"
     },
     {
@@ -204,6 +210,26 @@
         {
           "name": "variable.other.accent",
           "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "non-null-bindings": {
+      "patterns": [
+        {
+          "name": "variable.other.non-null.accent",
+          "match": "\\b[A-Za-z_]\\w*!{1,2}(?!=)"
+        },
+        {
+          "name": "keyword.operator.non-null-element.accent",
+          "match": "(?<=\\])!(?!=)"
+        }
+      ]
+    },
+    "non-null-methods": {
+      "patterns": [
+        {
+          "name": "entity.name.function.non-null.accent",
+          "match": "\\b[A-Za-z_]\\w*!(?=\\s*\\()"
         }
       ]
     }

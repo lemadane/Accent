@@ -50,34 +50,34 @@ class SingletonVariantsEndToEndTest {
         fixtures.put("State", """
                 singleton model State(final String id = Probe.modelName(), String theme = "light", int count = 0) {}
                 """);
-        fixtures.put("Computed", "singleton record Computed(String! name = Probe.recordName() ?? \"fallback\") {}");
+        fixtures.put("Computed", "singleton record Computed(String name! = Probe.recordName() ?? \"fallback\") {}");
         fixtures.put("EmptyClass", "singleton class EmptyClass {}");
         fixtures.put("EmptyRecord", "singleton record EmptyRecord() {}");
         fixtures.put("EmptyModel", "singleton model EmptyModel() {}");
         fixtures.put("Calls", """
                 import java.util.*;
                 class Calls {
-                    static Config config() { return Config.instance(); }
-                    static Defaults defaults() { return Defaults.instance(); }
-                    static State state() { return State.instance(); }
-                    static String defaultsJson() { return Defaults.instance().toJson(); }
-                    static String defaultsXml() { return Defaults.instance().toXml(); }
+                    static Config config() { return Config.instance!(); }
+                    static Defaults defaults() { return Defaults.instance!(); }
+                    static State state() { return State.instance!(); }
+                    static String defaultsJson() { return Defaults.instance!().toJson!(); }
+                    static String defaultsXml() { return Defaults.instance!().toXml!(); }
                     static String stateList() {
-                        List<State> values = List.of(State.instance());
-                        return values.toJson();
+                        List<State> values = List.of(State.instance!());
+                        return values.toJson!();
                     }
                     static String defaultsMap() {
-                        Map<String, Defaults> values = Map.of("default", Defaults.instance());
-                        return values.toXml();
+                        Map<String, Defaults> values = Map.of("default", Defaults.instance!());
+                        return values.toXml!();
                     }
                     static void main(String[] args) {
-                        if (Config.instance() != Config.instance()) throw new RuntimeException("class identity");
-                        if (Defaults.instance() != Defaults.instance()) throw new RuntimeException("record identity");
-                        if (State.instance() != State.instance()) throw new RuntimeException("model identity");
-                        State.instance().theme("dark");
-                        if (not State.instance().theme().equals("dark")) throw new RuntimeException("shared state");
-                        System.out.println(Defaults.instance().toJson());
-                        System.out.println(State.instance().toXml());
+                        if (Config.instance!() != Config.instance!()) throw new RuntimeException("class identity");
+                        if (Defaults.instance!() != Defaults.instance!()) throw new RuntimeException("record identity");
+                        if (State.instance!() != State.instance!()) throw new RuntimeException("model identity");
+                        State.instance!().theme("dark");
+                        if (not State.instance!().theme().equals("dark")) throw new RuntimeException("shared state");
+                        System.out.println(Defaults.instance!().toJson!());
+                        System.out.println(State.instance!().toXml!());
                     }
                 }
                 """);
@@ -207,7 +207,7 @@ class SingletonVariantsEndToEndTest {
                 "singleton record Bad(String name) {}",
                 "singleton model Bad(int count) {}",
                 "singleton record Bad(int count = \"bad\") {}",
-                "singleton model Bad(String! name = null) {}",
+                "singleton model Bad(String name! = null) {}",
                 "singleton class Bad { Bad() {} }",
                 "singleton class Bad { Bad(int value) {} }",
                 "singleton record Bad(int value = 1) { Bad() {} }",
@@ -220,8 +220,8 @@ class SingletonVariantsEndToEndTest {
                 "singleton class Bad {} class Use { Object run() { return new Bad(); } }",
                 "singleton record Bad(int value = 1) {} class Use { Object run() { return new Bad(1); } }",
                 "singleton model Bad(int value = 1) {} class Use { Object run() { return new Bad(1); } }",
-                "singleton record Bad(int value = 1) {} class Use { void run() { Bad.instance().value(2); } }",
-                "singleton model Bad(int value = 1) {} class Use { Object run() { return Bad.instance().copy(2); } }"
+                "singleton record Bad(int value = 1) {} class Use { void run() { Bad.instance!().value(2); } }",
+                "singleton model Bad(int value = 1) {} class Use { Object run() { return Bad.instance!().copy!(2); } }"
         );
         return invalid.stream().map(text -> DynamicTest.dynamicTest(text, () -> {
             var result = new AccentCompiler().check(TestSources.sources(text));

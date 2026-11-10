@@ -128,7 +128,7 @@ class VisibilityTest {
                 package other;
                 import vis.Counter;
                 class Snooper {
-                    int peek(Counter! counter) { return counter._cache; }
+                    int peek(Counter counter!) { return counter!._cache; }
                 }
                 """);
         CompilationResult result = compileAll();
@@ -141,7 +141,7 @@ class VisibilityTest {
         write("vis/Neighbor.accent", """
                 package vis;
                 class Neighbor {
-                    int peek(Counter! counter) { counter._reset(); return counter._cache; }
+                    int peek(Counter counter!) { counter!._reset(); return counter!._cache; }
                 }
                 """);
         CompilationResult result = compileAll();
@@ -164,7 +164,7 @@ class VisibilityTest {
         write("vis/Neighbor.accent", """
                 package vis;
                 class Neighbor {
-                    int read(Explicit! value) { return value._hidden + value._readHidden(); }
+                    int read(Explicit value!) { return value!._hidden + value!._readHidden(); }
                 }
                 """);
         CompilationResult result = compileAll();
@@ -190,7 +190,7 @@ class VisibilityTest {
                 """);
         write("vis/Neighbor.accent", """
                 package vis;
-                class Neighbor { int read(Base! base) { return base._value + base._read(); } }
+                class Neighbor { int read(Base base!) { return base!._value + base!._read(); } }
                 """);
         write("other/Child.accent", """
                 package other;
@@ -214,7 +214,7 @@ class VisibilityTest {
         write("other/Reader.accent", """
                 package other;
                 import vis.Secret;
-                class Reader { int read(Secret! secret) { return secret._value; } }
+                class Reader { int read(Secret secret!) { return secret!._value; } }
                 """);
         assertFalse(compileAll().successful());
     }

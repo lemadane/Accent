@@ -26,6 +26,50 @@ class EditorServicesTest {
             """;
 
     @Test
+    void completionPreservesNonNullMethodSuffix() {
+        List<CompletionItem> members = complete(new ProjectContext(List.of()), "Sample.accent", """
+                class Sample {
+                    String name!() { return "John"; }
+                    String nullableName() { return null; }
+                    void inspect() { this.<caret> }
+                }
+                """);
+        assertMembersPresent(members, "name!", "nullableName");
+        assertMembersAbsent(members, "name", "nullableName!");
+    }
+
+    @Test
+    void completionPreservesCollectionSuffix() {
+        List<CompletionItem> members = complete(new ProjectContext(List.of()), "Sample.accent", """
+                class Sample {
+                    private java.util.List<String> _names!! = new java.util.ArrayList<String>();
+                    void inspect() { this.<caret> }
+                }
+                """);
+        assertMembersPresent(members, "_names!!");
+        assertMembersAbsent(members, "_names!", "_names");
+        List<CompletionItem> methods = complete(new ProjectContext(List.of()), "Names.accent", """
+                class Names {
+                    void inspect(java.util.List<String> names!!) { names!!.<caret> }
+                }
+                """);
+        assertMembersPresent(methods, "get!");
+        assertMembersAbsent(methods, "get");
+    }
+
+    @Test
+    void completionPreservesNonNullFieldSuffix() {
+        List<CompletionItem> members = complete(new ProjectContext(List.of()), "Sample.accent", """
+                class Sample {
+                    private String _name! = "John";
+                    void inspect() { this.<caret> }
+                }
+                """);
+        assertMembersPresent(members, "_name!");
+        assertMembersAbsent(members, "_name");
+    }
+
+    @Test
     void testErrorTolerantParsingAndCompletion() {
         // Incomplete code ending in a trailing dot
         String code = 
@@ -120,8 +164,8 @@ class EditorServicesTest {
                 package test;
                 class Dummy {
                     void inspect() {
-                        String! text = "hello";
-                        text.<caret>
+                        String text! = "hello";
+                        text!.<caret>
                     }
                 }
                 """);
@@ -138,8 +182,8 @@ class EditorServicesTest {
         List<CompletionItem> members = complete(baseContext(), "Neighbor.accent", """
                 package owner;
                 class Neighbor {
-                    void inspect(Base! value) {
-                        value.<caret>
+                    void inspect(Base value!) {
+                        value!.<caret>
                     }
                 }
                 """);
@@ -154,8 +198,8 @@ class EditorServicesTest {
                 package other;
                 import owner.Base;
                 class Caller {
-                    void inspect(Base! value) {
-                        value.<caret>
+                    void inspect(Base value!) {
+                        value!.<caret>
                     }
                 }
                 """);
@@ -186,8 +230,8 @@ class EditorServicesTest {
                 package other;
                 import owner.Base;
                 class Child extends Base {
-                    void inspect(Base! value) {
-                        value.<caret>
+                    void inspect(Base value!) {
+                        value!.<caret>
                     }
                 }
                 """);

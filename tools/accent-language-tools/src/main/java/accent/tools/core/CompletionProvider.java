@@ -32,6 +32,10 @@ public final class CompletionProvider {
         public String detail() { return detail; }
     }
 
+    private static String bindingName(String name, TypeNode type) {
+        return name + (type.isNonNull() && !(type instanceof PrimitiveTypeNode) ? "!" : "");
+    }
+
     public static List<CompletionItem> getCompletions(CompilationUnit unit, SemanticAnalyzer analyzer, int line, int column) {
         List<CompletionItem> items = new ArrayList<>();
         if (unit == null) return items;
@@ -66,11 +70,13 @@ public final class CompletionProvider {
                                 ? type.typeArguments().getFirst().toString()
                                 : m.returnType().toString();
                         if (methodDetails.add(m.name() + ":" + resultType)) {
-                            items.add(new CompletionItem(m.name(), "Method", resultType));
+                            boolean nonNullElementResult = type.nonNullElements() && info.fullName().equals("java.util.List")
+                                    && Set.of("get", "getFirst", "getLast", "set", "removeFirst", "removeLast").contains(m.name());
+                            items.add(new CompletionItem(nonNullElementResult ? m.name() + "!" : bindingName(m.name(), m.returnType()), "Method", resultType));
                         }
                     }
                     for (FieldInfo f : analyzer.accessibleFields(expr)) {
-                        items.add(new CompletionItem(f.name(), "Field", f.type().toString()));
+                        items.add(new CompletionItem(bindingName(f.name(), f.type()) + (f.type().hasNonNullElements() ? "!" : ""), "Field", f.type().toString()));
                     }
                     return items;
                 }
@@ -105,9 +111,9 @@ public final class CompletionProvider {
                 items.add(new CompletionItem(td.name(), "Class", td.name()));
                 for (Member m : td.members()) {
                     if (m instanceof FieldDecl fd) {
-                        items.add(new CompletionItem(fd.name(), "Field", fd.type().toString()));
+                        items.add(new CompletionItem(bindingName(fd.name(), fd.type()) + (fd.type().hasNonNullElements() ? "!" : ""), "Field", fd.type().toString()));
                     } else if (m instanceof MethodDecl md) {
-                        items.add(new CompletionItem(md.name(), "Method", md.returnType().toString()));
+                        items.add(new CompletionItem(bindingName(md.name(), md.returnType()), "Method", md.returnType().toString()));
                     }
                 }
             }

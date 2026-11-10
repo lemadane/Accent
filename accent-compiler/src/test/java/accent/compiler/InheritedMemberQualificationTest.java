@@ -69,7 +69,7 @@ class InheritedMemberQualificationTest {
                                 + this.count + "|" + super.count + "|" + super._read()
                                 + "|" + super._cache + "|" + this._own + "|" + Parent.shared;
                     }
-                    public String other(Parent! parent) { return parent.label(); }
+                    public String other(Parent parent!) { return parent!.label(); }
                 }
                 """), source("Grandchild", """
                 class Grandchild extends Child {

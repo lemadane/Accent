@@ -3,28 +3,21 @@ package example;
 import java.util.UUID;
 
 extension String! {
-    String! normalized() {
-        return this.trim().toUpperCase();
+    String normalized!() {
+        return this.trim().toUpperCase() ?? "";
     }
 }
 
-class DashboardService {
-    private final CustomerService! _customerService;
-    private final OrderService! _orderService;
+record DashboardService(
+        CustomerService customerService!,
+        OrderService orderService!) {
 
-    DashboardService(
-            CustomerService! _customerService,
-            OrderService! _orderService) {
-        this._customerService = _customerService;
-        this._orderService = _orderService;
-    }
-
-    Dashboard! load(UUID! customerId) {
+    Dashboard load!(UUID customerId!) {
         final customerAsync =
-            async this._customerService.findRequired(customerId);
+            async this.customerService!.findRequired!(customerId!);
 
         final ordersAsync =
-            async this._orderService.findForCustomer(customerId);
+            async this.orderService!.findForCustomer(customerId!);
 
         final customer = await customerAsync;
         final orders = await ordersAsync;
@@ -38,8 +31,8 @@ class DashboardService {
         final city =
             customer.address()?.city() ?? "Unknown";
 
-        final names = for (Order! order : orders) {
-            yield order.name().normalized();
+        final names = for (Order order! : orders) {
+            yield order!.name!().normalized!();
         };
 
         return new Dashboard(customer, city, status, names);

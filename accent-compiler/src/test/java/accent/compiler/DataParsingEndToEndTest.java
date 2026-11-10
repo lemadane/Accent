@@ -59,12 +59,12 @@ class DataParsingEndToEndTest {
                     static Envelope jsonEnvelope(String text) { return Json.parse(text, Envelope.class); }
                     static Envelope xmlEnvelope(String text) { return Xml.parse(text, Envelope.class); }
                     static String jsonRoundTrip(List<Item> items) {
-                        List<Item> parsed = Json.parseList(items.toJson(), Item.class);
-                        return parsed.toJson();
+                        List<Item> parsed = Json.parseList(items.toJson!(), Item.class);
+                        return parsed.toJson!();
                     }
                     static String xmlRoundTrip(Map<String, Person> people) {
-                        Map<String, Person> parsed = Xml.parseMap(people.toXml(), Person.class);
-                        return parsed.toXml();
+                        Map<String, Person> parsed = Xml.parseMap(people.toXml!(), Person.class);
+                        return parsed.toXml!();
                     }
                     static void main(String[] args) {
                         List<Item> items = List.of(new Item("Lem"));

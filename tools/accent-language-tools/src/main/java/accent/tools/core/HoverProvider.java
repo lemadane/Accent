@@ -24,8 +24,11 @@ public final class HoverProvider {
             ResolvedType type = analyzer.resolvedTypes.get(expr);
             if (type != null) {
                 StringBuilder sb = new StringBuilder();
-                if (expr instanceof IdentifierExpr) {
-                    sb.append("Local variable/symbol: `").append(token.lexeme()).append("`\n\n");
+                if (expr instanceof IdentifierExpr id) {
+                    sb.append("Local variable/symbol: `").append(id.name()).append(id.nonNullBinding() ? "!" : "").append(id.nonNullElements() ? "!" : "").append("`\n\n");
+                } else if (expr instanceof MethodCallExpr call) {
+                    sb.append("Method call: `").append(call.methodName())
+                            .append(call.nonNullResult() ? "!()" : "()").append("`\n\n");
                 } else if (expr instanceof MemberAccessExpr) {
                     sb.append("Field access: `").append(token.lexeme()).append("`\n\n");
                 }

@@ -32,15 +32,15 @@ To try Accent, jump to [requirements](#requirements), [the CLI quick start](#qui
 ```accent
 @Service
 record DashboardService(
-        CustomerService! customerService,
-        OrderService! orderService) {
+        CustomerService customerService!,
+        OrderService orderService!) {
 
-    Dashboard! load(UUID! customerId) {
+    Dashboard load!(UUID customerId!) {
         final customerAsync =
-            async this.customerService.findRequired(customerId);
+            async this.customerService!.findRequired!(customerId!);
 
         final ordersAsync =
-            async this.orderService.findForCustomer(customerId);
+            async this.orderService!.findForCustomer(customerId!);
 
         final customer = await customerAsync;
         final orders = await ordersAsync;
@@ -54,8 +54,8 @@ record DashboardService(
         final city =
             customer.address()?.city() ?? "Unknown";
 
-        final names = for (Order! order : orders) {
-            yield order.name().normalized();
+        final names = for (Order order! : orders) {
+            yield order!.name!().normalized!();
         };
 
         return new Dashboard(customer, city, status, names);
@@ -67,7 +67,7 @@ record DashboardService(
 
 Accent compiles to Java source and then ordinary JVM bytecode targeting Java 21. Java APIs are callable from Accent, and Java code can use the generated classes with ordinary JVM tooling. Classes, interfaces, records, enums, annotations, generics, packages, and imports form the language's foundation.
 
-The compiler/runtime lives in `accent-compiler`; mixed Java and Accent builds can produce ordinary JARs. Class extensions lower to static Java helpers. Accent non-null types use compiler checks and generated parameter guards; the `!` suffix is not part of a JVM type descriptor.
+The compiler/runtime lives in `accent-compiler`; mixed Java and Accent builds can produce ordinary JARs. Class extensions lower to static Java helpers. Accent enforces `!` and `!!` contracts with compiler checks and runtime guards, and preserves return and collection-element contracts in compiled-library metadata. The markers are not part of Java names or JVM type descriptors; Java callers use ordinary method names.
 
 Accent has deliberate differences from Java, including [visibility](#visibility), explicit `this`/`super` for instance members, and textual boolean operators. Third-party libraries must be present on the compilation and execution classpaths.
 
@@ -123,20 +123,160 @@ String text;
 Customer customer;
 ```
 
-The `!` suffix means non-null:
+The `!` suffix belongs to the **binding name**, and must appear at every use:
 
-```java
-String! text;
-Customer! customer;
+```accent
+String name! = "John Doe";
+final greeting! = $"Hello, {name!}";
+List<String> myList! = new ArrayList<String>();
+
+if (myList!) {
+    // Non-empty. The declaration already guarantees non-null.
+}
+if (not myList!) {
+    // Empty.
+}
 ```
 
-`!` does **not** mean non-empty. Empty strings, lists, and arrays remain valid non-null values.
+**Explicit is better than implicit. Readability counts.** The suffix is a checked
+non-null contract, not an assertion that bypasses the compiler. It does not mean
+non-empty: `String name! = "";` and empty lists are valid. String literals use double quotes; single-quoted `''` is not supported.
 
-```java
-String! message = "";
-List<Integer>! numbers = new ArrayList<>();
-int[]! values = {};
+Non-null locals and fields require an initializer. `String name!;`,
+`String name! = null;`, and the old declaration `String! name;` are compile
+errors. Parameters and record/model components receive their values from callers.
+Inferred bindings can also opt in: `var customer! = new Customer();`.
+Primitive bindings are already non-null and do not use a suffix.
+
+Private and protected fields retain their underscore prefix:
+`private Customer _customer! = new Customer();`. Access an own field as
+`this._customer!`, or an inherited protected field as `super._customer!`.
+The underscore indicates visibility; `!` indicates nullability.
+
+Unmarked reference bindings remain nullable. Their names stay unmarked even
+inside a null check. `if (not myList)` on a nullable list means null **or** empty.
+Extension receiver types retain type-level nullability, for example `extension String!`.
+For non-null arrays and lists with non-null elements, put `!!` on the binding name.
+Named argument labels use the parameter's plain name, for example `greet(name: "John")`.
+
+#### Non-null array and list elements
+
+Use `!!` on a binding name when both the collection and its immediate elements
+must be non-null. This replaces `List<String!> names!` and `String![] names!`
+for binding declarations:
+
+```accent
+class Names {
+    void example(String user) {
+        java.util.List<String> names!! = new java.util.ArrayList<String>();
+        names!!.add("John");
+        if (user != null) names!!.add(user);
+        String first! = names!!.get!(0);
+
+        String[] labels!! = {"John", "Jane"};
+        labels![0]! = first!;
+        String label! = labels![0]!;
+    }
+}
 ```
+
+| Syntax | Contract |
+| --- | --- |
+| `List<String> names!` / `String[] names!` | Non-null collection; elements may be null |
+| `List<String> names!!` / `String[] names!!` | Non-null collection and non-null elements |
+| `names!!` | Whole collection use, including arguments and list method receivers |
+| `labels![index]!` | Non-null array reference and non-null indexed element |
+| `names!!.get!(index)` | Non-null list element returned by `get` |
+
+> **Readability counts:** `names!!.get!(0)` makes both guarantees visible at the
+> call site, without looking up the declaration: `names!!` identifies a non-null
+> list containing non-null elements, and `get!(0)` identifies a non-null result.
+> Explicit is better than implicit.
+
+`!!` does not guarantee a non-empty collection or a valid index: `get!(0)`
+and `[0]!` still require an element at index zero.
+
+Both `!` and `!!` bindings require initialization. A bare `!!` declaration,
+`add(null)`, `set!(index, null)`, nullable insertions without a proof, null array
+initializers, and null element assignments are compile errors. A null check
+such as `if (user != null)` proves the value is safe inside that branch.
+`new String[2]` cannot initialize a `!!` array because its slots start as null.
+Use an explicit initializer, including `{}` for an empty array.
+
+The compiler rejects aliases that drop the element contract. `addAll` requires
+a source with non-null elements. `List.of(...)` checks its elements;
+`List.copyOf(...)` explicitly validates a source at runtime. The `!!` syntax
+currently supports `List<T>` and one-dimensional reference arrays. It describes
+immediate elements, not recursive object immutability; it does not freeze the
+collection or the objects inside it.
+
+At runtime, a `!!` list boundary validates and copies an ordinary input list into
+a mutable guarded list. Already guarded lists retain their identity. The guard
+rejects null writes, including Java calls, iterators, sublists, bulk insertion,
+and replacement operations. Mutating the original ordinary list does not change
+the guarded copy. Array boundaries validate and copy the array, and marked
+array reads and writes include null guards. Consequently, array mutations in a
+callee operate on its copy. Raw JVM arrays cannot prevent a Java caller from
+storing null directly into an exposed array; a subsequent marked Accent read
+rejects that null. `!!` is not a JVM-wide guarantee against Java or reflection
+bypassing Accent boundaries. Guarded method and constructor parameters use
+generated JVM parameter names; use explicit annotation names when binding `!!`
+parameters from HTTP input, such as `@RequestParam("names")`.
+
+#### Non-null method results
+
+Put `!` after a method name to guarantee a non-null return, and keep it at every call:
+
+```accent
+class Customer {
+    String getName!() {
+        return "John Doe";
+    }
+}
+```
+
+The receiver and the result have separate contracts:
+
+```accent
+class Names {
+    static String required!(Customer customer!) {
+        return customer!.getName!();
+    }
+
+    static String optional(Customer customer) {
+        return customer?.getName!();
+    }
+
+    static String fallback!(Customer customer) {
+        return customer?.getName!() ?? "Unknown";
+    }
+}
+```
+
+| Expression | Result |
+| --- | --- |
+| `customer!.getName!()` | Non-null receiver and non-null result |
+| `customer?.getName!()` | Nullable result: a null receiver skips the call |
+| `customer?.getName!() ?? "Unknown"` | Non-null result, with a fallback |
+
+The marker describes what the method returns **when invoked**. Therefore
+`String name! = customer?.getName!();` is a compile error.
+A marked method must return a non-null value on every completing path;
+`return null;`, bare `return;`, nullable return expressions, and fall-through
+are rejected. Throwing is allowed. Overrides cannot weaken an inherited
+non-null return contract. Primitive and `void` methods remain unmarked.
+
+Use `String getName!()`, not the old `String! getName()`.
+Generated non-null getters, copy methods, serializers, and singleton factories
+follow the same rule: `customer.name!()`, `customer.copy!(...)`,
+`customer.toJson!()`, and `Config.instance!()`. A mutable component's
+`customer.name("Jane")` setter still returns `void` and has no marker.
+
+Java method names remain unchanged: Java calls `customer.getName()`.
+Accent preserves the contract in compiled libraries with
+`@accent.runtime.NonNullReturn` and emits runtime null guards.
+Unannotated Java methods remain unmarked; their reference results are treated
+as nullable. Use a null check or a fallback before returning them from a marked method.
 
 ### 2. Optional chaining
 
@@ -156,12 +296,12 @@ The right-hand expression is evaluated only when the left-hand value is `null`.
 
 ### 4. Data models (`model`)
 
-Accent provides native support for data classes via the `model` keyword (`model User(final String! id, String! name, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
+Accent provides native support for data classes via the `model` keyword (`model User(final String id!, String name!, int age)`). Accent `model` classes are conceptually equivalent to Kotlin `data class` and eliminate the need for Lombok annotations (`@Data`, `@Value`, `@Getter`, `@Setter`, etc.):
 
 ```java
 model User(
-    final String! id,   // final     -> Immutable (getter id() ONLY, no setter)
-    String! name,       // default   -> Mutable   (getter name(), setter name(...))
+    final String id!,   // final     -> Immutable (getter id!() ONLY, no setter)
+    String name!,       // default   -> Mutable   (getter name!(), setter name(...))
     int age             // default   -> Mutable   (getter age(), setter age(...))
 ) {}
 ```
@@ -172,8 +312,8 @@ model User(
 final user = new User("U101", "Lemuel", 42);
 
 // Access getters
-final id = user.id();
-final name = user.name();
+final id = user.id!();
+final name = user.name!();
 
 // Setters for mutable fields
 user.name("Lemuel A.");
@@ -182,7 +322,7 @@ user.age(43);
 // user.id("U102"); // Compile-time error: 'id' is final!
 
 // Kotlin-style copy method
-final userCopy = user.copy("U101", "Lemuel A.", 43);
+final userCopy = user.copy!("U101", "Lemuel A.", 43);
 
 // Formatted toString output
 System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
@@ -190,13 +330,13 @@ System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
 
 #### Model Features & Semantics
 
-Getters and setters share the field name: `user.name()` reads it, and `user.name("Ann")` updates it. Setters return `void`; no `set`-prefixed methods are generated.
+Getters and setters share the field name: `user.name!()` reads it, and `user.name("Ann")` updates it. Setters return `void`; no `set`-prefixed methods are generated.
 
-* **Default Mutability**: Fields without `final` are **mutable** by default, generating getters (`name()`, `age()`) AND setters (`name(...)`, `age(...)`).
-* **Explicit Immutability (`final`)**: Fields prefixed with `final` are **immutable** (`private final String id;`), generating a getter only (`id()`) and NO setter (`id(...)`). Calling a setter on a `final` field results in a compile-time error.
-* **Kotlin-style `copy(...)` Method**: Automatically generates a `copy(...)` method for convenient object cloning.
+* **Default Mutability**: Components without `final` are mutable by default, generating getters (`name!()`, `age()`) and setters (`name(...)`, `age(...)`). Reference getters use `!()` when the component is declared non-null; primitive getters remain unmarked.
+* **Final bindings (`final`)**: A component such as `final String id!` generates a getter (`id!()`) and no setter. Calling its setter is a compile-time error. Final bindings can still reference mutable objects.
+* **Kotlin-style `copy!(...)` Method**: Generates a non-null copy using the supplied component values.
 * **Value-based `equals()` and `hashCode()`**: Generates value-based equality and hashing implementations.
-* **Automatic `toString()`**: Emits formatted string representation (`User[id=..., name=..., age=...]`).
+* **Automatic `toString!()`**: Emits formatted string representation (`User[id=..., name=..., age=...]`).
 * **Built-in `java.io.Serializable`**: Implements `java.io.Serializable` with `serialVersionUID = 1L` out of the box.
 
 #### `model` vs `record` Comparison
@@ -207,10 +347,10 @@ Getters and setters share the field name: `user.name()` reads it, and `user.name
 | **Java Target** | Java `record` | `public final class` |
 | **Field Mutability** | Final component bindings (shallow immutability) | Mutable by default (or Immutable with `final`) |
 | **Setters Generated** | None | Yes (for non-final fields) |
-| **`copy()` Method** | None | Yes |
-| **Serialization** | `toJson()`, `toXml()` | `toJson()`, `toXml()`, `java.io.Serializable` |
+| **`copy!()` Method** | None | Yes |
+| **Serialization** | `toJson!()`, `toXml!()` | `toJson!()`, `toXml!()`, `java.io.Serializable` |
 
-Record components and `final` model fields may still reference mutable objects. `copy(...)` takes all component values; it is a shallow copy.
+Record components and `final` model fields may still reference mutable objects. `copy!(...)` takes all component values; it is a shallow copy, except that `!!` components apply the collection boundary validation and copying rules described above.
 
 ### 5. Virtual Thread concurrency
 
@@ -329,16 +469,16 @@ final customer =
 
 ### 6. Native JSON and XML serialization
 
-Accent records and models automatically receive public `toJson()` and `toXml()` methods:
+Accent records and models automatically receive public non-null `toJson!()` and `toXml!()` methods in Accent (named `toJson()` and `toXml()` in Java):
 
 ```java
 record Address(String city) {}
 model Profile(String name, Address address) {}
 
 final profile = new Profile("Lem", new Address("Manila"));
-final json = profile.toJson();
+final json = profile.toJson!();
 // {"name":"Lem","address":{"city":"Manila"}}
-final xml = profile.toXml();
+final xml = profile.toXml!();
 // <Profile><name>Lem</name><address><city>Manila</city></address></Profile>
 ```
 
@@ -348,23 +488,23 @@ Native collection serialization is restricted to **lists of records/models** and
 
 ```java
 List<Profile> profiles = List.of(new Profile("Lem", new Address("Manila")));
-final json = profiles.toJson();
-final xml = profiles.toXml(); // <List><item>...</item></List>
+final json = profiles.toJson!();
+final xml = profiles.toXml!(); // <List><item>...</item></List>
 
 Map<String, Profile> profilesById = Map.of("U1", new Profile("Ana", new Address("Manila")));
-final profilesJson = profilesById.toJson();
-final profilesXml = profilesById.toXml(); // <Map><entry><key>U1</key><value>...</value></entry></Map>
+final profilesJson = profilesById.toJson!();
+final profilesXml = profilesById.toXml!(); // <Map><entry><key>U1</key><value>...</value></entry></Map>
 
-final optionalJson = nullableProfiles?.toJson(); // null when the list is null
+final optionalJson = nullableProfiles?.toJson!(); // null when the list is null
 ```
 
-`List<String>`, `List<Integer>`, `Map<String, String>`, raw containers, and containers with unknown or `Object` element/value types do not receive these methods. Typed empty containers are supported. Concrete implementations such as `ArrayList<Profile>` and `LinkedHashMap<String, Profile>` are supported too. XML roots are consistently named `List` and `Map`; empty containers serialize as `[]` / `{}` in JSON and `<List></List>` / `<Map></Map>` in XML. Serialization uses native `toJson()` and `toXml()` methods; the former `Json.stringify()` and `Xml.stringify()` APIs have been removed.
+`List<String>`, `List<Integer>`, `Map<String, String>`, raw containers, and containers with unknown or `Object` element/value types do not receive these methods. Typed empty containers are supported. Concrete implementations such as `ArrayList<Profile>` and `LinkedHashMap<String, Profile>` are supported too. XML roots are consistently named `List` and `Map`; empty containers serialize as `[]` / `{}` in JSON and `<List></List>` / `<Map></Map>` in XML. Serialization uses native `toJson!()` and `toXml!()` calls in Accent; the former `Json.stringify()` and `Xml.stringify()` APIs have been removed.
 
-An explicit zero-argument `toJson()` or `toXml()` method takes precedence over the corresponding generated method. These methods require the Accent runtime on the Java classpath.
+An explicit zero-argument method named `toJson` or `toXml` takes precedence over its generated counterpart. Use `!()` at calls only when the explicit method declares a non-null return contract. These methods require the Accent runtime on the Java classpath.
 
 #### JSON Standard Library (`accent.json`)
 
-Accent provides JSON parsing through `accent.json.Json` and native serialization through `toJson()` on records, models, and supported typed containers.
+Accent provides JSON parsing through `accent.json.Json` and native serialization through `toJson!()` on records, models, and supported typed containers.
 
 ##### Key Features
 - **Untyped or typed parsing**: `Json.parse(text)` returns Maps, Lists, and JSON scalar values. `Json.parse(text, Type.class)` maps objects into records or Accent models and rejects ordinary Java classes.
@@ -392,7 +532,7 @@ List<Profile> xmlProfiles = Xml.parseList(profilesXml, Profile.class);
 Map<String, Profile> xmlIndexed = Xml.parseMap(indexedXml, Profile.class);
 ```
 
-Both parsers also accept `Object.class`, `List.class`, and `Map.class` targets. A List or Map target must match the input shape. Typed objects and container values may be records or Accent models; nested records/models, lists, maps, arrays, and primitive values are mapped recursively. Use native `toJson()` / `toXml()` to serialize again.
+Both parsers also accept `Object.class`, `List.class`, and `Map.class` targets. A List or Map target must match the input shape. Typed objects and container values may be records or Accent models; nested records/models, lists, maps, arrays, and primitive values are mapped recursively. Use native `toJson!()` / `toXml!()` to serialize again.
 
 Untyped JSON preserves boolean, numeric, string, and null values. Untyped XML preserves scalar text as strings, because the XML format carries no scalar type metadata; typed XML parsing converts text using the target field types. XML parsing follows the serializer's `<item>` and `<entry><key>...</key><value>...</value></entry>` conventions. XML attributes, mixed text and elements, duplicate fields/keys, DTDs, and external entities are rejected. Null properties omitted during XML serialization cannot be distinguished from missing properties on parsing. Empty nested XML elements are ambiguous without a target type; typed parsing distinguishes empty strings, containers, and data objects using their declared fields.
 
@@ -436,11 +576,15 @@ record User(
     String lastName,
     LocalDate birthDate
 ) {
-    User {
-        // Will be executed when parsed from JSON!
+    User(UUID id, String firstName, String lastName, LocalDate birthDate) {
+        // Executed for direct construction and JSON parsing.
         if (firstName == null or firstName.isBlank()) {
             throw new IllegalArgumentException("firstName cannot be blank");
         }
+        this.id = id;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.birthDate = birthDate;
     }
 }
 
@@ -454,7 +598,7 @@ class Main {
         User user = new User(UUID.randomUUID(), "Lemuel", "Adane", LocalDate.of(2000, 1, 1));
 
         // Serialize
-        String json = user.toJson();
+        String json = user.toJson!();
 
         // Parse directly into a strongly-typed record!
         User parsedUser = Json.parse(json, User.class);
@@ -498,13 +642,13 @@ attempts++; // Reassignable
 Method and constructor parameters are implicitly immutable bindings:
 
 ```java
-void rename(String! name) {
-    final normalizedName = name.trim();
-    this.name = normalizedName;
+void rename(String name!) {
+    final normalizedName! = name!.trim() ?? "";
+    this.name! = normalizedName!;
 }
 ```
 
-Reassigning `name` is a compile-time error. The referenced object may still be mutable.
+Reassigning `name` is a compile-time error. The referenced object may still be mutable. For example, `items!.clear()` is allowed on a mutable list parameter. Neither `!` nor `!!` makes a collection immutable; they constrain nullability.
 
 ### 9. Named Arguments & Parameter Default Values
 
@@ -633,8 +777,8 @@ for (var i = 0; i < maxAttempts; i++) {
 Each executed `yield` contributes an element to the resulting collection. With `else`, the branch also contributes values whenever the loop completes without `break`, including when it was empty. In the example below, `"Guest"` is appended after normal iteration as well as for an empty iterable:
 
 ```java
-final names = for (Customer! customer : customers) {
-    yield customer.name();
+final names = for (Customer customer! : customers) {
+    yield customer!.name();
 } else {
     yield "Guest";
 };
@@ -666,7 +810,7 @@ Accent supports three textual boolean operators.
 | `and`     | `&&`                | Short-circuit logical AND    |
 | `or`      | `\|\|`              | Short-circuit logical OR     |
 
-Logical expressions must use `not`, `and`, and `or`. Using unary `!`, `&&`, or `||` produces a compiler error. The non-null type suffix (`String!`) and inequality operator (`!=`) remain supported.
+Logical expressions must use `not`, `and`, and `or`. Using unary `!`, `&&`, or `||` produces a compiler error. The non-null suffixes (`name!`, `names!!`, `getName!()`, and `names![0]!`) and inequality operator (`!=`) remain supported; write `name! != null` with the two operators separated.
 
 ```java
 boolean allowed = active and not suspended;
@@ -777,7 +921,7 @@ Accent supports JavaScript-style truthy and falsy condition evaluation. Values o
 | **Boolean false** | `false` | **Falsy** | `false` |
 | **Zero Number** | `0`, `0.0`, `0L`, `0.0f`, `NaN` | **Falsy** | `false` (`n != 0`) |
 | **Empty String** | `""` | **Falsy** | `false` (`!s.isEmpty()`) |
-| **Empty Generic List / Collection** | `List.of()`, `new ArrayList<>()` | **Falsy** | `false` (`!col.isEmpty()`) |
+| **Empty Generic List / Collection** | `List.of()`, `new ArrayList<String>()` | **Falsy** | `false` (`!col.isEmpty()`) |
 | **Empty Generic Map** | `Map.of()`, `new HashMap<>()` | **Falsy** | `false` (`!map.isEmpty()`) |
 | **Empty Array** | `new String[0]`, `new int[0]` | **Falsy** | `false` (`length > 0`) |
 | **Empty Optional** | `Optional.empty()` | **Falsy** | `false` (`opt.isPresent()`) |
@@ -861,8 +1005,8 @@ Accent can extend an existing Java or Accent class without changing the original
 
 ```java
 extension String! {
-    String! normalized() {
-        return this.trim().toUpperCase();
+    String normalized!() {
+        return this.trim().toUpperCase() ?? "";
     }
 }
 ```
@@ -870,7 +1014,7 @@ extension String! {
 Usage:
 
 ```java
-final normalizedName = name.normalized();
+final normalizedName = name.normalized!();
 ```
 
 Class extensions lower to ordinary static Java helper methods. Real instance members take precedence over extension members.
@@ -885,11 +1029,11 @@ Accent fully supports standard Java and framework annotations (such as Spring Bo
 class ProductController {
 
     @Autowired
-    private ProductService! _productService;
+    private ProductService _productService;
 
     @GetMapping("/{id}")
-    Product! getProduct(@PathVariable String! id) {
-        return this._productService.findById(id);
+    Product getProduct(@PathVariable String id!) {
+        return this._productService.findById(id!);
     }
 }
 ```
@@ -1152,7 +1296,7 @@ record UserCard(User user) implements Component {
     Html render() {
         return (
             <article class="user-card">
-                <h2>{this.user.name()}</h2>
+                <h2>{this.user.name!()}</h2>
                 <p>{this.user.email()}</p>
             </article>
         );
@@ -1185,42 +1329,42 @@ singleton class CacheManager {
 #### Singleton Usage
 
 ```java
-final cache = CacheManager.instance();
+final cache = CacheManager.instance!();
 cache.put("user_1", "Lemuel");
 
 // Or direct method call:
-final user = CacheManager.instance().get("user_1");
+final user = CacheManager.instance!().get("user_1");
 ```
 
 #### Singleton Features & Semantics
 * **Kotlin `object` Equivalent**: Provides direct language-level singleton semantics (`singleton class CacheManager { ... }`).
-* **Zero Boilerplate**: The compiler automatically generates a private constructor (`private CacheManager() {}`) and single static `.instance()` accessor method.
+* **Zero Boilerplate**: The compiler automatically generates a private constructor (`private CacheManager() {}`) and single static `.instance!()` accessor method.
 * **Thread-Safe Lazy Loading**: Emits the **Initialization-on-Demand Holder** JVM idiom, guaranteeing lazy, thread-safe initialization with zero synchronization overhead.
 * **Forbidden `new` Instantiation**: Attempting to call `new CacheManager()` produces a compile-time error.
-* **Accent & Java Interop**: Access the single instance via `CacheManager.instance()` in both Accent and Java codebase.
+* **Accent & Java Interop**: Access the single instance via `CacheManager.instance!()` in Accent and `CacheManager.instance()` in Java.
 
 #### Singleton records and models
 
 ```java
 singleton record Defaults(
-    String! theme = "light",
+    String theme! = "light",
     int retryLimit = 3
 ) {}
 
 singleton model AppState(
-    final String! id = "app",
-    String! theme = "light",
+    final String id! = "app",
+    String theme! = "light",
     int attempts = 0
 ) {}
 
-final defaults = Defaults.instance(); // immutable component bindings
-final state = AppState.instance();
+final defaults = Defaults.instance!(); // immutable component bindings
+final state = AppState.instance!();
 state.theme("dark");                 // shared mutable state
 ```
 
-Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance()`. Generic singleton declarations are rejected. Singletons may not declare constructors: the compiler generates a private one for every variant, so initialize state with field initializers. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `$accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
+Every singleton record/model component requires a default expression. Defaults run once, on first access to `.instance!()`. Generic singleton declarations are rejected. Singletons may not declare constructors: the compiler generates a private one for every variant, so initialize state with field initializers. All singleton variants are final, disallow direct `new` construction, and reserve `instance`, `copy`, `clone`, `readResolve`, and `$accentCreateSingleton` for compiler use. Singleton models retain setters for mutable components but have no `copy()` method.
 
-A singleton record compiles to a final immutable class rather than a JVM record, so its constructor can be private. It retains component accessors, value methods, native `toJson()`/`toXml()`, and typed List/Map serialization support. Its runtime `Class.isRecord()` is false, and it is not a subtype of `java.lang.Record`. Singleton model/record Java serialization resolves back to the shared instance; JSON/XML typed parsing rejects singleton targets to avoid constructing duplicates. Untyped parsing of their serialized data remains available.
+A singleton record compiles to a final immutable class rather than a JVM record, so its constructor can be private. It retains component accessors, value methods, native `toJson!()`/`toXml!()` calls in Accent, and typed List/Map serialization support. Its runtime `Class.isRecord()` is false, and it is not a subtype of `java.lang.Record`. Singleton model/record Java serialization resolves back to the shared instance; JSON/XML typed parsing rejects singleton targets to avoid constructing duplicates. Untyped parsing of their serialized data remains available.
 
 ### 28. Slugs (`accent.web`)
 
@@ -1558,7 +1702,7 @@ The `accent-spring-boot-starter` intercepts returned `Component` and `Html` valu
 
 `ResponseEntity<Component>` and `ResponseEntity<Html>` also render HTML through Spring's message converters, preserving the response status and headers. HTML defaults to UTF-8; an explicitly configured response charset is respected.
 
-Accent preserves parameter annotations such as `@RequestParam`, `@PathVariable`, `@RequestBody`, and constructor `@Qualifier`, along with reflection-visible parameter names. This also works with classes compiled directly by Accent, without recompiling the generated Java.
+Accent preserves parameter annotations such as `@RequestParam`, `@PathVariable`, `@RequestBody`, and constructor `@Qualifier`, along with ordinary parameter names. Guarded `!!` parameters use generated JVM names, so specify binding names explicitly in annotations. This also works with classes compiled directly by Accent, without recompiling the generated Java.
 
 HTML auto-configuration activates only in servlet MVC applications, so the starter can also be used in non-web applications. JDBC integration activates separately when Spring JDBC and a single candidate `DataSource` are available. Accent SQL then uses transaction-aware connections, so statements participate in Spring-managed commit and rollback; JDBC remains optional for applications that do not use a database.
 
@@ -1593,7 +1737,7 @@ record Page(User user) implements Component {
     @Override
     Html render() {
         return (
-            <h1>Hello, {this.user.name()}!</h1>
+            <h1>Hello, {this.user.name!()}!</h1>
         );
     }
 }
@@ -1644,7 +1788,7 @@ import com.example.demo.User;
 
 class Loader {
     // Dynamic path/query variables are injected into method arguments automatically
-    User load(String name) {
+    User load!(String name) {
         return new User(name, name.toLowerCase() + "@example.com");
     }
 }
@@ -1758,7 +1902,7 @@ Run the standalone feature demos:
 
 ### Generator syntax
 
-The parser and emitter recognize `generator` methods and `emit` statements. The declared return type is the element type: `generator int numbers(...)` emits a Java method returning `Iterable<Integer>`.
+The parser and emitter recognize `generator` methods and `emit` statements. Return-name markers are not supported for experimental generators. The declared return type is the element type: `generator int numbers(...)` emits a Java method returning `Iterable<Integer>`.
 
 The emitter currently calls `accent.runtime.AccentGenerator.of(...)`, but that helper is absent from this checkout. Frontend checks and Java-emission tests do not establish runnable generator support. Treat generators as incomplete until the runtime and execution tests are supplied.
 

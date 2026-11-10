@@ -13,6 +13,10 @@ public final class JavaEmitter {
     private TypeNode extensionTargetType = null;
     private String currentClassName = null;
     private boolean isInsideGenerator = false;
+    private boolean nonNullMethodReturn;
+    private TypeNode methodReturnType;
+    private java.util.Set<String> guardedParameterNames = java.util.Set.of();
+    private boolean beforeParameterGuards;
     private final java.util.Deque<String> loopBrokenVars = new java.util.ArrayDeque<>();
     private int loopCounter = 0;
 
@@ -129,6 +133,8 @@ public final class JavaEmitter {
             for (int i = 0; i < rd.components().size(); i++) {
                 if (i > 0) sb.append(", ");
                 Parameter p = rd.components().get(i);
+                if (p.type().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
+                if (p.type().isNonNull() && !isPrimitive(p.type())) sb.append("@accent.runtime.NonNullReturn ");
                 emitParameter(p);
             }
             sb.append(")");
@@ -165,13 +171,35 @@ public final class JavaEmitter {
             printIndent();
             sb.append("}\n\n");
             printIndent();
-            sb.append("public static ").append(decl.name()).append(" instance() { return Holder.INSTANCE; }\n\n");
+            sb.append("@accent.runtime.NonNullReturn public static ").append(decl.name()).append(" instance() { return Holder.INSTANCE; }\n\n");
             printIndent();
             sb.append("private Object readResolve() { return Holder.INSTANCE; }\n\n");
             if (decl instanceof ClassDecl && decl.members().stream().noneMatch(m -> m instanceof ConstructorDecl)) {
                 printIndent();
                 sb.append("private ").append(decl.name()).append("() {}\n\n");
             }
+        }
+
+        if (decl instanceof RecordDecl rd
+                && rd.components().stream().anyMatch(p -> p.type().isNonNull() && !isPrimitive(p.type()))
+                && rd.members().stream().noneMatch(m -> m instanceof ConstructorDecl c
+                        && c.parameters().size() == rd.components().size())) {
+            printIndent();
+            sb.append("public ").append(rd.name()).append(" {\n");
+            indentLevel++;
+            for (Parameter p : rd.components()) {
+                if (p.type().isNonNull() && !isPrimitive(p.type())) {
+                    printIndent();
+                    if (p.type().hasNonNullElements() && guardedParameterNames.contains(p.name()))
+                        sb.append("final ").append(emitType(p.type())).append(" ").append(p.name()).append(" = ")
+                                .append(guardValue("$accent$" + p.name(), p.type())).append(";\n");
+                    else if (p.type().hasNonNullElements()) sb.append(p.name()).append(" = ").append(guardValue(p.name(), p.type())).append(";\n");
+                    else sb.append("java.util.Objects.requireNonNull(").append(p.name()).append(");\n");
+                }
+            }
+            indentLevel--;
+            printIndent();
+            sb.append("}\n");
         }
 
         if (decl instanceof ModelDecl md) {
@@ -202,7 +230,7 @@ public final class JavaEmitter {
             indentLevel++;
             for (Parameter p : md.components()) {
                 printIndent();
-                sb.append("this.").append(p.name()).append(" = ").append(p.name()).append(";\n");
+                sb.append("this.").append(p.name()).append(" = ").append(guardValue(p.name(), p.type())).append(";\n");
             }
             indentLevel--;
             printIndent();
@@ -211,6 +239,8 @@ public final class JavaEmitter {
             // Getters
             for (Parameter p : md.components()) {
                 printIndent();
+                if (p.type().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
+                if (p.type().isNonNull() && !isPrimitive(p.type())) sb.append("@accent.runtime.NonNullReturn ");
                 sb.append("public ").append(emitType(p.type())).append(" ").append(p.name()).append("() {\n");
                 indentLevel++;
                 printIndent();
@@ -225,10 +255,12 @@ public final class JavaEmitter {
                 if (p.isMutable()) {
                     String setterName = p.name();
                     printIndent();
-                    sb.append("public void ").append(setterName).append("(").append(emitType(p.type())).append(" ").append(p.name()).append(") {\n");
+                    sb.append("public void ").append(setterName).append("(");
+                    emitParameter(p);
+                    sb.append(") {\n");
                     indentLevel++;
                     printIndent();
-                    sb.append("this.").append(p.name()).append(" = ").append(p.name()).append(";\n");
+                    sb.append("this.").append(p.name()).append(" = ").append(guardValue(p.name(), p.type())).append(";\n");
                     indentLevel--;
                     printIndent();
                     sb.append("}\n\n");
@@ -238,11 +270,11 @@ public final class JavaEmitter {
             if (!md.isSingleton()) {
                 // Copy method
                 printIndent();
-                sb.append("public ").append(md.name()).append(" copy(");
+                sb.append("@accent.runtime.NonNullReturn public ").append(md.name()).append(" copy(");
                 for (int i = 0; i < md.components().size(); i++) {
                     if (i > 0) sb.append(", ");
                     Parameter p = md.components().get(i);
-                    sb.append(emitType(p.type())).append(" ").append(p.name());
+                    emitParameter(p);
                 }
                 sb.append(") {\n");
                 indentLevel++;
@@ -309,7 +341,7 @@ public final class JavaEmitter {
             printIndent();
             sb.append("@Override\n");
             printIndent();
-            sb.append("public String toString() {\n");
+            sb.append("@accent.runtime.NonNullReturn public String toString() {\n");
             indentLevel++;
             printIndent();
             sb.append("return \"").append(md.name()).append("[\"");
@@ -325,6 +357,18 @@ public final class JavaEmitter {
             sb.append("}\n\n");
         }
 
+        if (decl instanceof RecordDecl rd && rd.members().stream().noneMatch(m ->
+                m instanceof MethodDecl method && method.name().equals("toString") && method.parameters().isEmpty())) {
+            printIndent();
+            sb.append("@accent.runtime.NonNullReturn public String toString() { return \"")
+                    .append(rd.name()).append("[\"");
+            for (int i = 0; i < rd.components().size(); i++) {
+                Parameter p = rd.components().get(i);
+                sb.append(" + \"").append(i == 0 ? "" : ", ").append(p.name()).append("=\" + this.").append(p.name());
+            }
+            sb.append(" + \"]\"; }\n");
+        }
+
         if (decl instanceof ModelDecl || decl instanceof RecordDecl) {
             for (String format : List.of("Json", "Xml")) {
                 String methodName = "to" + format;
@@ -332,7 +376,7 @@ public final class JavaEmitter {
                         && method.name().equals(methodName) && method.parameters().isEmpty());
                 if (!custom) {
                     printIndent();
-                    sb.append("public String ").append(methodName).append("() { return accent.runtime.DataSerialization.")
+                    sb.append("@accent.runtime.NonNullReturn public String ").append(methodName).append("() { return accent.runtime.DataSerialization.")
                             .append(methodName)
                             .append("(this); }\n\n");
                 }
@@ -402,14 +446,27 @@ public final class JavaEmitter {
     }
 
     private void emitMember(Member member) {
+        java.util.Set<String> savedParameterNames = guardedParameterNames;
+        boolean savedBeforeGuards = beforeParameterGuards;
+        List<Parameter> memberParameters = member instanceof MethodDecl m ? m.parameters()
+                : member instanceof ConstructorDecl c ? c.parameters() : List.of();
+        guardedParameterNames = memberParameters.stream().filter(p -> p.type().hasNonNullElements())
+                .map(Parameter::name).collect(java.util.stream.Collectors.toSet());
+        beforeParameterGuards = true;
+        TypeNode savedReturnType = methodReturnType;
+        methodReturnType = member instanceof MethodDecl method ? method.returnType() : null;
+        boolean savedReturnContract = nonNullMethodReturn;
+        nonNullMethodReturn = member instanceof MethodDecl method && !method.isGenerator()
+                && method.returnType().isNonNull() && !isPrimitive(method.returnType());
         if (member instanceof FieldDecl fd) {
+            if (fd.type().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
             printIndent();
             for (String mod : fd.modifiers()) {
                 sb.append(mod).append(" ");
             }
             sb.append(emitType(fd.type())).append(" ").append(fd.name());
             if (fd.initializer().isPresent()) {
-                sb.append(" = ").append(emitExpression(fd.initializer().get()));
+                sb.append(" = ").append(guardValue(emitInitializer(fd.initializer().get(), fd.type()), fd.type()));
             }
             sb.append(";\n");
         } else if (member instanceof ConstructorDecl cd) {
@@ -440,10 +497,14 @@ public final class JavaEmitter {
             for (Parameter p : cd.parameters()) {
                 if (p.type().isNonNull() && !isPrimitive(p.type())) {
                     printIndent();
-                    sb.append("java.util.Objects.requireNonNull(").append(p.name())
-                            .append(", \"Parameter '").append(p.name()).append("' must not be null\");\n");
+                    if (p.type().hasNonNullElements() && guardedParameterNames.contains(p.name()))
+                        sb.append("final ").append(emitType(p.type())).append(" ").append(p.name()).append(" = ")
+                                .append(guardValue("$accent$" + p.name(), p.type())).append(";\n");
+                    else if (p.type().hasNonNullElements()) sb.append(p.name()).append(" = ").append(guardValue(p.name(), p.type())).append(";\n");
+                    else sb.append("java.util.Objects.requireNonNull(").append(p.name()).append(");\n");
                 }
             }
+            beforeParameterGuards = false;
             for (int i = hasSuperCall ? 1 : 0; i < cd.body().statements().size(); i++) {
                 emitStatement(cd.body().statements().get(i));
             }
@@ -452,6 +513,8 @@ public final class JavaEmitter {
             sb.append("}\n");
         } else if (member instanceof MethodDecl md) {
             printIndent();
+            if (nonNullMethodReturn) sb.append("@accent.runtime.NonNullReturn ");
+            if (md.returnType().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
             
             // Extension method modifier mapping: static helper
             for (String mod : md.modifiers()) {
@@ -490,11 +553,15 @@ public final class JavaEmitter {
                 for (Parameter p : md.parameters()) {
                     if (p.type().isNonNull() && !isPrimitive(p.type())) {
                         printIndent();
-                        sb.append("java.util.Objects.requireNonNull(").append(p.name())
-                                .append(", \"Parameter '").append(p.name()).append("' must not be null\");\n");
+                        if (p.type().hasNonNullElements() && guardedParameterNames.contains(p.name()))
+                        sb.append("final ").append(emitType(p.type())).append(" ").append(p.name()).append(" = ")
+                                .append(guardValue("$accent$" + p.name(), p.type())).append(";\n");
+                    else if (p.type().hasNonNullElements()) sb.append(p.name()).append(" = ").append(guardValue(p.name(), p.type())).append(";\n");
+                    else sb.append("java.util.Objects.requireNonNull(").append(p.name()).append(");\n");
                     }
                 }
 
+                beforeParameterGuards = false;
                 if (md.isGenerator()) {
                     printIndent();
                     sb.append("return accent.runtime.AccentGenerator.of((__emit) -> {\n");
@@ -520,6 +587,10 @@ public final class JavaEmitter {
                 sb.append(";\n");
             }
         }
+        nonNullMethodReturn = savedReturnContract;
+        methodReturnType = savedReturnType;
+        guardedParameterNames = savedParameterNames;
+        beforeParameterGuards = savedBeforeGuards;
     }
 
     private String boxedType(TypeNode type) {
@@ -549,8 +620,10 @@ public final class JavaEmitter {
     }
 
     private void emitParameter(Parameter parameter) {
+        if (parameter.type().hasNonNullElements()) sb.append("@accent.runtime.NonNullElements ");
         for (String annotation : parameter.annotations()) sb.append(annotation).append(" ");
-        sb.append(emitType(parameter.type())).append(parameter.isVarargs() ? "... " : " ").append(parameter.name());
+        sb.append(emitType(parameter.type())).append(parameter.isVarargs() ? "... " : " ").append(beforeParameterGuards && guardedParameterNames.contains(parameter.name())
+                ? "$accent$" + parameter.name() : parameter.name());
     }
 
     private void emitParameters(List<Parameter> parameters) {
@@ -617,7 +690,9 @@ public final class JavaEmitter {
             }
             sb.append(varDecl.name());
             if (varDecl.initializer().isPresent()) {
-                sb.append(" = ").append(emitExpression(varDecl.initializer().get()));
+                sb.append(" = ").append(varDecl.nonNullElements()
+                        ? "accent.runtime.ElementContracts.protect(" + emitInitializer(varDecl.initializer().get(), varDecl.type().orElse(null)) + ")"
+                        : guardBinding(emitExpression(varDecl.initializer().get()), varDecl.nonNullBinding()));
             }
             sb.append(";\n");
         } else if (stmt instanceof IfStmt ifs) {
@@ -793,7 +868,7 @@ public final class JavaEmitter {
             printIndent();
             sb.append("return");
             if (rs.expression().isPresent()) {
-                sb.append(" ").append(emitExpression(rs.expression().get()));
+                sb.append(" ").append(nonNullMethodReturn && methodReturnType != null ? guardValue(emitExpression(rs.expression().get()), methodReturnType) : guardBinding(emitExpression(rs.expression().get()), nonNullMethodReturn));
             }
             sb.append(";\n");
         } else if (stmt instanceof YieldStmt ys) {
@@ -881,6 +956,21 @@ public final class JavaEmitter {
 
     // --- Expression Emitter ---
 
+    private String emitInitializer(Expression expression, TypeNode type) {
+        if (expression instanceof ArrayInitializerExpr && type instanceof ArrayTypeNode)
+            return "new " + emitType(type) + emitExpression(expression);
+        return emitExpression(expression);
+    }
+
+    private String guardValue(String value, TypeNode type) {
+        if (type.hasNonNullElements()) return "accent.runtime.ElementContracts.protect(" + value + ")";
+        return guardBinding(value, type.isNonNull() && !isPrimitive(type));
+    }
+
+    private String guardBinding(String value, boolean nonNull) {
+        return nonNull ? "java.util.Objects.requireNonNull(" + value + ")" : value;
+    }
+
     private String emitExpression(Expression expr) {
         if (expr instanceof LiteralExpr lit) {
             if (lit.value() == null) return "null";
@@ -896,7 +986,7 @@ public final class JavaEmitter {
             }
             return lit.value().toString();
         } else if (expr instanceof IdentifierExpr id) {
-            return id.name();
+            return beforeParameterGuards && guardedParameterNames.contains(id.name()) ? "$accent$" + id.name() : id.name();
         } else if (expr instanceof ThisExpr) {
             // Extension receiver mapping: this -> _this
             return isInsideExtension ? "_this" : "this";
@@ -981,7 +1071,17 @@ public final class JavaEmitter {
             return "(" + concat.toString() + ")";
         } else if (expr instanceof BinaryExpr bin) {
             if (bin.operator().type() == accent.lexer.TokenType.ASSIGN) {
-                return emitExpression(bin.left()) + " = " + emitExpression(bin.right());
+                boolean nonNull = bin.left() instanceof IdentifierExpr id && id.nonNullBinding()
+                        || bin.left() instanceof MemberAccessExpr ma && ma.nonNullBinding();
+                boolean elements = bin.left() instanceof IdentifierExpr id && id.nonNullElements()
+                        || bin.left() instanceof MemberAccessExpr ma && ma.nonNullElements();
+                if (bin.left() instanceof ArrayAccessExpr aa) {
+                    String target = emitExpression(aa.receiver()) + "[" + emitExpression(aa.index()) + "]";
+                    return target + " = " + guardBinding(emitExpression(bin.right()), aa.nonNullElement());
+                }
+                return emitExpression(bin.left()) + " = " + (elements
+                        ? "accent.runtime.ElementContracts.protect(" + emitExpression(bin.right()) + ")"
+                        : guardBinding(emitExpression(bin.right()), nonNull));
             }
             accent.lexer.TokenType type = bin.operator().type();
             if (type == accent.lexer.TokenType.AND || type == accent.lexer.TokenType.AND_AND) {
@@ -1032,7 +1132,7 @@ public final class JavaEmitter {
                 r.append(emitExpression(mc.arguments().get(i)));
             }
             r.append(")");
-            return r.toString();
+            return guardBinding(r.toString(), mc.nonNullResult());
         } else if (expr instanceof NewObjectExpr no) {
             if (no.type() instanceof ArrayTypeNode arr) {
                 StringBuilder r = new StringBuilder("new ").append(emitType(arr.elementType())).append("[");
@@ -1075,8 +1175,10 @@ public final class JavaEmitter {
             r.append("}");
             return r.toString();
         } else if (expr instanceof ArrayAccessExpr aa) {
-            return emitExpression(aa.receiver()) + "[" + emitExpression(aa.index()) + "]";
+            return guardBinding(emitExpression(aa.receiver()) + "[" + emitExpression(aa.index()) + "]", aa.nonNullElement());
         } else if (expr instanceof LambdaExpr le) {
+            boolean savedReturnContract = nonNullMethodReturn;
+            nonNullMethodReturn = false;
             StringBuilder r = new StringBuilder("(");
             for (int i = 0; i < le.parameters().size(); i++) {
                 if (i > 0) r.append(", ");
@@ -1090,6 +1192,7 @@ public final class JavaEmitter {
                 // Block Statement
                 r.append(emitStatementToString((Statement) le.body()));
             }
+            nonNullMethodReturn = savedReturnContract;
             return r.toString();
         } else if (expr instanceof NamedArgExpr named) {
             return named.name() + ": " + emitExpression(named.expression());

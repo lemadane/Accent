@@ -33,11 +33,11 @@ class EditorProjectRegressionTest {
     void resolvesImportsUnderConventionalSourceRootsWithNonmatchingPackagePrefixes() throws Exception {
         for (String sourceSet : List.of("main", "test")) {
             String root = "src/" + sourceSet + "/accent/";
-            write(root + "User.accent", "package demo; class User { String! name() { return \"Alice\"; } }");
+            write(root + "User.accent", "package demo; class User { String name!() { return \"Alice\"; } }");
             String page = """
                     package demo.routes;
                     import demo.User;
-                    class Page { String! title() { return new User().name(); } }
+                    class Page { String title!() { return new User().name!(); } }
                     """;
             Path path = write(root + "routes/Page.accent", page);
             ProjectContext context = new ProjectContext(List.of());
@@ -72,7 +72,7 @@ class EditorProjectRegressionTest {
                 package shared;
                 class Text {}
                 extension String! {
-                    String! decorate() { return "<" + this + ">"; }
+                    String decorate!() { return "<" + this + ">"; }
                 }
                 """;
         Path text = write("shared/Text.accent", extension);
@@ -80,7 +80,7 @@ class EditorProjectRegressionTest {
                 package client;
                 import shared.Text;
                 class Caller {
-                    static String! run() { return "x".decorate(); }
+                    static String run!() { return "x".decorate!(); }
                 }
                 """;
         Path path = write("client/Caller.accent", caller);

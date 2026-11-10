@@ -65,6 +65,54 @@ python3 scripts/test-readme-spring.py
 
 For editor changes, rebuild the server and follow the [extension build and package checks](tools/accent-vscode/README.md#building-updated-editor-support). Existing VSIX archives retain their embedded grammar and documentation until rebuilt.
 
+## Nullability contracts
+
+Keep declarations, examples, diagnostics, and editor support consistent:
+
+| Contract | Declaration | Use |
+| --- | --- | --- |
+| Non-null reference | `String name! = "John";` | `name!` |
+| Non-null method result | `String name!() { return "John"; }` | `this.name!()` |
+| Non-null list and elements | `List<String> names!! = new ArrayList<String>();` | `names!!.get!(0)` |
+| Non-null array and elements | `String[] names!! = {"John"};` | `names![0]!` |
+
+Marked fields and locals require initializers; parameters and record/model
+components receive values from callers. Empty strings (`""`) and empty collections
+are non-null. Single-quoted strings are unsupported. Primitive names stay unmarked.
+Markers describe declared contracts, never unchecked assertions. A nullable value
+may be inserted into a `!!` collection only when the compiler proves it non-null,
+for example inside `if (value != null)`. Keep that variable's name unmarked.
+
+Non-null method calls retain `!()`. Optional calls such as `receiver?.name!()`
+remain nullable because the call can be skipped. Overrides must preserve inherited
+guarantees. Extension receiver types retain type-level nullability. Collection
+bindings use name-level `!!`, replacing `List<String!> names!` and `String![] names!`.
+Preserve compiled-library contracts through `@accent.runtime.NonNullReturn` and
+`@accent.runtime.NonNullElements`.
+
+**Readability counts:** `names!!.get!(0)` shows a non-null list, non-null elements,
+and a non-null result at the call site without looking up the declaration.
+Explicit is better than implicit. The markers do not guarantee a non-empty
+collection, a valid index, or immutable contents. Parameters are immutable bindings,
+not deeply immutable objects.
+
+Test initialization, mutations, null proofs, alias compatibility, argument and
+return contracts, overrides, generated Java, and separately compiled libraries.
+Include Java mutations through iterators, sublists, and bulk operations. Guarded
+lists copy ordinary inputs; array boundaries copy and validate inputs. Raw JVM
+arrays cannot reject arbitrary Java null stores; marked Accent reads detect them.
+Guarded `!!` method/constructor parameters have generated JVM names; HTTP binding
+annotations should specify names explicitly.
+
+Run the contract and documentation regression tests:
+
+```bash
+./gradlew :accent-compiler:test --tests accent.compiler.NonNullBindingTest --tests accent.compiler.NonNullMethodTest --tests accent.compiler.NonNullElementsTest --tests accent.compiler.AsyncDocumentationEndToEndTest :tools:accent-language-tools:test --max-workers=1
+```
+
+The method and element suites compile the corresponding README examples. Use a
+single worker if child-JVM HTTP tests time out under build contention.
+
 ## Testing Concurrency Changes
 
 Accent supports `async expression` as shorthand for `Async.run(() -> expression)` and `await valueAsync` as shorthand for `valueAsync.await()`. Both forms return the same `accent.runtime.Async<T>` handles and results, and may be mixed. The compiler rewrites the shorthands to these method calls, so test both forms against the same behavior. Keep examples, diagnostics, completions, and packaged grammars consistent with both forms.

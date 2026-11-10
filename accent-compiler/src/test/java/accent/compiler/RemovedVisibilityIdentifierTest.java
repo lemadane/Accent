@@ -35,7 +35,7 @@ class RemovedVisibilityIdentifierTest {
         CompilationResult result = new AccentCompiler().check(new SourceFile(Path.of("A.accent"), """
                 class A {
                     int privateCount = 1;
-                    String! describe(int _public) {
+                    String describe!(int _public) {
                         var internal = "private public protected";
                         return internal;
                     }

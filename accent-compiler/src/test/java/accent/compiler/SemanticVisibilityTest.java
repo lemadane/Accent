@@ -59,10 +59,10 @@ class SemanticVisibilityTest {
                 package other;
                 import vis.Counter;
                 class Snooper {
-                    int peek(Counter! counter) {
-                        counter._reset();
-                        counter.__grow();
-                        return counter._cache + counter.__step;
+                    int peek(Counter counter!) {
+                        counter!._reset();
+                        counter!.__grow();
+                        return counter!._cache + counter!.__step;
                     }
                 }
                 """);
@@ -75,9 +75,9 @@ class SemanticVisibilityTest {
         SourceFile neighbor = source("vis/Neighbor.accent", """
                 package vis;
                 class Neighbor {
-                    int peek(Counter! counter) {
-                        counter._reset(); counter.__grow();
-                        return counter._cache + counter.__step;
+                    int peek(Counter counter!) {
+                        counter!._reset(); counter!.__grow();
+                        return counter!._cache + counter!.__step;
                     }
                 }
                 """);
@@ -85,7 +85,7 @@ class SemanticVisibilityTest {
                 package other;
                 import vis.Counter;
                 class Visitor {
-                    int peek(Counter! counter) { counter.inc(); return counter.total; }
+                    int peek(Counter counter!) { counter!.inc(); return counter!.total; }
                 }
                 """);
         assertAccepted(COUNTER, neighbor, visitor);
@@ -97,9 +97,9 @@ class SemanticVisibilityTest {
                 package other;
                 import vis.Counter;
                 class Child extends Counter {
-                    int peek(Child! sibling) {
-                        super.__grow(); sibling.__grow();
-                        return super.__step + sibling.__step;
+                    int peek(Child sibling!) {
+                        super.__grow(); sibling!.__grow();
+                        return super.__step + sibling!.__step;
                     }
                     static int shared() { Counter.__touch(); return Counter.__shared; }
                 }
@@ -113,7 +113,7 @@ class SemanticVisibilityTest {
                 package other;
                 import vis.Counter;
                 class Child extends Counter {
-                    int peek(Counter! counter) { counter.__grow(); return counter.__step; }
+                    int peek(Counter counter!) { counter!.__grow(); return counter!.__step; }
                 }
                 """);
         assertRejected(List.of(COUNTER, child), child, "field '__step'", "method '__grow'");
@@ -126,7 +126,7 @@ class SemanticVisibilityTest {
         SourceFile neighbor = source("other/Neighbor.accent", """
                 package other;
                 class Neighbor {
-                    int peek(Child! child) { child._reset(); return child._cache; }
+                    int peek(Child child!) { child!._reset(); return child!._cache; }
                 }
                 """);
         assertRejected(List.of(COUNTER, child, neighbor), neighbor,
@@ -153,7 +153,7 @@ class SemanticVisibilityTest {
                 package vis;
                 import other.Child;
                 class Neighbor {
-                    int peek(Child! child) { child._reset(); return child._cache; }
+                    int peek(Child child!) { child!._reset(); return child!._cache; }
                 }
                 """);
         assertRejected(List.of(COUNTER, child, neighbor), neighbor, "field '_cache'", "method '_reset'");
@@ -167,12 +167,12 @@ class SemanticVisibilityTest {
                 """);
         SourceFile valid = source("other/Valid.accent", """
                 package other; import vis.Point;
-                class Valid { int read(Point! point) { return point.x(); } }
+                class Valid { int read(Point point!) { return point!.x(); } }
                 """);
         assertAccepted(point, valid);
         SourceFile invalid = source("vis/Invalid.accent", """
                 package vis;
-                class Invalid { int read(Point! point) { return point.x; } }
+                class Invalid { int read(Point point!) { return point!.x; } }
                 """);
         assertRejected(List.of(point, invalid), invalid, "field 'x' declared in 'vis.Point'");
     }
@@ -196,8 +196,8 @@ class SemanticVisibilityTest {
                 import vis.Shape;
                 import vis.Circle;
                 class Visitor {
-                    int read(Shape! shape, Circle! circle) {
-                        return shape.area() + Shape.VALUE + Shape.initial() + circle.VALUE;
+                    int read(Shape shape!, Circle circle!) {
+                        return shape!.area() + Shape.VALUE + Shape.initial() + circle!.VALUE;
                     }
                 }
                 """);
@@ -214,7 +214,7 @@ class SemanticVisibilityTest {
                 "package vis; class Implementation implements Api {}");
         SourceFile caller = source("vis/Caller.accent", """
                 package vis;
-                class Caller { int read(Implementation! value) { return value.initial(); } }
+                class Caller { int read(Implementation value!) { return value!.initial(); } }
                 """);
         assertRejected(List.of(api, implementation, caller), caller, "method 'initial'");
     }
@@ -225,12 +225,12 @@ class SemanticVisibilityTest {
                 package other;
                 import java.util.ArrayList;
                 class JavaSnooper {
-                    int privateField(ArrayList! list) { return list.size; }
-                    Object[] packageField(ArrayList! list) { return list.elementData; }
-                    int inheritedProtectedField(ArrayList! list) { return list.modCount; }
-                    void protectedMethod(ArrayList! list) { list.removeRange(0, 0); }
-                    Object[] privateMethod(ArrayList! list) { return list.grow(); }
-                    int packageMethod(String! text) { return text.coder(); }
+                    int privateField(ArrayList list!) { return list!.size; }
+                    Object[] packageField(ArrayList list!) { return list!.elementData; }
+                    int inheritedProtectedField(ArrayList list!) { return list!.modCount; }
+                    void protectedMethod(ArrayList list!) { list!.removeRange(0, 0); }
+                    Object[] privateMethod(ArrayList list!) { return list!.grow(); }
+                    int packageMethod(String text!) { return text!.coder(); }
                 }
                 """);
         assertRejected(List.of(snooper), snooper,
@@ -248,9 +248,9 @@ class SemanticVisibilityTest {
                 package other;
                 import java.util.ArrayList;
                 class JavaChild extends ArrayList {
-                    int read(JavaChild! sibling) {
-                        super.removeRange(0, 0); sibling.removeRange(0, 0);
-                        return super.modCount + sibling.modCount;
+                    int read(JavaChild sibling!) {
+                        super.removeRange(0, 0); sibling!.removeRange(0, 0);
+                        return super.modCount + sibling!.modCount;
                     }
                 }
                 """);
@@ -262,7 +262,7 @@ class SemanticVisibilityTest {
         SourceFile source = source("other/CloneList.accent", """
                 package other;
                 import java.util.ArrayList;
-                class CloneList { Object copy(ArrayList! list) { return list.clone(); } }
+                class CloneList { Object copy(ArrayList list!) { return list!.clone(); } }
                 """);
         assertAccepted(source);
     }
@@ -280,7 +280,7 @@ class SemanticVisibilityTest {
             SourceFile caller = source("other/Caller.accent", """
                     package other;
                     import vis.Api;
-                    class Caller { int call(Api! api) { return api.read(1); } }
+                    class Caller { int call(Api api!) { return api!.read(1); } }
                     """);
             assertRejected(List.of(api, caller), caller, "method 'read' declared in 'vis.Api'");
         }
@@ -316,16 +316,16 @@ class SemanticVisibilityTest {
                 """);
         SourceFile neighbor = source("vis/Neighbor.accent", """
                 package vis;
-                class Neighbor { int read(String! text) { return text._hidden() + text.__guarded(); } }
+                class Neighbor { int read(String text!) { return text!._hidden() + text!.__guarded(); } }
                 """);
         SourceFile visitor = source("other/Visitor.accent", """
                 package other;
-                class Visitor { int read(String! text) { return text.exposed(); } }
+                class Visitor { int read(String text!) { return text!.exposed(); } }
                 """);
         assertAccepted(extension, neighbor, visitor);
         SourceFile snooper = source("other/Snooper.accent", """
                 package other;
-                class Snooper { int read(String! text) { return text._hidden() + text.__guarded(); } }
+                class Snooper { int read(String text!) { return text!._hidden() + text!.__guarded(); } }
                 """);
         assertRejected(List.of(extension, snooper), snooper,
                 "extension method '_hidden'", "extension method '__guarded'");

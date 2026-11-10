@@ -2,7 +2,7 @@
   "name": "accent-vscode",
   "displayName": "Accent Language Support",
   "description": "IDE support for the Accent programming language",
-  "version": "0.1.8",
+  "version": "0.1.11",
   "publisher": "accentlang",
   "repository": {
     "type": "git",

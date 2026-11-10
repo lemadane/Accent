@@ -15,7 +15,7 @@ class AccentLexerTest {
                 Path.of("Features.accent"),
                 """
                 extension String! {
-                    String! normalized() {
+                    String normalized!() {
                         final result = this?.trim() ?? \"\";
                         return result;
                     }

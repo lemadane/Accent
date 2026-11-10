@@ -22,6 +22,18 @@ public interface Ast {
     sealed interface TypeNode extends Node permits BaseTypeNode, ArrayTypeNode, PrimitiveTypeNode {
         boolean isNonNull();
         TypeNode withNonNull(boolean nonNull);
+        default boolean hasNonNullElements() {
+            return this instanceof ArrayTypeNode a && a.elementType().isNonNull()
+                    || this instanceof BaseTypeNode b && (b.name().equals("List") || b.name().equals("java.util.List"))
+                        && b.typeArguments().size() == 1 && b.typeArguments().getFirst().isNonNull();
+        }
+        default TypeNode withNonNullElements() {
+            if (this instanceof ArrayTypeNode a) return new ArrayTypeNode(a.elementType().withNonNull(true), true);
+            if (this instanceof BaseTypeNode b && (b.name().equals("List") || b.name().equals("java.util.List"))
+                    && b.typeArguments().size() == 1)
+                return new BaseTypeNode(b.name(), List.of(b.typeArguments().getFirst().withNonNull(true)), true);
+            throw new IllegalArgumentException("'!!' requires an array or List<T> binding.");
+        }
     }
 
     record BaseTypeNode(String name, List<TypeNode> typeArguments, boolean isNonNull) implements TypeNode {
@@ -188,8 +200,21 @@ public interface Ast {
             boolean isInferred,
             Optional<TypeNode> type,
             String name,
-            Optional<Expression> initializer
-    ) implements Statement {}
+            Optional<Expression> initializer,
+            boolean nonNullBinding,
+            boolean nonNullElements
+    ) implements Statement {
+        public LocalVarDeclStmt(boolean isFinal, boolean isInferred, Optional<TypeNode> type,
+                                String name, Optional<Expression> initializer, boolean nonNullBinding) {
+            this(isFinal, isInferred, type, name, initializer, nonNullBinding,
+                    type.isPresent() && type.get().hasNonNullElements());
+        }
+        public LocalVarDeclStmt(boolean isFinal, boolean isInferred, Optional<TypeNode> type,
+                                String name, Optional<Expression> initializer) {
+            this(isFinal, isInferred, type, name, initializer,
+                    type.isPresent() && type.get().isNonNull() && !(type.get() instanceof PrimitiveTypeNode));
+        }
+    }
 
     record IfStmt(Expression condition, Statement thenBranch, Optional<Statement> elseBranch) implements Statement {}
 
@@ -238,7 +263,10 @@ public interface Ast {
 
     record LiteralExpr(Object value, Token token) implements Expression {}
 
-    record IdentifierExpr(String name, Token token) implements Expression {}
+    record IdentifierExpr(String name, Token token, boolean nonNullBinding, boolean nonNullElements) implements Expression {
+        public IdentifierExpr(String name, Token token, boolean nonNullBinding) { this(name, token, nonNullBinding, false); }
+        public IdentifierExpr(String name, Token token) { this(name, token, false); }
+    }
 
     record ThisExpr(Token token) implements Expression {}
 
@@ -248,7 +276,15 @@ public interface Ast {
 
     record UnaryExpr(Token operator, Expression expression, boolean isPostfix) implements Expression {}
 
-    record MemberAccessExpr(Expression receiver, String memberName, boolean isOptional, Token token) implements Expression {}
+    record MemberAccessExpr(Expression receiver, String memberName, boolean isOptional, Token token,
+                            boolean nonNullBinding, boolean nonNullElements) implements Expression {
+        public MemberAccessExpr(Expression receiver, String memberName, boolean isOptional, Token token, boolean nonNullBinding) {
+            this(receiver, memberName, isOptional, token, nonNullBinding, false);
+        }
+        public MemberAccessExpr(Expression receiver, String memberName, boolean isOptional, Token token) {
+            this(receiver, memberName, isOptional, token, false);
+        }
+    }
 
     record MethodCallExpr(
             Expression receiver, // Can be null if implicit this
@@ -256,8 +292,14 @@ public interface Ast {
             List<TypeNode> typeArguments,
             List<Expression> arguments,
             boolean isOptional,
-            Token token
-    ) implements Expression {}
+            Token token,
+            boolean nonNullResult
+    ) implements Expression {
+        public MethodCallExpr(Expression receiver, String methodName, List<TypeNode> typeArguments,
+                              List<Expression> arguments, boolean isOptional, Token token) {
+            this(receiver, methodName, typeArguments, arguments, isOptional, token, false);
+        }
+    }
 
     record NewObjectExpr(TypeNode type, List<Expression> arguments, Token token) implements Expression {}
 
@@ -270,7 +312,9 @@ public interface Ast {
 
     record ArrayInitializerExpr(List<Expression> expressions, Token token) implements Expression {}
 
-    record ArrayAccessExpr(Expression receiver, Expression index, Token token) implements Expression {}
+    record ArrayAccessExpr(Expression receiver, Expression index, Token token, boolean nonNullElement) implements Expression {
+        public ArrayAccessExpr(Expression receiver, Expression index, Token token) { this(receiver, index, token, false); }
+    }
 
     record LambdaExpr(
             List<Parameter> parameters,

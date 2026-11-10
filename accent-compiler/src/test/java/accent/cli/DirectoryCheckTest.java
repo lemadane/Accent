@@ -80,7 +80,7 @@ class DirectoryCheckTest {
     @Test
     void rejectsInaccessibleMembersAndReportsTheCallingFile() throws Exception {
         write("owner/Counter.accent", "package owner; class Counter { private int _cache = 1; }");
-        write("other/Caller.accent", "package other; import owner.Counter; class Caller { int call(Counter! counter) { return counter._cache; } }");
+        write("other/Caller.accent", "package other; import owner.Counter; class Caller { int call(Counter counter!) { return counter!._cache; } }");
 
         Result result = run("check", directory.toString());
 

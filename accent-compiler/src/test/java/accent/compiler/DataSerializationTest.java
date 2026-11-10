@@ -29,10 +29,10 @@ class DataSerializationTest {
                 """);
         Files.writeString(sources.resolve("Calls.accent"), """
                 class Calls {
-                    static String json(User! user) { return user.toJson(); }
-                    static String xml(User! user) { return user.toXml(); }
-                    static String recordJson(Address! address) { return address.toJson(); }
-                    static String recordXml(Address! address) { return address.toXml(); }
+                    static String json(User user!) { return user!.toJson!(); }
+                    static String xml(User user!) { return user!.toXml!(); }
+                    static String recordJson(Address address!) { return address!.toJson!(); }
+                    static String recordXml(Address address!) { return address!.toXml!(); }
                 }
                 """);
         Files.writeString(sources.resolve("Custom.accent"), """
@@ -82,18 +82,18 @@ class DataSerializationTest {
         Files.writeString(sources.resolve("Containers.accent"), """
                 import java.util.*;
                 class Containers {
-                    static String listJson(List<Item> values) { return values.toJson(); }
-                    static String listXml(List<Item> values) { return values.toXml(); }
-                    static String mapJson(Map<String, Entry> values) { return values.toJson(); }
-                    static String mapXml(Map<String, Entry> values) { return values.toXml(); }
-                    static String modelList(List<Entry> values) { return values.toJson(); }
-                    static String recordMap(Map<Integer, Item> values) { return values.toXml(); }
-                    static String concreteList(ArrayList<Item> values) { return values.toJson(); }
-                    static String concreteMap(LinkedHashMap<String, Entry> values) { return values.toXml(); }
-                    static String optionalList(List<Item> values) { return values?.toJson(); }
-                    static String optionalMap(Map<String, Entry> values) { return values?.toXml(); }
-                    static int chained(List<Item> values) { return values.toJson().length(); }
-                    static String fallback(List<Item> values) { return values?.toJson() ?? "absent"; }
+                    static String listJson(List<Item> values) { return values.toJson!(); }
+                    static String listXml(List<Item> values) { return values.toXml!(); }
+                    static String mapJson(Map<String, Entry> values) { return values.toJson!(); }
+                    static String mapXml(Map<String, Entry> values) { return values.toXml!(); }
+                    static String modelList(List<Entry> values) { return values.toJson!(); }
+                    static String recordMap(Map<Integer, Item> values) { return values.toXml!(); }
+                    static String concreteList(ArrayList<Item> values) { return values.toJson!(); }
+                    static String concreteMap(LinkedHashMap<String, Entry> values) { return values.toXml!(); }
+                    static String optionalList(List<Item> values) { return values?.toJson!(); }
+                    static String optionalMap(Map<String, Entry> values) { return values?.toXml!(); }
+                    static int chained(List<Item> values) { return values.toJson!().length(); }
+                    static String fallback(List<Item> values) { return values?.toJson!() ?? "absent"; }
                 }
                 """);
         Path output = tempDir.resolve("classes");
@@ -147,7 +147,7 @@ class DataSerializationTest {
 
     @Test
     void rejectsSerializationArgumentsAndUnrelatedReceivers() {
-        for (String expression : List.of("values.toJson(1)", "values.toXml(1)", "text.toJson()")) {
+        for (String expression : List.of("values.toJson!(1)", "values.toXml!(1)", "text.toJson!()")) {
             var source = new accent.source.SourceFile(Path.of("Invalid.accent"),
                     "import java.util.List; class Invalid { String run(List<String> values, String text) { return "
                             + expression + "; } }");

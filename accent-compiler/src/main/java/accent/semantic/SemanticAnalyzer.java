@@ -27,9 +27,15 @@ public final class SemanticAnalyzer implements ImportResolver {
     private final Deque<List<ResolvedType>> lambdaReturns = new ArrayDeque<>();
     private final Map<LambdaExpr, List<ResolvedType>> lambdaParameterTypes = new IdentityHashMap<>();
     private final Map<LambdaExpr, ResolvedType> lambdaResults = new IdentityHashMap<>();
+    private final Map<LambdaExpr, ResolvedType> lambdaTargets = new IdentityHashMap<>();
 
     // Stack of expression contexts for yield checks
     private final Deque<ExpressionContext> expressionContexts = new ArrayDeque<>();
+
+    private boolean checkingArrayReceiver;
+    private ResolvedType requiredReturnType;
+    private ResolvedType declaredReturnType;
+    private String currentMethodName;
 
     private static class LocalVar {
         final String name;
@@ -140,7 +146,7 @@ public final class SemanticAnalyzer implements ImportResolver {
                     List.of(), List.of()
                 );
             }
-            ResolvedType logType = new ResolvedType(loggerInfo, true, List.of(), 0);
+            ResolvedType logType = new ResolvedType(loggerInfo, false, List.of(), 0);
             scopes.getFirst().put("log", new LocalVar("log", logType, true, false));
         }
     }
@@ -164,7 +170,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             } else {
                 ResolvedType actual = checkExpression(component.defaultValue().get());
                 ResolvedType expected = symbolTable.resolveTypeNode(component.type(), this);
-                if (actual != null && !actual.isCompatibleWith(expected, symbolTable)) {
+                if (actual != null && !symbolTable.isInvocationCompatible(actual, expected)) {
                     error(null, "Incompatible default value for singleton component '" + component.name() + "'.");
                 }
             }
@@ -209,6 +215,7 @@ public final class SemanticAnalyzer implements ImportResolver {
         pushScope();
         injectLoggerScope(rd.modifiers(), rd.members(), null);
         validateSingleton(rd);
+        rd.components().forEach(p -> checkParameterDefault(p, symbolTable.resolveTypeNode(p.type(), this)));
 
         for (Member member : rd.members()) {
             analyzeMember(member);
@@ -226,6 +233,7 @@ public final class SemanticAnalyzer implements ImportResolver {
         pushScope();
         injectLoggerScope(md.modifiers(), md.members(), null);
         validateSingleton(md);
+        md.components().forEach(p -> checkParameterDefault(p, symbolTable.resolveTypeNode(p.type(), this)));
 
         for (Member member : md.members()) {
             analyzeMember(member);
@@ -286,24 +294,241 @@ public final class SemanticAnalyzer implements ImportResolver {
 
                 for (Parameter param : md.parameters()) {
                     ResolvedType pType = symbolTable.resolveTypeNode(param.type(), this);
+                    checkParameterDefault(param, pType);
                     scopes.getFirst().put(param.name(), new LocalVar(param.name(), pType, true, true)); // All parameters are immutable
                 }
 
-                md.body().ifPresent(this::checkStatement);
+                checkMethodBody(md);
                 popScope();
             }
+        }
+    }
+
+    private void checkMethodBody(MethodDecl method) {
+        ResolvedType savedDeclaredReturn = declaredReturnType;
+        declaredReturnType = symbolTable.resolveTypeNode(method.returnType(), this);
+        ResolvedType savedReturn = requiredReturnType;
+        String savedName = currentMethodName;
+        requiredReturnType = !method.isGenerator() && method.returnType().isNonNull()
+                && !(method.returnType() instanceof PrimitiveTypeNode)
+                ? symbolTable.resolveTypeNode(method.returnType(), this) : null;
+        currentMethodName = method.name();
+        if (requiredReturnType != null && requiredReturnType.isPrimitive()) {
+            error(null, "Primitive and void methods must not use '!'.");
+            requiredReturnType = null;
+        }
+        validateReturnOverride(method);
+        method.body().ifPresent(body -> {
+            checkStatement(body);
+            if (requiredReturnType != null && canCompleteNormally(body)) {
+                error(null, "Non-null method '" + method.name() + "!()' must return a value on every completing path.");
+            }
+        });
+        requiredReturnType = savedReturn;
+        declaredReturnType = savedDeclaredReturn;
+        currentMethodName = savedName;
+    }
+
+    private void validateReturnOverride(MethodDecl method) {
+        if (currentClass == null || method.modifiers().contains("static")) return;
+        ResolvedType result = symbolTable.resolveTypeNode(method.returnType(), this);
+        for (TypeInfo parent : symbolTable.hierarchy(currentClass)) {
+            if (parent == currentClass) continue;
+            for (SymbolTable.MethodInfo inherited : parent.methods()) {
+                if (!inherited.name().equals(method.name()) || inherited.modifiers().contains("static")
+                        || inherited.parameters().size() != method.parameters().size()) continue;
+                if (!symbolTable.isMemberAccessible(inherited, currentClass, currentClass,
+                        currentUnit.packageName().orElse(""), false)) continue;
+                boolean sameSignature = true;
+                for (int i = 0; i < method.parameters().size(); i++) {
+                    ResolvedType own = symbolTable.resolveTypeNode(method.parameters().get(i).type(), this);
+                    ResolvedType other = symbolTable.resolveParameterType(inherited, i);
+                    if (!own.info().fullName().equals(other.info().fullName())
+                            || own.arrayDimensions() != other.arrayDimensions()) sameSignature = false;
+                }
+                ResolvedType inheritedResult = symbolTable.resolveReturnType(inherited);
+                if (sameSignature && inheritedResult.nonNullElements() && !result.nonNullElements())
+                    error(null, "Override must preserve the inherited non-null element return contract.");
+                if (sameSignature && inheritedResult.isNonNull() && !inheritedResult.isPrimitive()
+                        && !result.isNonNull()) {
+                    error(null, "Override '" + method.name() + "()' must preserve the inherited non-null return contract; use '"
+                            + method.name() + "!()'.");
+                }
+            }
+        }
+    }
+
+    /** Conservative fall-through analysis; throw and non-terminating loops need no return. */
+    private boolean canCompleteNormally(Statement statement) {
+        if (statement instanceof ReturnStmt || statement instanceof ThrowStmt) return false;
+        if (statement instanceof BlockStmt block) {
+            for (Statement child : block.statements()) if (!canCompleteNormally(child)) return false;
+            return true;
+        }
+        if (statement instanceof IfStmt branch) {
+            return canCompleteNormally(branch.thenBranch())
+                    || branch.elseBranch().isEmpty() || canCompleteNormally(branch.elseBranch().get());
+        }
+        if (statement instanceof TryStmt attempt) {
+            if (attempt.finallyBlock().isPresent() && !canCompleteNormally(attempt.finallyBlock().get())) return false;
+            return canCompleteNormally(attempt.body())
+                    || attempt.catchClauses().stream().anyMatch(c -> canCompleteNormally(c.body()));
+        }
+        if (statement instanceof WhileStmt loop) {
+            return !isAlwaysTrue(loop.condition()) || containsBreak(loop.body());
+        }
+        if (statement instanceof ForStmt loop) {
+            return (loop.condition().isPresent() && !isAlwaysTrue(loop.condition().get())) || containsBreak(loop.body());
+        }
+        if (statement instanceof DoWhileStmt loop) {
+            return containsBreak(loop.body()) || ((canCompleteNormally(loop.body()) || containsContinue(loop.body())) && !isAlwaysTrue(loop.condition()));
+        }
+        return true;
+    }
+
+    private boolean isAlwaysTrue(Expression expression) {
+        return expression instanceof LiteralExpr literal && Boolean.TRUE.equals(literal.value());
+    }
+
+    private boolean containsContinue(Statement statement) {
+        if (statement instanceof ContinueStmt) return true;
+        if (statement instanceof BlockStmt block) return block.statements().stream().anyMatch(this::containsContinue);
+        if (statement instanceof IfStmt branch) return containsContinue(branch.thenBranch())
+                || branch.elseBranch().map(this::containsContinue).orElse(false);
+        if (statement instanceof TryStmt attempt) return containsContinue(attempt.body())
+                || attempt.catchClauses().stream().anyMatch(c -> containsContinue(c.body()))
+                || attempt.finallyBlock().map(this::containsContinue).orElse(false);
+        return false;
+    }
+
+    private boolean containsBreak(Statement statement) {
+        if (statement instanceof BreakStmt) return true;
+        if (statement instanceof BlockStmt block) return block.statements().stream().anyMatch(this::containsBreak);
+        if (statement instanceof IfStmt branch) return containsBreak(branch.thenBranch())
+                || branch.elseBranch().map(this::containsBreak).orElse(false);
+        if (statement instanceof TryStmt attempt) return containsBreak(attempt.body())
+                || attempt.catchClauses().stream().anyMatch(c -> containsBreak(c.body()))
+                || attempt.finallyBlock().map(this::containsBreak).orElse(false);
+        // A break inside a nested loop targets that loop.
+        return false;
+    }
+
+    private void checkMethodMarker(MethodCallExpr call, ResolvedType declaredResult) {
+        boolean required = declaredResult.isNonNull() && !declaredResult.isPrimitive();
+        if (call.nonNullResult() != required) {
+            error(call.token(), required
+                    ? "Non-null method '" + call.methodName() + "!()' must include '!' at every call."
+                    : "Method '" + call.methodName() + "()' has no non-null return contract; '!' is not an assertion.");
+        }
+    }
+
+    private Map<LocalVar, Boolean> refinementSnapshot() {
+        Map<LocalVar, Boolean> facts = new IdentityHashMap<>();
+        for (var scope : scopes) for (LocalVar variable : scope.values()) facts.put(variable, variable.isRefinedNonNull);
+        return facts;
+    }
+
+    private void restoreRefinements(Map<LocalVar, Boolean> facts) {
+        facts.forEach((variable, nonNull) -> variable.isRefinedNonNull = nonNull);
+    }
+
+    private void clearMutableRefinements() {
+        for (var scope : scopes) for (LocalVar variable : scope.values()) {
+            if (!variable.isFinal && !variable.isParameter) variable.isRefinedNonNull = false;
+        }
+    }
+
+    private void checkParameterDefault(Parameter parameter, ResolvedType expected) {
+        if (expected.nonNullElements() && (expected.arrayDimensions() > 1
+                || expected.arrayDimensions() > 0 && expected.info().isPrimitive()))
+            error(null, "'!!' supports one-dimensional reference arrays and List<T>.");
+        parameter.defaultValue().ifPresent(value -> {
+            ResolvedType actual = checkExpression(value);
+            if (actual != null && !symbolTable.isInvocationCompatible(actual, expected)) {
+                error(null, "Incompatible types for default value of '" + parameter.name() + "'.");
+            }
+        });
+    }
+
+    private boolean isList(ResolvedType type) {
+        return type != null && type.arrayDimensions() == 0 && type.info().fullName().equals("java.util.List");
+    }
+
+    private ResolvedType checkCollectionInitializer(Expression expression, ResolvedType expected, ResolvedType actual) {
+        if (isList(expected) && expression instanceof MethodCallExpr call
+                && call.receiver() instanceof IdentifierExpr id && Set.of("List", "java.util.List").contains(id.name())
+                && Set.of("of", "copyOf").contains(call.methodName())) {
+            if (expected.nonNullElements() && call.methodName().equals("of")) {
+                for (Expression item : call.arguments()) {
+                    ResolvedType value = resolvedTypes.get(item);
+                    if (value != null && !symbolTable.isInvocationCompatible(value, expected.elementType(symbolTable)))
+                        error(item.token(), "Non-null elements require a proven non-null value of the element type.");
+                }
+            }
+            return expected.withNonNull(true);
+        }
+        if (expected == null || !expected.nonNullElements()) return actual;
+        if (expected.arrayDimensions() > 1 || expected.arrayDimensions() > 0 && expected.info().isPrimitive()) {
+            error(expression.token(), "'!!' supports one-dimensional reference arrays and List<T>.");
+            return actual;
+        }
+        ArrayInitializerExpr initializer = expression instanceof ArrayInitializerExpr a ? a
+                : expression instanceof NewArrayExpr a ? a.initializer().orElse(null) : null;
+        if (initializer != null) {
+            for (Expression item : initializer.expressions()) {
+                ResolvedType value = resolvedTypes.get(item);
+                if (value == null || !symbolTable.isInvocationCompatible(value, expected.elementType(symbolTable)))
+                    error(item.token(), "Non-null elements require a proven non-null value of the element type.");
+            }
+            actual = expected.withNonNull(true);
+        } else if (expression instanceof NewArrayExpr) {
+            error(expression.token(), "Non-null element arrays require an initializer; sized reference arrays start with null elements.");
+        } else if (isList(expected) && expression instanceof NewObjectExpr object
+                && object.type() instanceof BaseTypeNode b
+                && Set.of("ArrayList", "java.util.ArrayList", "LinkedList", "java.util.LinkedList").contains(b.name())
+                && object.arguments().isEmpty()) {
+            actual = expected.withNonNull(true);
+        }
+        if (actual != null) resolvedTypes.put(expression, actual);
+        return actual;
+    }
+
+    private void checkElementMarker(String name, boolean marked, ResolvedType type, Token token) {
+        if (!checkingArrayReceiver && marked != type.nonNullElements()) error(token, type.nonNullElements()
+                ? "Collection '" + name + "!!' must include '!!' at every whole-collection use."
+                : "Collection '" + name + "' has no non-null element contract; '!!' is not an assertion.");
+    }
+
+    private void checkBindingMarker(String name, boolean marked, ResolvedType type, Token token) {
+        boolean required = type.isNonNull() && !type.isPrimitive();
+        if (marked != required) {
+            error(token, required
+                    ? "Non-null binding '" + name + "!' must include '!' at every use."
+                    : "Binding '" + name + "' is not declared with '!'; it cannot be asserted non-null.");
         }
     }
 
     private void analyzeMember(Member member) {
         if (member instanceof FieldDecl fd) {
             isStaticContext = fd.modifiers().contains("static");
-            fd.initializer().ifPresent(this::checkExpression);
+            fd.initializer().ifPresent(init -> {
+                ResolvedType actual = checkExpression(init);
+                ResolvedType expected = symbolTable.resolveFieldType(currentClass.findField(fd.name(), symbolTable));
+                actual = checkCollectionInitializer(init, expected, actual);
+                if (fd.type().isNonNull() && !(fd.type() instanceof PrimitiveTypeNode)
+                        && expected.isPrimitive()) {
+                    error(null, "Primitive bindings are already non-null and must not use '!'.");
+                }
+                if (actual != null && expected != null && !symbolTable.isInvocationCompatible(actual, expected)) {
+                    error(null, "Incompatible types for field '" + fd.name() + "': expected " + expected + ", actual " + actual);
+                }
+            });
         } else if (member instanceof ConstructorDecl cd) {
             isStaticContext = false;
             pushScope();
             for (Parameter param : cd.parameters()) {
                 ResolvedType pType = symbolTable.resolveTypeNode(param.type(), this);
+                checkParameterDefault(param, pType);
                 scopes.getFirst().put(param.name(), new LocalVar(param.name(), pType, true, true));
             }
             checkStatement(cd.body());
@@ -313,9 +538,10 @@ public final class SemanticAnalyzer implements ImportResolver {
             pushScope();
             for (Parameter param : md.parameters()) {
                 ResolvedType pType = symbolTable.resolveTypeNode(param.type(), this);
+                checkParameterDefault(param, pType);
                 scopes.getFirst().put(param.name(), new LocalVar(param.name(), pType, true, true));
             }
-            md.body().ifPresent(this::checkStatement);
+            checkMethodBody(md);
             popScope();
         }
     }
@@ -359,7 +585,12 @@ public final class SemanticAnalyzer implements ImportResolver {
                 if (varDecl.initializer().get() instanceof LambdaExpr lambda && type != null) contextualizeLambda(lambda, type);
                 initType = checkExpression(varDecl.initializer().get());
                 if (type == null) {
-                    type = initType; // Type inference
+                    type = initType == null ? null : initType.withNonNull(initType.isPrimitive() || varDecl.nonNullBinding())
+                            .withNonNullElements(varDecl.nonNullElements());
+                    if (type != null && varDecl.nonNullElements()) {
+                        if (!isList(type) && type.arrayDimensions() == 0) error(null, "Inferred '!!' requires an array or List<T>.");
+                        type = type.withNonNullElements(true);
+                    }
                 }
             }
 
@@ -370,17 +601,24 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
 
             if (varDecl.initializer().isPresent() && initType != null) {
+                initType = checkCollectionInitializer(varDecl.initializer().get(), type, initType);
                 if (!initType.isCompatibleWith(type, symbolTable)) {
                     error(null, "Incompatible types: expected " + type + ", actual " + initType);
                 }
             }
 
+            if (varDecl.nonNullBinding() && type.isPrimitive()) {
+                error(null, "Primitive bindings are already non-null and must not use '!'.");
+            }
             // Shadows check
-            scopes.getFirst().put(varDecl.name(), new LocalVar(varDecl.name(), type, varDecl.isFinal(), false));
+            LocalVar local = new LocalVar(varDecl.name(), type, varDecl.isFinal(), false);
+            local.isRefinedNonNull = initType != null && initType.isNonNull();
+            scopes.getFirst().put(varDecl.name(), local);
         } else if (stmt instanceof IfStmt ifs) {
             ResolvedType condType = checkExpression(ifs.condition());
             verifyCondition(condType, ifs.condition().token());
 
+            Map<LocalVar, Boolean> before = refinementSnapshot();
             // Null checking flow refinement
             boolean refinedNonNull = false;
             String refinedVarName = "";
@@ -397,21 +635,22 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
 
             if (refinedNonNull) {
-                LocalVar v = lookupVar(refinedVarName);
-                if (v != null) {
-                    boolean original = v.isRefinedNonNull;
-                    v.isRefinedNonNull = true;
-                    checkStatement(ifs.thenBranch());
-                    v.isRefinedNonNull = original; // Restore
-                } else {
-                    checkStatement(ifs.thenBranch());
-                }
-            } else {
-                checkStatement(ifs.thenBranch());
+                LocalVar variable = lookupVar(refinedVarName);
+                if (variable != null) variable.isRefinedNonNull = true;
             }
-
+            checkStatement(ifs.thenBranch());
+            Map<LocalVar, Boolean> thenFacts = refinementSnapshot();
+            restoreRefinements(before);
             ifs.elseBranch().ifPresent(this::checkStatement);
+            boolean thenCompletes = canCompleteNormally(ifs.thenBranch());
+            boolean elseCompletes = ifs.elseBranch().map(this::canCompleteNormally).orElse(true);
+            for (LocalVar variable : before.keySet()) {
+                boolean thenFact = thenFacts.getOrDefault(variable, false);
+                boolean elseFact = variable.isRefinedNonNull;
+                variable.isRefinedNonNull = (!thenCompletes || thenFact) && (!elseCompletes || elseFact);
+            }
         } else if (stmt instanceof ForStmt fs) {
+            clearMutableRefinements();
             pushScope();
             fs.init().ifPresent(this::checkStatement);
             fs.condition().ifPresent(this::checkExpression);
@@ -419,14 +658,16 @@ public final class SemanticAnalyzer implements ImportResolver {
             checkStatement(fs.body());
             popScope();
             fs.elseBranch().ifPresent(this::checkStatement);
+            clearMutableRefinements();
         } else if (stmt instanceof ForEachStmt fes) {
+            clearMutableRefinements();
             ResolvedType iterType = checkExpression(fes.iterable());
             ResolvedType elemType;
             if (fes.parameter().type() instanceof BaseTypeNode base && base.name().equals("var")) {
                 if (iterType != null && iterType.info().fullName().equals("java.util.List") && !iterType.typeArguments().isEmpty()) {
                     elemType = iterType.typeArguments().get(0);
                 } else if (iterType != null && iterType.arrayDimensions() > 0) {
-                    elemType = new ResolvedType(iterType.info(), iterType.isNonNull(), iterType.typeArguments(), iterType.arrayDimensions() - 1);
+                    elemType = iterType.elementType(symbolTable);
                 } else {
                     elemType = new ResolvedType(symbolTable.getType("java.lang.Object"), false, List.of(), 0);
                 }
@@ -434,32 +675,54 @@ public final class SemanticAnalyzer implements ImportResolver {
                 elemType = symbolTable.resolveTypeNode(fes.parameter().type(), this);
             }
 
+            elemType = elemType.withNonNull(elemType.isPrimitive() || fes.parameter().type().isNonNull());
             pushScope();
             // Enhance parameter is implicitly final and parameter-like (immutable)
             scopes.getFirst().put(fes.parameter().name(), new LocalVar(fes.parameter().name(), elemType, true, true));
             checkStatement(fes.body());
             popScope();
             fes.elseBranch().ifPresent(this::checkStatement);
+            clearMutableRefinements();
         } else if (stmt instanceof WhileStmt ws) {
+            clearMutableRefinements();
             checkExpression(ws.condition());
             checkStatement(ws.body());
+            clearMutableRefinements();
         } else if (stmt instanceof DoWhileStmt dws) {
+            clearMutableRefinements();
             checkStatement(dws.body());
             checkExpression(dws.condition());
+            clearMutableRefinements();
         } else if (stmt instanceof TryStmt ts) {
+            clearMutableRefinements();
             checkStatement(ts.body());
             for (CatchClause cc : ts.catchClauses()) {
+                clearMutableRefinements();
                 pushScope();
                 ResolvedType exType = symbolTable.resolveTypeNode(cc.parameter().type(), this);
                 scopes.getFirst().put(cc.parameter().name(), new LocalVar(cc.parameter().name(), exType, true, true));
                 checkStatement(cc.body());
                 popScope();
             }
+            clearMutableRefinements();
             ts.finallyBlock().ifPresent(this::checkStatement);
         } else if (stmt instanceof ReturnStmt rs) {
             ResolvedType result = rs.expression().map(this::checkExpression)
                     .orElse(new ResolvedType(symbolTable.getType("void"), false, List.of(), 0));
+            if (lambdaReturns.isEmpty() && declaredReturnType != null && result != null
+                    && (declaredReturnType.nonNullElements() || result.nonNullElements())
+                    && (declaredReturnType.arrayDimensions() > 0 || isList(declaredReturnType))
+                    && !symbolTable.isInvocationCompatible(result, declaredReturnType))
+                error(null, "Return value must preserve the declared non-null element contract.");
             if (!lambdaReturns.isEmpty() && result != null) lambdaReturns.peek().add(result);
+            else if (requiredReturnType != null) {
+                if (rs.expression().isEmpty() || result == null
+                        || !symbolTable.isInvocationCompatible(result, requiredReturnType)) {
+                    error(rs.expression().map(Expression::token).orElse(null),
+                            "Non-null method '" + currentMethodName + "!()' must return a non-null value compatible with "
+                                    + requiredReturnType + ".");
+                }
+            }
         } else if (stmt instanceof YieldStmt ys) {
             ResolvedType type = checkExpression(ys.expression());
             if (expressionContexts.isEmpty()) {
@@ -487,11 +750,14 @@ public final class SemanticAnalyzer implements ImportResolver {
         var methods = target.info().methods().stream()
                 .filter(method -> !method.modifiers().contains("static"))
                 .toList();
+        var abstractMethods = methods.stream().filter(method -> method.modifiers().contains("abstract")).toList();
+        if (!abstractMethods.isEmpty()) methods = abstractMethods;
         if (methods.size() != 1 || methods.getFirst().parameters().size() != lambda.parameters().size()) return false;
         SymbolTable.MethodInfo method = methods.getFirst();
         List<ResolvedType> parameters = new ArrayList<>();
         for (int i = 0; i < method.parameters().size(); i++) parameters.add(symbolTable.resolveParameterType(method, i));
         lambdaParameterTypes.put(lambda, parameters);
+        lambdaTargets.put(lambda, target.withNonNull(true));
         return true;
     }
 
@@ -600,6 +866,8 @@ public final class SemanticAnalyzer implements ImportResolver {
         } else if (expr instanceof IdentifierExpr id) {
             LocalVar v = lookupVar(id.name());
             if (v != null) {
+                checkBindingMarker(id.name(), id.nonNullBinding(), v.type, id.token());
+                checkElementMarker(id.name(), id.nonNullElements(), v.type, id.token());
                 if (v.isRefinedNonNull) {
                     return v.type.withNonNull(true);
                 }
@@ -624,6 +892,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             // Assume package name or class name reference
             TypeInfo classInfo = resolve(id.name());
             if (classInfo != null) {
+                if (id.nonNullBinding()) error(id.token(), "Type names must not use a binding '!'.");
                 return new ResolvedType(classInfo, true, List.of(), 0);
             }
 
@@ -670,6 +939,8 @@ public final class SemanticAnalyzer implements ImportResolver {
                 if (bin.left() instanceof IdentifierExpr id) {
                     LocalVar v = lookupVar(id.name());
                     if (v != null) {
+                        left = v.type;
+                        v.isRefinedNonNull = right != null && right.isNonNull();
                         if (v.isParameter) {
                             error(bin.operator(), "Reassigning method or constructor parameter '" + id.name() + "' is not permitted.");
                         } else if (v.isFinal) {
@@ -678,6 +949,7 @@ public final class SemanticAnalyzer implements ImportResolver {
                     }
                 }
                 
+                right = checkCollectionInitializer(bin.right(), left, right);
                 if (left != null && right != null && !right.isCompatibleWith(left, symbolTable)) {
                     error(bin.operator(), "Incompatible types in assignment: expected " + left + ", actual " + right);
                 }
@@ -731,6 +1003,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             return type;
         } else if (expr instanceof MemberAccessExpr ma) {
             if (ma.memberName().equals("class")) {
+                if (ma.nonNullBinding()) error(ma.token(), "Class literals must not use a binding '!'.");
                 return new ResolvedType(symbolTable.getType("java.lang.Class"), true, List.of(), 0);
             }
             ResolvedType rec = checkExpression(ma.receiver());
@@ -743,6 +1016,8 @@ public final class SemanticAnalyzer implements ImportResolver {
                     }
                     verifyMemberReceiver(ma.receiver(), fInfo.modifiers(), symbolTable.declaringOwner(fInfo), ma.memberName(), ma.token());
                     ResolvedType fType = symbolTable.resolveFieldType(fInfo);
+                    checkBindingMarker(ma.memberName(), ma.nonNullBinding(), fType, ma.token());
+                    checkElementMarker(ma.memberName(), ma.nonNullElements(), fType, ma.token());
                     if (ma.isOptional()) {
                         return fType.withNonNull(false); // Optional chain result is nullable
                     }
@@ -776,6 +1051,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             if (rec != null && rec.info().fullName().equals("accent.runtime.Async")
                     && mc.methodName().equals("run") && mc.arguments().size() == 1
                     && mc.arguments().getFirst() instanceof LambdaExpr lambda) {
+                if (mc.nonNullResult()) error(mc.token(), "Java method 'run()' has no declared non-null return contract.");
                 if (!lambda.parameters().isEmpty()) error(mc.token(), "Async.run requires a zero-argument operation.");
                 ResolvedType result = lambdaResults.get(lambda);
                 if (result == null) result = new ResolvedType(symbolTable.getType("java.lang.Object"), false, List.of(), 0);
@@ -795,6 +1071,22 @@ public final class SemanticAnalyzer implements ImportResolver {
                 if (boxed != null && result.arrayDimensions() == 0) result = new ResolvedType(symbolTable.getType(boxed), result.isNonNull(), List.of(), 0);
                 if (mc.typeArguments().size() == 1) result = symbolTable.resolveTypeNode(mc.typeArguments().getFirst(), this);
                 return new ResolvedType(rec.info(), true, List.of(result), 0);
+            }
+
+            if (isList(rec) && mc.receiver() instanceof IdentifierExpr id
+                    && (id.name().equals("List") || id.name().equals("java.util.List"))
+                    && (mc.methodName().equals("of") || mc.methodName().equals("copyOf"))) {
+                if (mc.nonNullResult()) error(mc.token(), "Java factories use unmarked method names.");
+                ResolvedType element = new ResolvedType(symbolTable.getType("java.lang.Object"), true, List.of(), 0);
+                if (mc.methodName().equals("of")) {
+                    for (ResolvedType argument : argTypes) {
+                        if (!argument.isNonNull()) error(mc.token(), "List.of requires proven non-null elements.");
+                    }
+                    if (!argTypes.isEmpty()) element = argTypes.getFirst().withNonNull(true);
+                } else if (!argTypes.isEmpty() && !argTypes.getFirst().typeArguments().isEmpty()) {
+                    element = argTypes.getFirst().typeArguments().getFirst().withNonNull(true);
+                }
+                return new ResolvedType(rec.info(), true, List.of(element), 0, true);
             }
 
             if (mc.methodName().equals("super")) {
@@ -837,10 +1129,49 @@ public final class SemanticAnalyzer implements ImportResolver {
                                 + "' must be explicitly qualified with '" + requiredQualifier(symbolTable.declaringOwner(mInfo)) + "'.");
                     }
                     verifyMemberReceiver(mc.receiver(), mInfo.modifiers(), symbolTable.declaringOwner(mInfo), mc.methodName(), mc.token());
+                    for (int i = 0; i < Math.min(argTypes.size(), mInfo.parameters().size()); i++) {
+                        int parameterIndex = i;
+                        if (mc.arguments().get(i) instanceof NamedArgExpr named) {
+                            for (int j = 0; j < mInfo.parameters().size(); j++)
+                                if (mInfo.parameters().get(j).name().equals(named.name())) parameterIndex = j;
+                        }
+                        ResolvedType expected = symbolTable.resolveParameterType(mInfo, parameterIndex);
+                        ResolvedType actual = argTypes.get(i);
+                        if ((expected.nonNullElements() || actual.nonNullElements())
+                                && (expected.arrayDimensions() > 0 || isList(expected))
+                                && !symbolTable.isInvocationCompatible(actual, expected))
+                            error(mc.token(), "Argument must preserve the non-null element contract of parameter '"
+                                    + mInfo.parameters().get(parameterIndex).name() + "'.");
+                    }
+                    ResolvedType declaredResult = symbolTable.resolveReturnType(mInfo);
+                    if (isList(rec) && !mInfo.modifiers().contains("static")) {
+                        ResolvedType element = rec.elementType(symbolTable);
+                        String method = mc.methodName();
+                        int valueIndex = method.equals("set") || method.equals("add") && argTypes.size() == 2 ? 1 : 0;
+                        if ((method.equals("add") || method.equals("set") || method.equals("addFirst") || method.equals("addLast"))
+                                && argTypes.size() > valueIndex && !symbolTable.isInvocationCompatible(argTypes.get(valueIndex), element))
+                            error(mc.token(), "Non-null elements require a proven non-null value of the element type.");
+                        if (rec.nonNullElements() && method.equals("replaceAll") && mc.arguments().size() == 1
+                                && mc.arguments().getFirst() instanceof LambdaExpr lambda) {
+                            ResolvedType result = lambdaResults.get(lambda);
+                            if (result == null || !symbolTable.isInvocationCompatible(result, element))
+                                error(mc.token(), "replaceAll must produce proven non-null elements.");
+                        }
+                        if (rec.nonNullElements() && method.equals("addAll") && !argTypes.isEmpty()
+                                && !argTypes.getLast().nonNullElements())
+                            error(mc.token(), "addAll requires a collection with non-null elements.");
+                        if (Set.of("get", "getFirst", "getLast", "set", "removeFirst", "removeLast").contains(method)
+                                || method.equals("remove") && argTypes.size() == 1 && argTypes.getFirst().isPrimitive())
+                            declaredResult = element;
+                        if (Set.of("subList", "reversed").contains(method)) declaredResult = rec.withNonNull(true);
+                    }
+                    if (mc.token() == null || mc.token().type() != accent.lexer.TokenType.AWAIT) {
+                        checkMethodMarker(mc, declaredResult);
+                    }
                     ResolvedType retType = rec.info().fullName().equals("accent.runtime.Async")
                             && mc.methodName().equals("await") && !rec.typeArguments().isEmpty()
                             ? rec.typeArguments().getFirst()
-                            : symbolTable.resolveReturnType(mInfo);
+                            : declaredResult;
                     if (mc.isOptional()) {
                         retType = retType.withNonNull(false);
                     }
@@ -849,7 +1180,9 @@ public final class SemanticAnalyzer implements ImportResolver {
 
                 if (mc.typeArguments().isEmpty()
                         && symbolTable.isContainerSerializationMethod(rec, mc.methodName(), mc.arguments().size())) {
-                    return new ResolvedType(symbolTable.getType("java.lang.String"), !mc.isOptional(), List.of(), 0);
+                    ResolvedType declaredResult = new ResolvedType(symbolTable.getType("java.lang.String"), true, List.of(), 0);
+                    checkMethodMarker(mc, declaredResult);
+                    return declaredResult.withNonNull(!mc.isOptional());
                 }
 
                 // 2. Resolve extensions using their own imports and the matching signature.
@@ -867,6 +1200,7 @@ public final class SemanticAnalyzer implements ImportResolver {
                 }
                 if (extension != null) {
                     ResolvedType retType = extension.returnType(symbolTable);
+                    checkMethodMarker(mc, retType);
                     return mc.isOptional() ? retType.withNonNull(false) : retType;
                 }
 
@@ -877,8 +1211,18 @@ public final class SemanticAnalyzer implements ImportResolver {
             if (symbolTable.isSingletonType(type.info())) {
                 error(no.token(), "Cannot construct singleton '" + type.info().fullName() + "'; use .instance().");
             }
-            for (Expression arg : no.arguments()) {
-                checkExpression(arg);
+            List<ResolvedType> arguments = no.arguments().stream().map(this::checkExpression).toList();
+            var candidates = type.info().constructors().stream()
+                    .filter(c -> c.parameters().size() == arguments.size()).toList();
+            if (!candidates.isEmpty() && candidates.stream().anyMatch(c -> c.parameters().stream().anyMatch(p -> p.type().hasNonNullElements()))) {
+                boolean compatible = candidates.stream().anyMatch(c -> {
+                    for (int i = 0; i < arguments.size(); i++) {
+                        ResolvedType expected = symbolTable.resolveConstructorParameterType(type.info(), c, i);
+                        if (expected.nonNullElements() && !symbolTable.isInvocationCompatible(arguments.get(i), expected)) return false;
+                    }
+                    return true;
+                });
+                if (!compatible) error(no.token(), "Constructor arguments must preserve non-null element contracts.");
             }
             return type;
         } else if (expr instanceof NewArrayExpr na) {
@@ -887,19 +1231,26 @@ public final class SemanticAnalyzer implements ImportResolver {
                 checkExpression(dim);
             }
             na.initializer().ifPresent(this::checkExpression);
-            return type;
+            return new ResolvedType(type.info(), true, type.typeArguments(),
+                    type.arrayDimensions() + Math.max(1, na.dimensions().size()));
         } else if (expr instanceof ArrayInitializerExpr ai) {
             for (Expression element : ai.expressions()) {
                 checkExpression(element);
             }
-            // Return Object array fallback or let type inference handle
-            TypeInfo obj = symbolTable.getType("java.lang.Object");
-            return new ResolvedType(obj, true, List.of(), 1);
+            ResolvedType element = ai.expressions().isEmpty() ? null : resolvedTypes.get(ai.expressions().getFirst());
+            if (element == null || element.info().fullName().equals("null"))
+                element = new ResolvedType(symbolTable.getType("java.lang.Object"), false, List.of(), 0);
+            return new ResolvedType(element.info(), true, element.typeArguments(), element.arrayDimensions() + 1, false);
         } else if (expr instanceof ArrayAccessExpr aa) {
+            boolean savedArrayReceiver = checkingArrayReceiver;
+            checkingArrayReceiver = true;
             ResolvedType rec = checkExpression(aa.receiver());
+            checkingArrayReceiver = savedArrayReceiver;
             checkExpression(aa.index());
             if (rec != null && rec.arrayDimensions() > 0) {
-                return new ResolvedType(rec.info(), false, rec.typeArguments(), rec.arrayDimensions() - 1);
+                if (aa.nonNullElement() != rec.nonNullElements()) error(aa.token(),
+                        "Array access must match the element contract: use '[index]!' only for declared non-null elements.");
+                return rec.elementType(symbolTable);
             }
         } else if (expr instanceof LambdaExpr le) {
             lambdaReturns.push(new ArrayList<>());
@@ -907,8 +1258,10 @@ public final class SemanticAnalyzer implements ImportResolver {
             for (int index = 0; index < le.parameters().size(); index++) {
                 Parameter param = le.parameters().get(index);
                 ResolvedType pType = symbolTable.resolveTypeNode(param.type(), this);
+                checkParameterDefault(param, pType);
                 if (param.type() instanceof BaseTypeNode base && base.name().equals("var")
-                        && lambdaParameterTypes.containsKey(le)) pType = lambdaParameterTypes.get(le).get(index);
+                        && lambdaParameterTypes.containsKey(le)) pType = lambdaParameterTypes.get(le).get(index).withNonNull(
+                                lambdaParameterTypes.get(le).get(index).isPrimitive() || param.type().isNonNull());
                 scopes.getFirst().put(param.name(), new LocalVar(param.name(), pType, true, true));
             }
             if (le.body() instanceof Expression bodyExpr) {
@@ -923,7 +1276,8 @@ public final class SemanticAnalyzer implements ImportResolver {
                     ? new ResolvedType(symbolTable.getType("void"), false, List.of(), 0) : returns.getFirst();
             for (int i = 1; i < returns.size(); i++) result = getCommonSupertype(result, returns.get(i));
             lambdaResults.put(le, result);
-            // Lambdas map to functional interface
+            // Lambdas retain the functional interface supplied by their context.
+            if (lambdaTargets.containsKey(le)) return lambdaTargets.get(le);
             TypeInfo funcItf = symbolTable.getType("java.lang.Runnable");
             return new ResolvedType(funcItf, true, List.of(), 0);
         } else if (expr instanceof IfExpr ie) {

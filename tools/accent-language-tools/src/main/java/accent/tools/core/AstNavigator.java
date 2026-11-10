@@ -32,7 +32,7 @@ public final class AstNavigator {
         boolean matches = false;
         if (node instanceof Expression expr) {
             Token t = expr.token();
-            if (t != null && t.line() == line && col >= t.column() && col <= t.column() + t.lexeme().length()) {
+            if (t != null && t.line() == line && col >= t.column() && col <= t.column() + t.lexeme().length() + (expr instanceof IdentifierExpr id && id.nonNullBinding() ? (id.nonNullElements() ? 2 : 1) : 0)) {
                 matches = true;
             }
         }

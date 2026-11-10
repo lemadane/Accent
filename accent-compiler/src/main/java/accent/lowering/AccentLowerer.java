@@ -82,6 +82,29 @@ public final class AccentLowerer implements ImportResolver {
         scopes.removeFirst();
     }
 
+    private Parameter guardedParameter(Parameter parameter) {
+        return parameter.type().hasNonNullElements()
+                ? new Parameter(parameter.type(), "$accent$" + parameter.name(), parameter.isVarargs(), parameter.defaultValue(), parameter.isMutable(), parameter.annotations())
+                : parameter;
+    }
+
+    private Statement guardParameters(List<Parameter> parameters, Statement body) {
+        List<Statement> statements = new ArrayList<>();
+        for (Parameter p : parameters) {
+            if (p.type().hasNonNullElements()) {
+                statements.add(new LocalVarDeclStmt(true, false, Optional.of(p.type()), p.name(),
+                        Optional.of(new IdentifierExpr("$accent$" + p.name(), null))));
+            } else if (p.type().isNonNull() && !(p.type() instanceof PrimitiveTypeNode)) {
+                statements.add(new ExprStmt(new MethodCallExpr(new IdentifierExpr("java.util.Objects", null),
+                        "requireNonNull", List.of(), List.of(new IdentifierExpr(p.name(), null)), false, null)));
+            }
+        }
+        if (statements.isEmpty()) return body;
+        if (body instanceof BlockStmt block) statements.addAll(block.statements());
+        else statements.add(body);
+        return new BlockStmt(statements);
+    }
+
     private ResolvedType lookupVarType(String name) {
         for (Map<String, ResolvedType> scope : scopes) {
             if (scope.containsKey(name)) {
@@ -115,7 +138,7 @@ public final class AccentLowerer implements ImportResolver {
 
     private void injectLoggerField(List<String> modifiers, List<Member> members, String className) {
         if (hasLoggingAnnotation(modifiers)) {
-            TypeNode type = new BaseTypeNode("accent.logging.Logger", List.of(), true);
+            TypeNode type = new BaseTypeNode("accent.logging.Logger", List.of(), false);
             Expression classRef = new IdentifierExpr(className, null);
             Expression classDotClass = new MemberAccessExpr(classRef, "class", false, null);
             Expression logManager = new IdentifierExpr("accent.logging.LogManager", null);
@@ -235,7 +258,7 @@ public final class AccentLowerer implements ImportResolver {
             if (type != null) {
                 scopes.getFirst().put(varDecl.name(), type);
             }
-            result = new LocalVarDeclStmt(varDecl.isFinal(), varDecl.isInferred(), varDecl.type(), varDecl.name(), init);
+            result = new LocalVarDeclStmt(varDecl.isFinal(), varDecl.isInferred(), varDecl.type(), varDecl.name(), init, varDecl.nonNullBinding(), varDecl.nonNullElements());
         } else if (stmt instanceof IfStmt ifs) {
             Expression cond = lowerExpression(ifs.condition());
             Statement thenB = lowerBlock(ifs.thenBranch() instanceof BlockStmt ? (BlockStmt) ifs.thenBranch() : new BlockStmt(List.of(ifs.thenBranch())));
@@ -282,7 +305,7 @@ public final class AccentLowerer implements ImportResolver {
                 if (eb instanceof IfStmt) return lowerStatement(eb).get(0);
                 return new BlockStmt(lowerStatement(eb));
             });
-            result = new ForEachStmt(fes.parameter(), iter, body, elseB);
+            result = new ForEachStmt(guardedParameter(fes.parameter()), iter, guardParameters(List.of(fes.parameter()), body), elseB);
         } else if (stmt instanceof WhileStmt ws) {
             Expression cond = lowerExpression(ws.condition());
             Statement body = lowerBlock(ws.body() instanceof BlockStmt ? (BlockStmt) ws.body() : new BlockStmt(List.of(ws.body())));
@@ -411,12 +434,12 @@ public final class AccentLowerer implements ImportResolver {
                 Token checkOp = new Token(TokenType.BANG_EQUAL, "!=", ma.token().line(), ma.token().column());
                 Expression cond = new BinaryExpr(tempAssign(tempVarName, rec, type), checkOp, new LiteralExpr(null, null));
                 
-                BlockStmt thenBranch = new BlockStmt(List.of(new YieldStmt(new MemberAccessExpr(new IdentifierExpr(tempVarName, null), ma.memberName(), false, ma.token()))));
+                BlockStmt thenBranch = new BlockStmt(List.of(new YieldStmt(new MemberAccessExpr(new IdentifierExpr(tempVarName, null), ma.memberName(), false, ma.token(), ma.nonNullBinding(), ma.nonNullElements()))));
                 BlockStmt elseBranch = new BlockStmt(List.of(new YieldStmt(new LiteralExpr(null, null))));
                 
                 return lowerExpression(new IfExpr(cond, thenBranch, elseBranch, ma.token()));
             }
-            return new MemberAccessExpr(lowerExpression(ma.receiver()), ma.memberName(), false, ma.token());
+            return new MemberAccessExpr(lowerExpression(ma.receiver()), ma.memberName(), false, ma.token(), ma.nonNullBinding(), ma.nonNullElements());
         } else if (expr instanceof MethodCallExpr mc) {
             if (mc.isOptional()) {
                 return lowerOptionalCall(mc);
@@ -438,7 +461,7 @@ public final class AccentLowerer implements ImportResolver {
                                 && symbolTable.isContainerSerializationMethod(recType, mc.methodName(), mc.arguments().size())) {
                             String serializer = "accent.runtime.DataSerialization";
                             return new MethodCallExpr(new IdentifierExpr(serializer, null), mc.methodName(),
-                                    List.of(), List.of(rec), false, mc.token());
+                                    List.of(), List.of(rec), false, mc.token(), mc.nonNullResult());
                         }
                         ExtensionResolver.Match extension = findExtension(mc, recType);
                         if (extension != null) {
@@ -466,7 +489,7 @@ public final class AccentLowerer implements ImportResolver {
                 List<Expression> staticArgs = new ArrayList<>();
                 staticArgs.add(rec);
                 staticArgs.addAll(resolvedArgs);
-                return new MethodCallExpr(new IdentifierExpr(extClassName, null), mc.methodName(), mc.typeArguments(), staticArgs, false, mc.token());
+                return new MethodCallExpr(new IdentifierExpr(extClassName, null), mc.methodName(), mc.typeArguments(), staticArgs, false, mc.token(), mc.nonNullResult());
             }
 
             ResolvedType resultType = expressionTypes.get(mc);
@@ -476,9 +499,9 @@ public final class AccentLowerer implements ImportResolver {
                     && !resultType.typeArguments().isEmpty()
                     && resultType.typeArguments().getFirst().info().fullName().equals("accent.html.Html")) {
                 return new MethodCallExpr(rec, mc.methodName(),
-                        List.of(mapResolvedTypeToNode(resultType.typeArguments().getFirst())), resolvedArgs, false, mc.token());
+                        List.of(mapResolvedTypeToNode(resultType.typeArguments().getFirst())), resolvedArgs, false, mc.token(), mc.nonNullResult());
             }
-            return new MethodCallExpr(rec, mc.methodName(), mc.typeArguments(), resolvedArgs, false, mc.token());
+            return new MethodCallExpr(rec, mc.methodName(), mc.typeArguments(), resolvedArgs, false, mc.token(), mc.nonNullResult());
         } else if (expr instanceof NewObjectExpr no) {
             ResolvedType type = symbolTable.resolveTypeNode(no.type(), this);
             List<Parameter> params = List.of();
@@ -487,14 +510,22 @@ public final class AccentLowerer implements ImportResolver {
             }
             List<Expression> resolvedArgs = resolveArguments(params, no.arguments());
             return new NewObjectExpr(no.type(), resolvedArgs, no.token());
+        } else if (expr instanceof ArrayInitializerExpr ai) {
+            ArrayInitializerExpr lowered = new ArrayInitializerExpr(ai.expressions().stream().map(this::lowerExpression).toList(), ai.token());
+            ResolvedType type = expressionTypes.get(ai);
+            if (type != null && type.nonNullElements() && type.arrayDimensions() == 1)
+                return new NewArrayExpr(new BaseTypeNode(type.info().fullName(), List.of(), false), List.of(), Optional.of(lowered), ai.token());
+            return lowered;
         } else if (expr instanceof NewArrayExpr na) {
             List<Expression> dims = new ArrayList<>();
             for (Expression dim : na.dimensions()) {
                 dims.add(lowerExpression(dim));
             }
-            return new NewArrayExpr(na.type(), dims, na.initializer(), na.token());
+            Optional<ArrayInitializerExpr> initializer = na.initializer().map(a -> new ArrayInitializerExpr(
+                    a.expressions().stream().map(this::lowerExpression).toList(), a.token()));
+            return new NewArrayExpr(na.type(), dims, initializer, na.token());
         } else if (expr instanceof ArrayAccessExpr aa) {
-            return new ArrayAccessExpr(lowerExpression(aa.receiver()), lowerExpression(aa.index()), aa.token());
+            return new ArrayAccessExpr(lowerExpression(aa.receiver()), lowerExpression(aa.index()), aa.token(), aa.nonNullElement());
         } else if (expr instanceof LambdaExpr le) {
             pushScope();
             for (Parameter parameter : le.parameters()) {
@@ -519,7 +550,15 @@ public final class AccentLowerer implements ImportResolver {
                 pendingStatements.addAll(saved);
             }
             popScope();
-            return new LambdaExpr(le.parameters(), body, le.token());
+            if (le.parameters().stream().anyMatch(p -> p.type().isNonNull() && !(p.type() instanceof PrimitiveTypeNode))) {
+                if (body instanceof Expression value) {
+                    ResolvedType type = getTypeOf(value);
+                    body = new BlockStmt(List.of(type != null && type.info().fullName().equals("void")
+                            ? new ExprStmt(value) : new ReturnStmt(Optional.of(value))));
+                }
+                body = guardParameters(le.parameters(), (Statement) body);
+            }
+            return new LambdaExpr(le.parameters().stream().map(this::guardedParameter).toList(), body, le.token());
         } else if (expr instanceof IfExpr ie) {
             // Lower block expression: if (cond) { yield X; } else { yield Y; }
             ResolvedType type = getTypeOf(ie);
@@ -612,7 +651,7 @@ public final class AccentLowerer implements ImportResolver {
         IdentifierExpr guardedReceiver = new IdentifierExpr(receiverName, null);
         expressionTypes.put(guardedReceiver, receiverType.withNonNull(true));
         MethodCallExpr guardedCall = new MethodCallExpr(guardedReceiver, call.methodName(), call.typeArguments(),
-                call.arguments(), false, call.token());
+                call.arguments(), false, call.token(), call.nonNullResult());
         expressionTypes.put(guardedCall, getTypeOf(call));
 
         // Arguments and their lifted statements belong inside the non-null branch.
@@ -641,7 +680,7 @@ public final class AccentLowerer implements ImportResolver {
         IdentifierExpr guardedReceiver = new IdentifierExpr(receiverName, null);
         expressionTypes.put(guardedReceiver, receiverType.withNonNull(true));
         MethodCallExpr guardedCall = new MethodCallExpr(guardedReceiver, call.methodName(), call.typeArguments(),
-                call.arguments(), false, call.token());
+                call.arguments(), false, call.token(), call.nonNullResult());
         expressionTypes.put(guardedCall, getTypeOf(call));
 
         List<Statement> outer = new ArrayList<>(pendingStatements);
@@ -722,7 +761,8 @@ public final class AccentLowerer implements ImportResolver {
         if (type.isPrimitive()) {
             return new PrimitiveTypeNode(type.info().fullName());
         }
-        TypeNode node = new BaseTypeNode(type.info().fullName(), List.of(), type.isNonNull());
+        TypeNode node = new BaseTypeNode(type.info().fullName(), type.typeArguments().stream().map(this::mapResolvedTypeToNode).toList(),
+                type.arrayDimensions() > 0 ? type.nonNullElements() : type.isNonNull());
         for (int i = 0; i < type.arrayDimensions(); i++) {
             node = new ArrayTypeNode(node, type.isNonNull());
         }

@@ -37,7 +37,7 @@ class ExtensionVisibilityTest {
                 package vis;
                 class Text {}
                 extension String! {
-                    String! decorate() { return "<" + this + ">"; }
+                    String decorate!() { return "<" + this + ">"; }
                 }
                 extension String! {
                     int extra() { return 4; }
@@ -50,7 +50,7 @@ class ExtensionVisibilityTest {
                 package other;
                 import vis.Text;
                 class Caller {
-                    static String! run() { return "x".decorate() + (new StringBuilder("abc").size() + "x".extra()); }
+                    static String run!() { return "x".decorate!() + (new StringBuilder("abc").size() + "x".extra()); }
                 }
                 """);
 

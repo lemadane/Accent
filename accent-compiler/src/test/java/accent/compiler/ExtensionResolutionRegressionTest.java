@@ -45,15 +45,15 @@ class ExtensionResolutionRegressionTest {
         write("domain/Widget.accent", """
                 package domain;
                 class Widget {
-                    String! name;
-                    Widget(String! name) { this.name = name; }
+                    String name! = "";
+                    Widget(String name!) { this.name! = name!; }
                 }
                 """);
         write("domain/Label.accent", """
                 package domain;
                 class Label {
-                    String! text;
-                    Label(String! text) { this.text = text; }
+                    String text! = "";
+                    Label(String text!) { this.text! = text!; }
                 }
                 """);
         write("extensions/WidgetExtensions.accent", """
@@ -61,7 +61,7 @@ class ExtensionResolutionRegressionTest {
                 import domain.Widget;
                 import domain.Label;
                 extension Widget! {
-                    Label! label(Label! prefix) { return new Label(prefix.text + this.name); }
+                    Label label!(Label prefix!) { return new Label(prefix!.text! + this.name!); }
                 }
                 """);
     }
@@ -72,8 +72,8 @@ class ExtensionResolutionRegressionTest {
         write("app/Caller.accent", """
                 package app;
                 class Caller {
-                    static String! run() {
-                        return new domain.Widget("x").label(new domain.Label("id=")).text;
+                    static String run!() {
+                        return new domain.Widget("x").label!(new domain.Label("id=")).text!;
                     }
                 }
                 """);
@@ -89,7 +89,7 @@ class ExtensionResolutionRegressionTest {
         write("app/Caller.accent", """
                 package app;
                 class Caller {
-                    static void run() { "x".label(new domain.Label("id=")); }
+                    static void run() { "x".label!(new domain.Label("id=")); }
                 }
                 """);
 
@@ -104,18 +104,18 @@ class ExtensionResolutionRegressionTest {
         write("extensions/TextExtensions.accent", """
                 package extensions;
                 extension String! {
-                    String! decorate(int count) { return this + count; }
+                    String decorate!(int count) { return this + count; }
                 }
                 extension String! {
-                    String! decorate(String! prefix = "<", String! suffix = ">") {
-                        return prefix + this + suffix;
+                    String decorate!(String prefix! = "<", String suffix! = ">") {
+                        return prefix! + this + suffix!;
                     }
                 }
                 """);
         write("app/Caller.accent", """
                 package app;
                 class Caller {
-                    static String! run() { return "x".decorate(suffix: "]") + "|" + "y".decorate(); }
+                    static String run!() { return "x".decorate!(suffix: "]") + "|" + "y".decorate!(); }
                 }
                 """);
 
@@ -129,7 +129,7 @@ class ExtensionResolutionRegressionTest {
         write("extensions/TextExtensions.accent", """
                 package extensions;
                 extension String! {
-                    String! decorate(String! prefix, String! suffix = "]") { return prefix + this + suffix; }
+                    String decorate!(String prefix!, String suffix! = "]") { return prefix! + this + suffix!; }
                 }
                 """);
         write("app/Caller.accent", """
@@ -138,9 +138,9 @@ class ExtensionResolutionRegressionTest {
                     static int receiverCalls = 0;
                     static int argumentCalls = 0;
                     static String receiver() { Caller.receiverCalls++; return null; }
-                    static String! argument() { Caller.argumentCalls++; return "["; }
-                    static String absent() { return Caller.receiver()?.decorate(Caller.argument()); }
-                    static String present() { return "x"?.decorate(Caller.argument()); }
+                    static String argument!() { Caller.argumentCalls++; return "["; }
+                    static String absent() { return Caller.receiver()?.decorate!(Caller.argument!()); }
+                    static String present() { return "x"?.decorate!(Caller.argument!()); }
                 }
                 """);
 

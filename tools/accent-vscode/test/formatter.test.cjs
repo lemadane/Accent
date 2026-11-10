@@ -39,3 +39,37 @@ for (const eol of ['\n', '\r\n']) {
     }
 }
 console.log('Formatter regression checks passed');
+
+const marked = [
+    'class Sample {',
+    '  private String _name! = "John";',
+    '  void run(List<String> myList!) {',
+    '    if (not myList!) { this._name! = $"Hello {this._name!}"; }',
+    '  }',
+    '}', ''
+].join('\n');
+assert.equal(format(marked), marked);
+assert.equal(format(format(marked)), marked);
+console.log('Non-null binding formatting checks passed');
+
+const markedMethods = [
+    'class Sample {',
+    '  String name!() { return "John"; }',
+    '  String read!(Sample customer) {',
+    '    return customer?.name!() ?? "Unknown";',
+    '  }',
+    '}', ''
+].join('\n');
+assert.equal(format(markedMethods), markedMethods);
+assert.equal(format(format(markedMethods)), markedMethods);
+console.log('Non-null method formatting checks passed');
+
+const elementContracts = [
+    'class Sample {',
+    '  void run(List<String> names!!, String[] values!!) {',
+    '    names!!.add(values![0]!);',
+    '  }',
+    '}', ''
+].join('\n');
+assert.equal(format(elementContracts), elementContracts);
+assert.equal(format(format(elementContracts)), elementContracts);
