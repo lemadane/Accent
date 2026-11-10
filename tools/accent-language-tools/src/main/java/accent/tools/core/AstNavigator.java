@@ -86,6 +86,7 @@ public final class AstNavigator {
         } else if (node instanceof WhileStmt ws) {
             traverse(ws.condition(), line, col, path);
             traverse(ws.body(), line, col, path);
+            ws.elseBranch().ifPresent(eb -> traverse(eb, line, col, path));
         } else if (node instanceof DoWhileStmt dws) {
             traverse(dws.body(), line, col, path);
             traverse(dws.condition(), line, col, path);

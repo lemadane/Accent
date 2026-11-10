@@ -93,13 +93,13 @@ If `findRequired(id)` returns `Customer`, `customerAsync` has type `accent.runti
 
 ## Building Updated Editor Support
 
-Use `accent-vscode-0.1.15.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
+Use `accent-vscode-0.1.17.vsix` for the current syntax, with required non-public prefixes, `this`/`super`/`static` member qualification, `?` / `??` contracts, and `async` / `await` support. Install it from the repository root:
 
 ```bash
-code --install-extension tools/accent-vscode/accent-vscode-0.1.15.vsix --force
+code --install-extension tools/accent-vscode/accent-vscode-0.1.17.vsix --force
 ```
 
-Reload VS Code after installation. Archives through `0.1.14` retain their previous documentation. Rebuild the language server and install `0.1.15` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
+Reload VS Code after installation. Archives through `0.1.16` retain their previous documentation. Rebuild the language server and install `0.1.17` for diagnostics and completion matching the member, non-null binding, method-result, and collection-element rules.
 
 To rebuild the current package:
 
@@ -112,7 +112,7 @@ npm ci
 npm run compile
 node test/async-syntax.test.cjs
 node test/formatter.test.cjs
-npx @vscode/vsce package --out accent-vscode-0.1.15.vsix
+npx @vscode/vsce package --out accent-vscode-0.1.17.vsix
 python3 test/package.test.py
 ```
 
@@ -156,3 +156,19 @@ The unbraced forms are compiler errors, regardless of indentation. This applies
 to Accent source; ordinary `.java` files retain Java's syntax. See the
 [language guide](https://github.com/accent-lang/accent/blob/main/README.md#11-if-expression)
 for a complete nested `if` / `else if` / `else` example.
+
+## Static imports
+
+Use `import static java.lang.Math.sqrt;` followed by `sqrt(value)`, or `import static java.lang.Math.*;` for wildcard imports. Imported fields also use bare names, such as `PI`. No `$` prefix is needed. Named imports take precedence over wildcard imports; qualify ambiguous names with their declaring class. Generated Java previews show the resolved class-qualified access.
+
+## While loops with else
+
+`while (condition) { ... } else { ... }` runs `else` after normal completion, including zero iterations, and skips it when `break` exits that loop. Both bodies require braces. While expressions can also `yield` values from the `else` block.
+
+The expression form is `final values = while (condition) { yield value; } else { yield fallback; };`. It collects all executed `yield` values into a list:
+
+- Normal completion can produce `[1, 2, 3]`: `1` and `2` from the loop, then `3` from `else`.
+- Zero iterations can produce `[9]`: only the fallback from `else`.
+- A `break` after yielding `7` produces `[7]`: the `else` yields are skipped.
+
+The expression requires a final semicolon. See the [while-expression guide](https://github.com/accent-lang/accent/blob/main/README.md#13-while-and-do-while-expressions).

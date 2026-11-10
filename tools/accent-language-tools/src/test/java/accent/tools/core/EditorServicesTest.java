@@ -26,6 +26,18 @@ class EditorServicesTest {
             """;
 
     @Test
+    void staticImportsResolveInGeneratedJava() {
+        ProjectContext context = new ProjectContext(List.of());
+        Path path = Path.of("Imported.accent");
+        context.putFile(path, "import static java.lang.Math.sqrt; import static java.lang.Math.PI; class Imported { static double run() { return sqrt(PI); } }");
+        var result = context.analyze(path, false);
+        assertTrue(result.diagnostics().isEmpty(), result.diagnostics().toString());
+        String generated = context.getGeneratedJava(path);
+        assertTrue(generated.contains("java.lang.Math.sqrt"), generated);
+        assertTrue(generated.contains("java.lang.Math.PI"), generated);
+    }
+
+    @Test
     void nativeConsoleAndLoggerHaveCompletionAndGeneratedJavaWithoutAnnotations() {
         var members = complete(new ProjectContext(List.of()), "NativeEditor.accent", """
                 class NativeEditor {

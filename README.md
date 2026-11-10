@@ -367,6 +367,7 @@ Use the qualifier that identifies where the selected instance field or method is
 | A member of another object | `object.member` / `object.method()` |
 | Static member declared in the current class | `static.member` / `static.method()` |
 | Static member declared in another class, including a parent | `ClassName.member` / `ClassName.method()` |
+| Statically imported member | `member` / `method()` |
 
 The rule applies to public, protected, and accessible package-private instance members. An inherited field or matching method overload cannot be accessed through `this`. A same-named method with different parameters is an overload, not an override. If a child declares a same-named field, `this.field` selects the child's field and `super.field` selects the parent's field.
 
@@ -416,6 +417,25 @@ class Counter {
 From another class, use `Counter.increment()` or `Counter.count`. In a subclass, inherited static members still use their declaring parent's name, such as `Counter.increment()`. `static.` cannot access instance members; use `this.` or `super.` for those. Static members cannot be accessed through an object reference.
 
 The compiler lowers `static.` to the declaring Java class name; it does not change the JVM member name or dispatch behavior. Ordinary Java source retains Java's access syntax. The built-in `print(...)`, `println(...)`, and `log(...)` calls are explicit compiler shorthands and are exempt from user-defined member qualification. The automatic `log` binding also supports `log.info(...)` and context methods.
+
+#### Static imports
+
+Use `import static` to call a static method or read a static field without its class name. No `$` prefix is required.
+
+```accent
+import static java.lang.Math.sqrt;
+import static java.lang.Math.PI;
+
+class Circle {
+    static double radius(double area) {
+        return sqrt(area / PI);
+    }
+}
+```
+
+`import static java.lang.Math.*;` imports the accessible static members of `Math`. Named imports take precedence over wildcard imports. Ambiguous names require an explicit import or a class-qualified reference. Normal overload resolution, visibility, and nullability rules still apply; imports do not make private or instance members accessible. Mutable imported fields can be assigned or incremented.
+
+Local variables shadow imported fields. Members declared in the current class keep their `this.` or `static.` qualification requirement. Built-in `print(...)`, `println(...)`, and `log(...)` retain their built-in meaning even when a static import has the same name.
 
 `super` is unavailable in static contexts and extension blocks. Inside an extension, `this` refers to the extension's target object, so calls such as `this.length()` remain valid. A class with no explicit parent may use `super` for its implicit `Object` parent. Abstract parent methods have no implementation to call through `super`; implement an override before calling them through `this`.
 
@@ -525,7 +545,7 @@ A truthy collection can still contain null elements when its element contract pe
 statement.** Write `if (user? != null) { names.add(user?); }`; the unbraced form
 is a compile error. `else if (...) { ... }` chains remain valid, with a braced
 body for each condition and the final `else`. An empty branch must use `{}`,
-not `;`. This rule also applies to the `else` body of a `for/else` loop.
+not `;`. This rule also applies to the `else` body of `for/else` and `while/else` loops.
 If-expressions and HTML conditionals already require braced bodies.
 
 Explicit block boundaries make the scope of each condition visible and avoid
@@ -537,12 +557,12 @@ For statements, brace every branch, including nested conditions:
 ```java
 if (score > 0) {
     if (score > 100) {
-        System.out.println("Above target");
+        println("Above target");
     }
 } else if (score < 0) {
-    System.out.println("Negative");
+    println("Negative");
 } else {
-    System.out.println("Zero");
+    println("Zero");
 }
 ```
 
@@ -627,6 +647,51 @@ final names = for (Customer customer : customers) {
 ```
 
 ### 13. `while` and `do-while` expressions
+
+`while (condition) { ... } else { ... }` follows the same completion rules as `for/else`:
+
+- `else` runs when the condition becomes falsy, including before the first iteration.
+- A `break` exiting this loop skips its `else`; breaking a nested loop does not.
+- `continue` still allows `else` after normal completion. A `return` or escaping exception bypasses it.
+- Both bodies of `while/else` require braces. Variables declared inside the loop body are not visible in `else`.
+
+```accent
+int attempts = 0;
+while (attempts < 3) {
+    attempts++;
+    if (this.tryConnect()) {
+        break;
+    }
+} else {
+    println("All connection attempts failed");
+}
+```
+
+A `while` expression collects `yield` values from both the loop and its `else` when that branch runs:
+
+```accent
+int count = 0;
+final values = while (count < 2) {
+    count++;
+    yield count;
+} else {
+    yield 3;
+}; // [1, 2, 3]
+```
+
+The expression returns a list of the values yielded by the branches that actually execute; `else` does not replace values already collected. End the complete expression with `;`.
+
+| Expression execution | Values yielded by the body | Values yielded by `else` | Result |
+| --- | --- | --- | --- |
+| Normal completion | `1`, `2` | `3` | `[1, 2, 3]` |
+| Zero iterations | None | `9` | `[9]` |
+| `break` after yielding `7` | `7` | Skipped | `[7]` |
+
+If no executed branch yields a value, the result is an empty list. `continue` skips the remaining statements of the current iteration but does not suppress `else` when the loop later completes normally.
+
+See the [runnable while/else example](accent-compiler/src/e2e/examples/whileelse/Main.accent) and [expression regression tests](accent-compiler/src/test/java/accent/compiler/WhileElseTest.java).
+
+Plain `while` and `do-while` expressions remain supported; `do-while` does not have an `else` branch.
 
 ```java
 final values = while (iterator.hasNext()) {

@@ -324,7 +324,7 @@ public final class AccentLowerer implements ImportResolver {
         } else if (stmt instanceof WhileStmt ws) {
             Expression cond = lowerExpression(ws.condition());
             Statement body = lowerBlock(ws.body() instanceof BlockStmt ? (BlockStmt) ws.body() : new BlockStmt(List.of(ws.body())));
-            result = new WhileStmt(cond, body);
+            result = new WhileStmt(cond, body, ws.elseBranch().map(eb -> new BlockStmt(lowerStatement(eb))));
         } else if (stmt instanceof DoWhileStmt dws) {
             Statement body = lowerBlock(dws.body() instanceof BlockStmt ? (BlockStmt) dws.body() : new BlockStmt(List.of(dws.body())));
             Expression cond = lowerExpression(dws.condition());
@@ -795,7 +795,8 @@ public final class AccentLowerer implements ImportResolver {
         } else if (stmt instanceof ForEachStmt fes) {
             return new ForEachStmt(fes.parameter(), fes.iterable(), lowerLoopYields(fes.body(), listName), fes.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof WhileStmt ws) {
-            return new WhileStmt(ws.condition(), lowerLoopYields(ws.body(), listName));
+            return new WhileStmt(ws.condition(), lowerLoopYields(ws.body(), listName),
+                    ws.elseBranch().map(eb -> lowerLoopYields(eb, listName)));
         } else if (stmt instanceof DoWhileStmt dws) {
             return new DoWhileStmt(lowerLoopYields(dws.body(), listName), dws.condition());
         } else if (stmt instanceof TryStmt ts) {
@@ -1041,6 +1042,7 @@ public final class AccentLowerer implements ImportResolver {
             fes.elseBranch().ifPresent(eb -> findYieldTypesHelper(eb, types));
         } else if (stmt instanceof WhileStmt ws) {
             findYieldTypesHelper(ws.body(), types);
+            ws.elseBranch().ifPresent(eb -> findYieldTypesHelper(eb, types));
         } else if (stmt instanceof DoWhileStmt dws) {
             findYieldTypesHelper(dws.body(), types);
         }

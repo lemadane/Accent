@@ -1,0 +1,18 @@
+import accent.json.Json;
+import java.util.UUID;
+import java.time.LocalDate;
+
+public class DemoApp {
+  public static void main() {
+    final user = new User(
+      UUID.randomUUID(),
+      "John",
+      "Doe",
+      LocalDate.of(2000, 11, 10));
+    if(user) {
+      final json = user.toJson();
+      final parsedUser = Json.parse(json, User.class);
+      println(parsedUser.firstName());
+    }
+  }
+}

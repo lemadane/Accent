@@ -82,6 +82,7 @@ public final class SemanticAnalyzer implements ImportResolver {
 
     public void analyze(CompilationUnit unit) {
         this.currentUnit = unit;
+        validateStaticImports();
         for (TypeDeclaration decl : unit.declarations()) {
             nativeLoggerName = unit.packageName().map(pkg -> pkg + ".").orElse("") + decl.name();
             if (decl instanceof ClassDecl cd) {
@@ -718,6 +719,8 @@ public final class SemanticAnalyzer implements ImportResolver {
             checkExpression(ws.condition());
             checkStatement(ws.body());
             clearMutableRefinements();
+            ws.elseBranch().ifPresent(this::checkStatement);
+            clearMutableRefinements();
         } else if (stmt instanceof DoWhileStmt dws) {
             clearMutableRefinements();
             checkStatement(dws.body());
@@ -831,6 +834,131 @@ public final class SemanticAnalyzer implements ImportResolver {
         if (receiver instanceof SuperExpr && modifiers.contains("abstract")) {
             error(token, "Cannot call abstract parent method '" + name + "' with 'super'; override it before calling it with 'this'.");
         }
+    }
+
+    private void validateStaticImports() {
+        for (String entry : currentUnit.imports()) {
+            if (!entry.startsWith("static ")) continue;
+            String path = entry.substring(7);
+            int dot = path.lastIndexOf('.');
+            TypeInfo type = dot < 0 ? null : symbolTable.getType(path.substring(0, dot));
+            Token token = currentUnit.tokens().getFirst();
+            if (type == null) {
+                error(token, "Cannot resolve declaring type of static import '" + path + "'.");
+                continue;
+            }
+            String name = path.substring(dot + 1);
+            if (name.equals("*")) continue;
+            String pkg = currentUnit.packageName().orElse("");
+            var field = type.findField(name, symbolTable);
+            boolean valid = field != null && field.modifiers().contains("static")
+                    && symbolTable.isMemberAccessible(field, type, null, pkg, false);
+            valid |= type.findAllMethods(name, symbolTable).stream().anyMatch(method ->
+                    method.modifiers().contains("static")
+                    && symbolTable.isMemberAccessible(method, type, null, pkg, false));
+            // Static imports can also name nested types, which normal type resolution handles.
+            if (!valid && symbolTable.getType(path) == null)
+                error(token, "Static import '" + path + "' must name an accessible static member.");
+        }
+    }
+
+    /** Explicit imports take precedence over wildcard imports, separately for fields and methods. */
+    private List<TypeInfo> staticImportTypes(String name, boolean method) {
+        List<TypeInfo> explicit = new ArrayList<>();
+        List<TypeInfo> wildcard = new ArrayList<>();
+        for (String entry : currentUnit.imports()) {
+            if (!entry.startsWith("static ")) continue;
+            String path = entry.substring(7);
+            int dot = path.lastIndexOf('.');
+            if (dot < 0) continue;
+            String member = path.substring(dot + 1);
+            if (!member.equals(name) && !member.equals("*")) continue;
+            TypeInfo type = symbolTable.getType(path.substring(0, dot));
+            if (type == null) continue;
+            boolean exists = method
+                    ? type.findAllMethods(name, symbolTable).stream().anyMatch(m -> m.modifiers().contains("static"))
+                    : type.findField(name, symbolTable) != null
+                        && type.findField(name, symbolTable).modifiers().contains("static");
+            if (exists) (member.equals("*") ? wildcard : explicit).add(type);
+        }
+        return explicit.isEmpty() ? wildcard : explicit;
+    }
+
+    private Expression importedReceiver(SymbolTable.MemberOwner owner, Token token) {
+        return currentClass != null && owner.typeName().equals(currentClass.fullName())
+                ? new StaticExpr(token) : new IdentifierExpr(owner.typeName(), token);
+    }
+
+    private ResolvedType checkImportedExpression(Expression original, Expression expanded) {
+        builtinExpressions.put(original, expanded);
+        if (nullableUses.contains(original)) nullableUses.add(expanded);
+        return checkExpression(expanded);
+    }
+
+    private ResolvedType importedField(IdentifierExpr id, List<TypeInfo> types) {
+        Map<String, SymbolTable.FieldInfo> fields = new LinkedHashMap<>();
+        for (TypeInfo type : types) {
+            var field = type.findField(id.name(), symbolTable);
+            var receiver = new ResolvedType(type, true, List.of(), 0);
+            if (isAccessible(field, receiver, null))
+                fields.put(symbolTable.declaringOwner(field).typeName(), field);
+        }
+        if (fields.size() != 1) {
+            error(id.token(), fields.isEmpty() ? "Static import '" + id.name() + "' is not accessible."
+                    : "Ambiguous static import '" + id.name() + "'; use its declaring class name.");
+            return null;
+        }
+        var field = fields.values().iterator().next();
+        return checkImportedExpression(id, new MemberAccessExpr(importedReceiver(symbolTable.declaringOwner(field), id.token()),
+                id.name(), false, id.token(), id.nonNullBinding(), id.nonNullElements()));
+    }
+
+    private boolean moreSpecificImport(SymbolTable.MethodInfo left, SymbolTable.MethodInfo right) {
+        if (left.parameters().size() != right.parameters().size()) return false;
+        boolean stricter = false;
+        for (int i = 0; i < left.parameters().size(); i++) {
+            ResolvedType a = symbolTable.resolveParameterType(left, i);
+            ResolvedType b = symbolTable.resolveParameterType(right, i);
+            if (!symbolTable.isInvocationCompatible(a, b)) return false;
+            if (!symbolTable.isInvocationCompatible(b, a)) stricter = true;
+        }
+        return stricter;
+    }
+
+    private ResolvedType importedMethod(MethodCallExpr call, List<TypeInfo> types) {
+        // Resolve arguments against each candidate's parameter types, including lambda targets.
+        Map<String, SymbolTable.MethodInfo> candidates = new LinkedHashMap<>();
+        for (TypeInfo type : types) {
+            var receiver = new ResolvedType(type, true, List.of(), 0);
+            for (var method : type.findAllMethods(call.methodName(), symbolTable)) {
+                if (!method.modifiers().contains("static") || !isAccessible(method, receiver, null)) continue;
+                candidates.putIfAbsent(symbolTable.declaringOwner(method).typeName(), method);
+            }
+        }
+        if (candidates.size() > 1 && call.arguments().stream().noneMatch(a -> a instanceof LambdaExpr)) {
+            List<ResolvedType> arguments = call.arguments().stream().map(this::checkExpression).toList();
+            List<SymbolTable.MethodInfo> applicable = new ArrayList<>();
+            for (String ownerName : candidates.keySet()) {
+                TypeInfo owner = symbolTable.getType(ownerName);
+                for (var method : owner.findAllMethods(call.methodName(), symbolTable)) {
+                    if (method.modifiers().contains("static") && owner.acceptsArguments(method, arguments, symbolTable)
+                            && isAccessible(method, new ResolvedType(owner, true, List.of(), 0), null))
+                        applicable.add(method);
+                }
+            }
+            List<SymbolTable.MethodInfo> best = applicable.stream().filter(method ->
+                    applicable.stream().noneMatch(other -> moreSpecificImport(other, method))).toList();
+            candidates.clear();
+            for (var method : best) candidates.putIfAbsent(symbolTable.declaringOwner(method).typeName(), method);
+        }
+        if (candidates.size() != 1) {
+            error(call.token(), candidates.isEmpty() ? "No accessible static import matches '" + call.methodName() + "'."
+                    : "Ambiguous static import '" + call.methodName() + "'; use its declaring class name.");
+            return null;
+        }
+        var method = candidates.values().iterator().next();
+        return checkImportedExpression(call, new MethodCallExpr(importedReceiver(symbolTable.declaringOwner(method), call.token()),
+                call.methodName(), call.typeArguments(), call.arguments(), false, call.token(), call.nonNullResult()));
     }
 
     private boolean isTypeReceiver(Expression receiver) {
@@ -984,6 +1112,9 @@ public final class SemanticAnalyzer implements ImportResolver {
                 }
             }
             
+            List<TypeInfo> importedFields = staticImportTypes(id.name(), false);
+            if (!importedFields.isEmpty()) return importedField(id, importedFields);
+
             // Assume package name or class name reference
             TypeInfo classInfo = resolve(id.name());
             if (classInfo != null) {
@@ -1039,7 +1170,7 @@ public final class SemanticAnalyzer implements ImportResolver {
                 // Reassignment checks
                 if (unwrapNullable(bin.left()) instanceof IdentifierExpr id) {
                     LocalVar v = lookupVar(id.name());
-                    if (builtinExpressions.containsKey(id)) error(bin.operator(), "The built-in 'log' binding cannot be reassigned.");
+                    if (id.name().equals("log") && builtinExpressions.get(id) instanceof MethodCallExpr) error(bin.operator(), "The built-in 'log' binding cannot be reassigned.");
                     if (v != null) {
                         left = v.type;
                         v.isRefinedNonNull = right != null && right.isNonNull();
@@ -1164,6 +1295,11 @@ public final class SemanticAnalyzer implements ImportResolver {
                 Expression expanded = new MethodCallExpr(output, mc.methodName(), mc.typeArguments(), mc.arguments(), false, mc.token());
                 builtinExpressions.put(mc, expanded);
                 return checkExpression(expanded);
+            }
+            if (mc.receiver() == null && (currentClass == null
+                    || currentClass.findAllMethods(mc.methodName(), symbolTable).isEmpty())) {
+                List<TypeInfo> importedMethods = staticImportTypes(mc.methodName(), true);
+                if (!importedMethods.isEmpty()) return importedMethod(mc, importedMethods);
             }
             ResolvedType rec = null;
             if (mc.receiver() != null) {

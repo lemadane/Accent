@@ -992,7 +992,12 @@ public final class AccentParser {
         Expression condition = parseExpression(Precedence.NONE);
         consume(TokenType.RIGHT_PAREN, "Expected ')' after 'while' condition.");
         Statement body = parseStatement();
-        return new WhileStmt(condition, body);
+        Optional<Statement> elseBranch = Optional.empty();
+        if (match(TokenType.ELSE)) {
+            if (!isJava && !(body instanceof BlockStmt)) report(previous(), "A while/else body requires braces.");
+            elseBranch = Optional.of(parseRequiredBranchBlock("else"));
+        }
+        return new WhileStmt(condition, body, elseBranch);
     }
 
     private Statement parseDoWhileStatement() {

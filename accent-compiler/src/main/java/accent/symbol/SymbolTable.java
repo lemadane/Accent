@@ -878,7 +878,7 @@ public final class SymbolTable {
             return false;
         }
 
-        private boolean acceptsArguments(MethodInfo method, List<ResolvedType> arguments, SymbolTable table) {
+        public boolean acceptsArguments(MethodInfo method, List<ResolvedType> arguments, SymbolTable table) {
             List<Parameter> parameters = method.parameters();
             boolean varargs = !parameters.isEmpty() && parameters.getLast().isVarargs();
             int fixedCount = parameters.size() - (varargs ? 1 : 0);

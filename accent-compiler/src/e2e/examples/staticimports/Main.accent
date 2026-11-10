@@ -1,0 +1,9 @@
+import static java.lang.Math.sqrt;
+import static java.lang.Math.PI;
+
+class Main {
+    static void main(String[] args) {
+        println(sqrt(25));
+        println(PI);
+    }
+}

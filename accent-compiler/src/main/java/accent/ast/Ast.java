@@ -236,7 +236,9 @@ public interface Ast {
 
     record ForEachStmt(Parameter parameter, Expression iterable, Statement body, Optional<Statement> elseBranch) implements Statement {}
 
-    record WhileStmt(Expression condition, Statement body) implements Statement {}
+    record WhileStmt(Expression condition, Statement body, Optional<Statement> elseBranch) implements Statement {
+        public WhileStmt(Expression condition, Statement body) { this(condition, body, Optional.empty()); }
+    }
 
     record DoWhileStmt(Statement body, Expression condition) implements Statement {}
 

@@ -822,6 +822,16 @@ public final class JavaEmitter {
                 loopBrokenVars.pop();
             }
         } else if (stmt instanceof WhileStmt ws) {
+            if (ws.elseBranch().isPresent()) {
+                Expression condition = ws.condition();
+                // Java rejects a loop whose condition is the constant false, but its Accent else is valid.
+                if (condition instanceof LiteralExpr literal && Boolean.FALSE.equals(literal.value())) {
+                    condition = new MethodCallExpr(new MemberAccessExpr(new IdentifierExpr("java.lang.Boolean", null),
+                            "TRUE", false, null), "equals", List.of(), List.of(condition), false, null);
+                }
+                emitStatement(new ForStmt(Optional.empty(), Optional.of(condition), Optional.empty(), ws.body(), ws.elseBranch()));
+                return;
+            }
             loopBrokenVars.push("");
             printIndent();
             sb.append("while (").append(emitCondition(ws.condition())).append(") ");
