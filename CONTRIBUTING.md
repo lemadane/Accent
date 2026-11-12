@@ -177,9 +177,11 @@ The suite covers routing, inferred handler and middleware parameters, JSON and H
 - Use descriptive names; avoid abbreviations.
 - Write Javadoc for public types and methods.
 
-## Each loops
+## For-in loops
 
-Prefer `each (item from list) { ... }` in Accent samples, including expression and `else` forms. Preserve enhanced `for (var item : list)` compatibility and traditional `for` loops. `each` and `from` are contextual syntax; Java source and qualified Java method names retain their behavior. `EachLoopTest` covers inferred and typed bindings, immutable items, collection/array iteration, empty and null inputs, yields, nested breaks, scope, and brace requirements.
+When updating older examples, replace `each (item from list)` with `for (item in list)` in statements, expressions, and HTML markup. The old syntax must be rejected by the parser. Keep documentation and editor completion/highlighting aligned with `for` and contextual `in`. The runnable collection-loop example is in `accent-compiler/src/e2e/examples/for-in`.
+
+Prefer `for (item in list) { ... }` in Accent samples, including expression and `else` forms. Preserve enhanced `for (var item : list)` compatibility and traditional `for` loops. `in` is contextual syntax; Java source and qualified Java method names retain their behavior. `ForInLoopTest` covers inferred and typed bindings, immutable items, collection/array iteration, empty and null inputs, yields, nested breaks, scope, and brace requirements.
 
 ## Inferred for initializers
 

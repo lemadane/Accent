@@ -77,14 +77,14 @@ class EditorServicesTest {
     }
 
     @Test
-    void eachLoopsHaveKeywordCompletionAndGeneratedJava() {
+    void forInLoopsHaveKeywordCompletionAndGeneratedJava() {
         ProjectContext context = new ProjectContext(List.of());
-        Path path = Path.of("EachEditor.accent");
-        context.putFile(path, "import java.util.List; class EachEditor { static void run() { each (item from List.of(1)) { println(item); } else { println(0); } } }");
+        Path path = Path.of("ForInEditor.accent");
+        context.putFile(path, "import java.util.List; class ForInEditor { static void run() { for (item in List.of(1)) { println(item); } else { println(0); } } }");
         var result = context.analyze(path, false);
         assertTrue(result.diagnostics().isEmpty(), result.diagnostics().toString());
         assertTrue(context.getGeneratedJava(path).contains("for ("));
-        assertMembersPresent(CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1), "each", "from");
+        assertMembersPresent(CompletionProvider.getCompletions(result.unit(), result.analyzer(), 1, 1), "for", "in");
     }
 
     @Test

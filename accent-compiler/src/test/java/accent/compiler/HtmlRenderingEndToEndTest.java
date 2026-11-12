@@ -115,8 +115,8 @@ class HtmlRenderingEndToEndTest {
     }
 
     @Test
-    void eachMarkupInfersBindingsAndRendersElse() throws Exception {
-        try (var compiled = compile("class Demo { static Html render(List<String> items) { return (<ul>{each (item from items) {<li>{item.length()}</li>} else {<li>done</li>}}</ul>); } }")) {
+    void forInMarkupInfersBindingsAndRendersElse() throws Exception {
+        try (var compiled = compile("class Demo { static Html render(List<String> items) { return (<ul>{for (item in items) {<li>{item.length()}</li>} else {<li>done</li>}}</ul>); } }")) {
             assertEquals("<ul><li>3</li><li>done</li></ul>",
                     compiled.render(new Class<?>[]{List.class}, List.of("one")).renderToString());
             assertEquals("<ul><li>done</li></ul>",

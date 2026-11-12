@@ -31,7 +31,7 @@ record DashboardService(
         final city =
             customer.address()?.city() else "Unknown";
 
-        final names = each (order from orders) {
+        final names = for (order in orders) {
             yield order.name().normalized();
         };
 

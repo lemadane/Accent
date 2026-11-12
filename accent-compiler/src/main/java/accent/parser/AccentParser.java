@@ -845,10 +845,6 @@ public final class AccentParser {
         if (match(TokenType.IF)) {
             return parseIfStatement();
         }
-        if (isEachStart()) {
-            advance();
-            return parseEachStatement();
-        }
         if (match(TokenType.FOR)) {
             return parseForStatement();
         }
@@ -936,18 +932,19 @@ public final class AccentParser {
         return parseBlockStatement();
     }
 
-    private boolean isEachStart() {
-        return !isJava && check(TokenType.IDENTIFIER) && peek().lexeme().equals("each")
-                && lookAhead(1).type() == TokenType.LEFT_PAREN;
-    }
-
-    private Parameter parseEachParameter() {
+    private Parameter parseForInParameter() {
         int nameOffset = check(TokenType.FINAL) ? 1 : 0;
         if (lookAhead(nameOffset).type() == TokenType.IDENTIFIER) {
             int separator = nameOffset + 1;
             if (lookAhead(separator).type() == TokenType.QUESTION
                     || lookAhead(separator).type() == TokenType.DOUBLE_QUESTION) separator++;
-            if (lookAhead(separator).type() == TokenType.IDENTIFIER && lookAhead(separator).lexeme().equals("from")) {
+            // An explicit type may itself be followed by a binding named "in".
+            if (lookAhead(separator).type() == TokenType.IDENTIFIER && lookAhead(separator).lexeme().equals("in")
+                    && lookAhead(separator + 1).type() != TokenType.COLON
+                    && lookAhead(separator + 1).type() != TokenType.QUESTION
+                    && lookAhead(separator + 1).type() != TokenType.DOUBLE_QUESTION
+                    && !(lookAhead(separator + 1).type() == TokenType.IDENTIFIER
+                        && lookAhead(separator + 2).type() == TokenType.IDENTIFIER)) {
                 if (nameOffset == 1) advance();
                 String name = consume(TokenType.IDENTIFIER, "Expected item name.").lexeme();
                 TypeNode type = parseBindingSuffix(new BaseTypeNode("var", List.of(), true));
@@ -957,28 +954,10 @@ public final class AccentParser {
         return parseParameter();
     }
 
-    private void consumeFrom() {
-        Token token = consume(TokenType.IDENTIFIER, "Expected 'from' after each binding.");
-        if (!token.lexeme().equals("from")) throw error(token, "Expected 'from' after each binding.");
-    }
-
-    private Statement parseEachStatement() {
-        consume(TokenType.LEFT_PAREN, "Expected '(' after 'each'.");
-        Parameter parameter = parseEachParameter();
-        consumeFrom();
-        Expression iterable = parseExpression(Precedence.NONE);
-        consume(TokenType.RIGHT_PAREN, "Expected ')' after each clause.");
-        Statement body = parseRequiredBranchBlock("each");
-        Optional<Statement> elseBranch = Optional.empty();
-        if (match(TokenType.ELSE)) elseBranch = Optional.of(parseRequiredBranchBlock("else"));
-        return new ForEachStmt(parameter, iterable, body, elseBranch);
-    }
-
     private Statement parseForStatement() {
         consume(TokenType.LEFT_PAREN, "Expected '(' after 'for'.");
 
-        // We could have an enhanced for: for (Type! name : expr)
-        // Let's use lookahead: find ':' before the first ';'
+        // Collection loops use contextual 'in' in Accent or Java's compatible ':'.
         boolean isEnhanced = false;
         int depth = 0;
         for (int i = current; i < tokens.size(); i++) {
@@ -986,19 +965,25 @@ public final class AccentParser {
             if (t == TokenType.LEFT_PAREN) depth++;
             if (t == TokenType.RIGHT_PAREN) depth--;
             if (depth < 0) break;
-            if (t == TokenType.SEMICOLON) break;
-            if (t == TokenType.COLON && depth == 0) {
+            if (t == TokenType.SEMICOLON || (t == TokenType.ASSIGN && depth == 0)) break;
+            if (depth == 0 && (t == TokenType.COLON
+                    || (!isJava && t == TokenType.IDENTIFIER && tokens.get(i).lexeme().equals("in")
+                        && i > current && tokens.get(i - 1).type() != TokenType.LEFT_PAREN))) {
                 isEnhanced = true;
                 break;
             }
         }
 
         if (isEnhanced) {
-            Parameter param = parseParameter();
-            consume(TokenType.COLON, "Expected ':' after loop variable.");
+            Parameter param = isJava ? parseParameter() : parseForInParameter();
+            boolean forIn = !match(TokenType.COLON);
+            if (forIn) {
+                Token separator = consume(TokenType.IDENTIFIER, "Expected 'in' after loop binding.");
+                if (!separator.lexeme().equals("in")) throw error(separator, "Expected 'in' after loop binding.");
+            }
             Expression iterable = parseExpression(Precedence.NONE);
             consume(TokenType.RIGHT_PAREN, "Expected ')' after for clause.");
-            Statement body = parseStatement();
+            Statement body = forIn ? parseRequiredBranchBlock("for") : parseStatement();
             Optional<Statement> elseBranch = Optional.empty();
             if (match(TokenType.ELSE)) {
                 elseBranch = Optional.of(parseRequiredBranchBlock("else"));
@@ -1262,9 +1247,6 @@ public final class AccentParser {
             case NULL -> new LiteralExpr(null, token);
             case IDENTIFIER -> {
                 validateIdentifier(token);
-                if (!isJava && token.lexeme().equals("each") && check(TokenType.LEFT_PAREN)) {
-                    yield new LoopExpr(parseEachStatement(), token);
-                }
                 if (token.lexeme().equals("sql")) {
                     Optional<TypeNode> resultType = Optional.empty();
                     if (match(TokenType.LESS)) {
@@ -1614,14 +1596,11 @@ public final class AccentParser {
         MarkupNode node;
         if (check(TokenType.IF)) {
             node = parseMarkupNodeInsideIfChain();
-        } else if (isEachStart() || check(TokenType.FOR)) {
-            boolean each = isEachStart();
+        } else if (check(TokenType.FOR)) {
             Token forToken = advance();
             boolean hasParen = match(TokenType.LEFT_PAREN);
-            Parameter loopVar = each ? parseEachParameter() : parseParameter();
-            if (each) {
-                consumeFrom();
-            } else if (!match(TokenType.COLON)) {
+            Parameter loopVar = isJava ? parseParameter() : parseForInParameter();
+            if (!match(TokenType.COLON)) {
                 Token in = consume(TokenType.IDENTIFIER, "Expected ':' or 'in' in for loop.");
                 if (!in.lexeme().equals("in")) throw error(in, "Expected ':' or 'in' in for loop.");
             }

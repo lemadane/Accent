@@ -7,10 +7,10 @@ class HelloAccent {
    static void main(String[] args) {
       final list = List.of("Accent", "Java");
       List<String> messageList = new ArrayList<String>();
-      each (name from list) {
+      for (name in list) {
          messageList.add(name);
       }
-      each (message from messageList) {
+      for (message in messageList) {
          System.out.println("Hello " + message);
       }
    }

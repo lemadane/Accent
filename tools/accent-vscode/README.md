@@ -179,13 +179,15 @@ Use `do { ... } while (condition) else { ... }`. The single body after `do` runs
 
 The expression form is `final values = do { yield value; } while (condition) else { yield fallback; };`. It collects body yields followed by else yields on normal completion. A false first condition still produces both the first body value and the fallback; a break skips the fallback. There is no semicolon before `else`; the complete expression ends with `;`.
 
-## Each loops
+## For-in loops
 
-Prefer `each (item from list) { ... }` for collection iteration. The element type is inferred and the binding is implicitly final (it cannot be reassigned or incremented); typed bindings such as `each (Customer item from customers)` are also supported. Explicit `final` remains supported but is optional. This fixes the binding; it does not make the referenced object immutable. Bodies require braces.
+Migrate `each (item from list)` to `for (item in list)` in statements, loop expressions, and HTML markup. The compiler no longer accepts the old syntax. `each` and `from` are no longer loop completion or highlighting keywords; `in` remains usable as an ordinary identifier outside the loop separator position.
 
-The expression form is `final values = each (item from list) { yield item; } else { yield fallback; };`. It collects body yields followed by fallback yields on normal completion. Empty or null collections run `else`; a `break` exiting this loop skips it. `continue` and nested-loop breaks preserve normal outer-loop completion.
+Prefer `for (item in list) { ... }` for collection iteration. The element type is inferred and the binding is implicitly final (it cannot be reassigned or incremented); typed bindings such as `for (Customer item in customers)` are also supported. Explicit `final` remains supported but is optional. This fixes the binding; it does not make the referenced object immutable. Bodies require braces.
 
-Existing enhanced `for (var item : list)` remains compatible, and traditional counting loops use `for (i = 0; i < limit; i++)`. Completion and highlighting include `each` and `from`.
+The expression form is `final values = for (item in list) { yield item; } else { yield fallback; };`. It collects body yields followed by fallback yields on normal completion. Empty or null collections run `else`; a `break` exiting this loop skips it. `continue` and nested-loop breaks preserve normal outer-loop completion.
+
+Existing enhanced `for (var item : list)` remains compatible, and traditional counting loops use `for (i = 0; i < limit; i++)`. Completion and highlighting include `for` and `in`.
 
 ## For initializer inference
 

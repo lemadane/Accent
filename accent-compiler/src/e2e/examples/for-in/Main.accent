@@ -3,12 +3,12 @@ import java.util.List;
 class Main {
     static void main(String[] args) {
         final items = List.of(1, 2);
-        each (item from items) {
+        for (item in items) {
             println(item);
         } else {
             println("Iteration completed");
         }
-        final values = each (item from items) {
+        final values = for (item in items) {
             yield item;
         } else {
             yield 3;

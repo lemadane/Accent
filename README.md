@@ -57,7 +57,7 @@ record DashboardService(
         final city = customer.address()?
           .city() else "Unknown";
 
-        final names = each (order from orders) {
+        final names = for (order in orders) {
             yield order.name().normalized();
         };
 
@@ -548,7 +548,7 @@ A truthy collection can still contain null elements when its element contract pe
 statement.** Write `if (user? != null) { names.add(user?); }`; the unbraced form
 is a compile error. `else if (...) { ... }` chains remain valid, with a braced
 body for each condition and the final `else`. An empty branch must use `{}`,
-not `;`. This rule also applies to the `else` body of `each/else`, `for/else`, and `while/else` loops.
+not `;`. This rule also applies to the `else` body of `for/else` and `while/else` loops.
 If-expressions and HTML conditionals already require braced bodies.
 
 Explicit block boundaries make the scope of each condition visible and avoid
@@ -599,15 +599,17 @@ final port = try {
 };
 ```
 
-### 12. `each` and `for` loops with `else`
+### 12. `for` loops with `else`
 
-Use `each (item from list) { ... }` for collection iteration. Accent infers the element type, and `item` is implicitly final: it cannot be reassigned or incremented.
+Use `for (item in list) { ... }` for collection iteration. Accent infers the element type, and `item` is implicitly final: it cannot be reassigned or incremented.
 
-Explicit types such as `each (Customer item from customers)` and `each (final Customer item from customers)` are also supported. Explicit `final` remains optional and compatible, including `each (final item from list)`. Final applies to the binding, not to the mutability of the referenced object.
+To migrate existing code, replace `each (item from list)` with `for (item in list)`. The old `each/from` syntax is no longer supported. Apply the same change to loop expressions and loops inside HTML markup; their bodies and optional `else` branches keep the same behavior. `in` is contextual and remains usable as an identifier outside the separator position.
 
-Both the `each` body and its optional `else` body require braces.
+Explicit types such as `for (Customer item in customers)` and `for (final Customer item in customers)` are also supported. Explicit `final` remains optional and compatible, including `for (final item in list)`. Final applies to the binding, not to the mutability of the referenced object.
 
-Traditional counting loops use `for (i = 0; i < limit; i++) { ... }`. Existing enhanced `for (var item : list)` loops remain compatible, including their expression and `else` forms. Prefer `each` in new collection-processing code.
+Both the `for in` body and its optional `else` body require braces.
+
+Traditional counting loops use `for (i = 0; i < limit; i++) { ... }`. Existing enhanced `for (var item : list)` loops remain compatible, including their expression and `else` forms. Prefer `for in` in new collection-processing code.
 
 The `else` body must use `{ ... }`, even for a single statement or an empty
 fallback. See the [conditional brace rules](#10-braced-conditionals-and-if-expressions).
@@ -617,11 +619,11 @@ fallback. See the [conditional brace rules](#10-braced-conditionals-and-if-expre
 - **Normal Loop Completion**: If the loop executes to completion without encountering a `break` statement, the `else` branch executes.
 - **Early Exit via `break`**: If a `break` statement is encountered, the `else` branch is skipped.
 
-#### `each/else` statement
+#### `for/else` statement
 
 ```java
 // Executes else branch when list is empty, null, or completed without break
-each (customer from customers) {
+for (customer in customers) {
     if (customer.id().equals(targetId)) {
         this.process(customer);
         break; // Skips else branch
@@ -639,7 +641,7 @@ Traditional loops infer new counters from their initializers:
 for (i = 0; i < maxAttempts; i++) { println(i); }
 ```
 
-An undeclared `i` becomes a mutable local with its type inferred from `0`. It is scoped to the loop header and body, and is not visible in `else` or after the loop. Unlike an `each` binding, the counter is mutable so `i++` is allowed. An initializer is required to infer a new variable. Writing `var`, an explicit type, or `final` in a traditional `for` initializer is a syntax error. Ordinary local declarations and compatible enhanced `for (var item : list)` loops keep their existing syntax.
+An undeclared `i` becomes a mutable local with its type inferred from `0`. It is scoped to the loop header and body, and is not visible in `else` or after the loop. Unlike a `for in` binding, the counter is mutable so `i++` is allowed. An initializer is required to infer a new variable. Writing `var`, an explicit type, or `final` in a traditional `for` initializer is a syntax error. Ordinary local declarations and compatible enhanced `for (var item : list)` loops keep their existing syntax.
 
 If `i` already names a local variable, the bare form assigns to that variable instead of declaring another one; its final value remains available after the loop. Existing final variables and parameters cannot be reassigned, and fields retain their normal qualification rules. The same initializer rules work in `for` expressions and with `else`.
 
@@ -653,12 +655,12 @@ for (i = 0; i < maxAttempts; i++) {
 }
 ```
 
-#### `each/else` expression
+#### `for/else` expression
 
 Each executed `yield` contributes an element to the resulting collection. With `else`, the branch also contributes values whenever the loop completes without `break`, including when it was empty. In the example below, `"Guest"` is appended after normal iteration as well as for an empty iterable:
 
 ```java
-final names = each (customer from customers) {
+final names = for (customer in customers) {
     yield customer.name();
 } else {
     yield "Guest";
@@ -1537,7 +1539,7 @@ Accent includes native support for server-side HTML templating via JSX-like mark
 * **HTML Elements**: Lowercase tags (e.g. `<div class="card">`) represent standard HTML elements. Real HTML attribute names (`class`, `for`) are used instead of React-specific names (`className`, `htmlFor`).
 * **Accent Components**: Capitalized tags (e.g. `<UserCard user={user} />`) represent custom component classes or records that implement the `accent.html.Component` interface.
 * **Property Injection**: Component properties are matched to constructor parameters at compile-time. Property types, names, and presence of required attributes are checked at compile-time.
-* **Control Flow**: You can write conditionals (`{if (cond) { ... } else { ... }}`) and loops (`{each (item from list) { ... }}`) directly inside the markup block to control structure dynamically.
+* **Control Flow**: You can write conditionals (`{if (cond) { ... } else { ... }}`) and loops (`{for (item in list) { ... }}`) directly inside the markup block to control structure dynamically.
 * **Rendering Scope**: Dynamic expressions run when the `Html` is written. Unselected conditional branches are not evaluated, and loop expressions are evaluated within each iteration. Nested components may contain further components and control flow.
 * **Boolean Attributes**: `disabled={false}` and `checked={null}` omit the attribute; `disabled={true}` emits `disabled`. Ordinary attributes retain their values, so `title={true}` emits `title="true"`.
 * **Fragments**: Use empty tags (`<> ... </>`) to group multiple elements without adding wrapping nodes to the DOM.
