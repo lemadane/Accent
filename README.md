@@ -176,7 +176,7 @@ and keep that marker when using the nullable binding:
 ```java
 String name = "John";
 String nickname? = null;
-System.out.println(nickname? else name);
+println(nickname? else name);
 ```
 
 Non-null fields and local variables require initializers. Assigning null or a
@@ -529,12 +529,12 @@ when proving a nullable value safe for insertion into a list with non-null eleme
 ```accent
 String name = "John";
 if (name) {
-    System.out.println("Name is present and non-empty");
+    println("Name is present and non-empty");
 }
 
 int count = 0;
 if (not count) {
-    System.out.println("Count is zero");
+    println("Count is zero");
 }
 ```
 
@@ -852,7 +852,7 @@ println(42);
 println();
 ```
 
-These built-in calls use `System.out.print` and `System.out.println`, including the standard output stream's formatting and redirection. They need no import or receiver. Explicit `System.out` calls remain valid. If you declare your own method named `print` or `println`, access it through `this.` or `static.`; a bare call selects the built-in shorthand.
+These built-in calls use `print` and `println`, including the standard output stream's formatting and redirection. They need no import or receiver. Explicit `System.out` calls remain valid. If you declare your own method named `print` or `println`, access it through `this.` or `static.`; a bare call selects the built-in shorthand.
 
 For log levels, timestamps, file output, and request context, use [logging](#22-logging-and-diagnostic-context). The runnable [console and logging demo](accent-compiler/src/e2e/examples/console/ConsoleLoggingDemo.accent) shows both APIs.
 
@@ -889,7 +889,7 @@ user.age(43);
 final userCopy = user.copy("U101", "Lemuel A.", 43);
 
 // Formatted toString output
-System.out.println(user); // User[id=U101, name=Lemuel A., age=43]
+println(user); // User[id=U101, name=Lemuel A., age=43]
 ```
 
 #### Model Features & Semantics
@@ -1244,8 +1244,7 @@ class Main {
 
         // Parse directly into a strongly-typed record!
         User parsedUser = Json.parse(json, User.class);
-
-        System.out.println(parsedUser.firstName());
+        println(parsedUser.firstName());
     }
 }
 ```
@@ -1438,7 +1437,7 @@ class Main {
         app.post("/echo", req -> Response.json(req.json()));
         final port = Integer.parseInt(System.getenv("PORT") else "8080");
         app.listen(port);
-        System.out.println("Accent HTTP listening on " + app.port());
+        println("Accent HTTP listening on " + app.port());
     }
 }
 ```
@@ -1589,7 +1588,7 @@ Use `accent.web.Slug` to create or validate a readable URL path segment. This is
 import accent.web.Slug;
 
 Slug slug? = Slug.from("Aircon Cleaning Services");
-System.out.println(slug?);
+println(slug?);
 ```
 
 Output:
@@ -1668,7 +1667,7 @@ You can combine slugs cleanly:
 ```accent
 Slug serviceSlug? = Slug.from("Home Services")
         .append("Aircon Cleaning");
-System.out.println(serviceSlug?); // home-services-aircon-cleaning
+println(serviceSlug?); // home-services-aircon-cleaning
 ```
 
 You can test this implementation via the included demo:
@@ -1696,7 +1695,7 @@ Symbol<String?> statusKey? = Symbol.create("status");
 SymbolMap context = new SymbolMap();
 context.put(statusKey?, "ACTIVE");
 String status? = context.get(statusKey?);
-System.out.println(status? else "UNKNOWN");
+println(status? else "UNKNOWN");
 ```
 
 The nullable markers above reflect the unannotated Java API results and the possibility of a missing map entry. A symbol's description is for debugging; it does not determine identity. Symbols are useful for request attributes and plugin metadata, but are not persistent database IDs and should not be treated as serialization keys.
