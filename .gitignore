@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# Local JDK Toolchain
+jdk/
+
+# IDEs and Editors
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+.metadata/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Agent Data
+.gemini/

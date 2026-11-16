@@ -1,0 +1,29 @@
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+    group = 'accent'
+    version = '0.1.0-alpha.2'
+    repositories { mavenCentral() }
+    java {
+        toolchain { languageVersion = JavaLanguageVersion.of(21) }
+        withSourcesJar()
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.release = 21
+        options.encoding = 'UTF-8'
+        options.compilerArgs += ['-Xlint:all', '-Werror']
+    }
+    dependencies {
+        testImplementation platform('org.junit:junit-bom:5.11.4')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        def testClasspath = sourceSets.test.runtimeClasspath
+        doFirst { systemProperty 'accent.test.runtimeClasspath', testClasspath.asPath }
+    }
+    publishing {
+        publications { mavenJava(MavenPublication) { from components.java } }
+    }
+}

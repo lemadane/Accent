@@ -1,0 +1,418 @@
+package accent.ast;
+
+import accent.source.SourceFile;
+import accent.lexer.Token;
+import java.util.List;
+import java.util.Optional;
+
+public interface Ast {
+
+    sealed interface Node permits TypeNode, TypeDeclaration, Member, Statement, Expression, TypeParameter, EnumConstant, Parameter, CatchClause, CompilationUnit, MarkupNode, AttributeNode, ComponentArgumentNode {}
+
+    // Compilation Unit
+    record CompilationUnit(
+            SourceFile sourceFile,
+            Optional<String> packageName,
+            List<String> imports,
+            List<TypeDeclaration> declarations,
+            List<Token> tokens
+    ) implements Node {}
+
+    // Types in code
+    sealed interface TypeNode extends Node permits BaseTypeNode, ArrayTypeNode, PrimitiveTypeNode {
+        boolean isNonNull();
+        TypeNode withNonNull(boolean nonNull);
+        default TypeNode withNullableElements() {
+            if (this instanceof ArrayTypeNode a && !(a.elementType() instanceof PrimitiveTypeNode))
+                return new ArrayTypeNode(a.elementType().withNonNull(false), false);
+            if (this instanceof BaseTypeNode b && (b.name().equals("List") || b.name().equals("java.util.List"))
+                    && b.typeArguments().size() == 1)
+                return new BaseTypeNode(b.name(), List.of(b.typeArguments().getFirst().withNonNull(false)), false);
+            throw new IllegalArgumentException("'??' requires a reference array or List<T> binding.");
+        }
+        default boolean hasNonNullElements() {
+            return this instanceof ArrayTypeNode a && !(a.elementType() instanceof PrimitiveTypeNode) && a.elementType().isNonNull()
+                    || this instanceof BaseTypeNode b && (b.name().equals("List") || b.name().equals("java.util.List"))
+                        && b.typeArguments().size() == 1 && b.typeArguments().getFirst().isNonNull();
+        }
+        default TypeNode withNonNullElements() {
+            if (this instanceof ArrayTypeNode a) return new ArrayTypeNode(a.elementType().withNonNull(true), a.isNonNull());
+            if (this instanceof BaseTypeNode b && (b.name().equals("List") || b.name().equals("java.util.List"))
+                    && b.typeArguments().size() == 1)
+                return new BaseTypeNode(b.name(), List.of(b.typeArguments().getFirst().withNonNull(true)), b.isNonNull());
+            throw new IllegalArgumentException("'!!' requires an array or List<T> binding.");
+        }
+    }
+
+    record BaseTypeNode(String name, List<TypeNode> typeArguments, boolean isNonNull) implements TypeNode {
+        @Override public boolean isNonNull() { return isNonNull; }
+        @Override public TypeNode withNonNull(boolean nonNull) { return new BaseTypeNode(name, typeArguments, nonNull); }
+        @Override public String toString() {
+            StringBuilder sb = new StringBuilder(name);
+            if (!typeArguments.isEmpty()) {
+                sb.append("<");
+                for (int i = 0; i < typeArguments.size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(typeArguments.get(i).toString());
+                }
+                sb.append(">");
+            }
+            if (!isNonNull) sb.append("?");
+            return sb.toString();
+        }
+    }
+
+    record ArrayTypeNode(TypeNode elementType, boolean isNonNull) implements TypeNode {
+        @Override public boolean isNonNull() { return isNonNull; }
+        @Override public TypeNode withNonNull(boolean nonNull) { return new ArrayTypeNode(elementType, nonNull); }
+        @Override public String toString() {
+            return elementType.toString() + "[]" + (isNonNull ? "" : "?");
+        }
+    }
+
+    record PrimitiveTypeNode(String name) implements TypeNode {
+        @Override public boolean isNonNull() { return true; } // Primitive types are implicitly non-null
+        @Override public TypeNode withNonNull(boolean nonNull) { return this; }
+        @Override public String toString() { return name; }
+    }
+
+    // Type Declarations
+    sealed interface TypeDeclaration extends Node permits ClassDecl, ModelDecl, InterfaceDecl, RecordDecl, EnumDecl, ExtensionDecl {
+        List<String> modifiers();
+        String name();
+        List<Member> members();
+        default boolean isSingleton() { return modifiers().contains("singleton"); }
+    }
+
+    record ModelDecl(
+            List<String> modifiers,
+            String name,
+            List<TypeParameter> typeParameters,
+            List<Parameter> components,
+            List<TypeNode> interfaces,
+            List<Member> members
+    ) implements TypeDeclaration {}
+
+    record ClassDecl(
+            List<String> modifiers,
+            String name,
+            List<TypeParameter> typeParameters,
+            Optional<TypeNode> superclass,
+            List<TypeNode> interfaces,
+            List<Member> members,
+            boolean isSingleton
+    ) implements TypeDeclaration {
+        public ClassDecl(
+                List<String> modifiers,
+                String name,
+                List<TypeParameter> typeParameters,
+                Optional<TypeNode> superclass,
+                List<TypeNode> interfaces,
+                List<Member> members
+        ) {
+            this(modifiers, name, typeParameters, superclass, interfaces, members, false);
+        }
+    }
+
+    record InterfaceDecl(
+            List<String> modifiers,
+            String name,
+            List<TypeParameter> typeParameters,
+            List<TypeNode> interfaces,
+            List<Member> members
+    ) implements TypeDeclaration {}
+
+    record RecordDecl(
+            List<String> modifiers,
+            String name,
+            List<TypeParameter> typeParameters,
+            List<Parameter> components,
+            List<TypeNode> interfaces,
+            List<Member> members
+    ) implements TypeDeclaration {}
+
+    record EnumDecl(
+            List<String> modifiers,
+            String name,
+            List<TypeNode> interfaces,
+            List<EnumConstant> constants,
+            List<Member> members
+    ) implements TypeDeclaration {}
+
+    record ExtensionDecl(
+            TypeNode targetType,
+            List<Member> members
+    ) implements TypeDeclaration {
+        @Override public List<String> modifiers() { return List.of("public"); }
+        @Override public String name() { 
+            // Unique extension class name based on target type
+            return "Extension_" + targetType.toString().replaceAll("[^a-zA-Z0-9_]", "_");
+        }
+    }
+
+    record TypeParameter(String name, Optional<TypeNode> bound) implements Node {}
+
+    record EnumConstant(String name, List<Expression> arguments) implements Node {}
+
+    record Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue,
+                     boolean isMutable, List<String> annotations) implements Node {
+        public Parameter {
+            annotations = List.copyOf(annotations);
+        }
+        public Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue, boolean isMutable) {
+            this(type, name, isVarargs, defaultValue, isMutable, List.of());
+        }
+        public Parameter(TypeNode type, String name, boolean isVarargs, Optional<Expression> defaultValue) {
+            this(type, name, isVarargs, defaultValue, false, List.of());
+        }
+    }
+
+    // Members
+    sealed interface Member extends Node permits FieldDecl, ConstructorDecl, MethodDecl {
+        List<String> modifiers();
+    }
+
+    record FieldDecl(
+            List<String> modifiers,
+            TypeNode type,
+            String name,
+            Optional<Expression> initializer
+    ) implements Member {}
+
+    record ConstructorDecl(
+            List<String> modifiers,
+            List<TypeParameter> typeParameters,
+            List<Parameter> parameters,
+            List<TypeNode> throwsList,
+            BlockStmt body
+    ) implements Member {}
+
+    record MethodDecl(
+            List<String> modifiers,
+            List<TypeParameter> typeParameters,
+            boolean isGenerator,
+            TypeNode returnType,
+            String name,
+            List<Parameter> parameters,
+            List<TypeNode> throwsList,
+            Optional<BlockStmt> body // Empty if abstract/interface method
+    ) implements Member {}
+
+    // Statements
+    sealed interface Statement extends Node permits BlockStmt, LocalVarDeclStmt, ForInitStmt, IfStmt, ForStmt, ForEachStmt, WhileStmt, DoWhileStmt, TryStmt, ReturnStmt, YieldStmt, BreakStmt, ContinueStmt, ExprStmt, ThrowStmt, EmitStmt {}
+
+    record BlockStmt(List<Statement> statements) implements Statement {}
+
+    record LocalVarDeclStmt(
+            boolean isFinal,
+            boolean isInferred,
+            Optional<TypeNode> type,
+            String name,
+            Optional<Expression> initializer,
+            boolean nonNullBinding,
+            boolean nonNullElements
+    ) implements Statement {
+        public LocalVarDeclStmt(boolean isFinal, boolean isInferred, Optional<TypeNode> type,
+                                String name, Optional<Expression> initializer, boolean nonNullBinding) {
+            this(isFinal, isInferred, type, name, initializer, nonNullBinding,
+                    type.isPresent() && type.get().hasNonNullElements());
+        }
+        public LocalVarDeclStmt(boolean isFinal, boolean isInferred, Optional<TypeNode> type,
+                                String name, Optional<Expression> initializer) {
+            this(isFinal, isInferred, type, name, initializer,
+                    type.isPresent() && type.get().isNonNull() && !(type.get() instanceof PrimitiveTypeNode));
+        }
+    }
+
+    /** A bare for initializer declares a local only when its name is not already bound. */
+    record ForInitStmt(BinaryExpr assignment) implements Statement {
+        public LocalVarDeclStmt declaration() {
+            return new LocalVarDeclStmt(false, true, Optional.empty(),
+                    ((IdentifierExpr) assignment.left()).name(), Optional.of(assignment.right()), true);
+        }
+    }
+
+    record IfStmt(Expression condition, Statement thenBranch, Optional<Statement> elseBranch) implements Statement {}
+
+    record ForStmt(
+            Optional<Statement> init,
+            Optional<Expression> condition,
+            Optional<Expression> update,
+            Statement body,
+            Optional<Statement> elseBranch
+    ) implements Statement {}
+
+    record ForEachStmt(Parameter parameter, Expression iterable, Statement body, Optional<Statement> elseBranch) implements Statement {}
+
+    record WhileStmt(Expression condition, Statement body, Optional<Statement> elseBranch) implements Statement {
+        public WhileStmt(Expression condition, Statement body) { this(condition, body, Optional.empty()); }
+    }
+
+    record DoWhileStmt(Statement body, Expression condition, Optional<Statement> elseBranch) implements Statement {
+        public DoWhileStmt(Statement body, Expression condition) { this(body, condition, Optional.empty()); }
+    }
+
+    record TryStmt(
+            BlockStmt body,
+            List<CatchClause> catchClauses,
+            Optional<BlockStmt> finallyBlock
+    ) implements Statement {}
+
+    record ReturnStmt(Optional<Expression> expression) implements Statement {}
+
+    record YieldStmt(Expression expression) implements Statement {}
+
+    record BreakStmt() implements Statement {}
+
+    record ContinueStmt() implements Statement {}
+
+    record ExprStmt(Expression expression) implements Statement {}
+
+    record ThrowStmt(Expression expression) implements Statement {}
+
+    /** Emits a value from a generator function. */
+    record EmitStmt(Expression expression) implements Statement {}
+
+    record CatchClause(Parameter parameter, BlockStmt body) implements Node {}
+
+    // Expressions
+    sealed interface Expression extends Node permits NullableExpr, LiteralExpr, IdentifierExpr, ThisExpr, SuperExpr, StaticExpr, BinaryExpr, UnaryExpr, MemberAccessExpr, MethodCallExpr, NewObjectExpr, NewArrayExpr, ArrayInitializerExpr, ArrayAccessExpr, LambdaExpr, IfExpr, TryExpr, LoopExpr, NamedArgExpr, MarkupExpr, TernaryExpr, SqlExpr, JsonExpr, InterpolatedStringExpression {
+        // Source location helper
+        default Token token() { return null; }
+    }
+
+    record LiteralExpr(Object value, Token token) implements Expression {}
+
+    record IdentifierExpr(String name, Token token, boolean nonNullBinding, boolean nonNullElements) implements Expression {
+        public IdentifierExpr(String name, Token token, boolean nonNullBinding) { this(name, token, nonNullBinding, false); }
+        public IdentifierExpr(String name, Token token) { this(name, token, false); }
+    }
+
+    record NullableExpr(Expression expression, Token token, boolean nullableElements) implements Expression {
+        public NullableExpr(Expression expression, Token token) { this(expression, token, false); }
+    }
+
+    record ThisExpr(Token token) implements Expression {}
+
+    record SuperExpr(Token token) implements Expression {}
+
+    record StaticExpr(Token token) implements Expression {}
+
+    record BinaryExpr(Expression left, Token operator, Expression right) implements Expression {}
+
+    record UnaryExpr(Token operator, Expression expression, boolean isPostfix) implements Expression {}
+
+    record MemberAccessExpr(Expression receiver, String memberName, boolean isOptional, Token token,
+                            boolean nonNullBinding, boolean nonNullElements) implements Expression {
+        public MemberAccessExpr(Expression receiver, String memberName, boolean isOptional, Token token, boolean nonNullBinding) {
+            this(receiver, memberName, isOptional, token, nonNullBinding, false);
+        }
+        public MemberAccessExpr(Expression receiver, String memberName, boolean isOptional, Token token) {
+            this(receiver, memberName, isOptional, token, false);
+        }
+    }
+
+    record MethodCallExpr(
+            Expression receiver, // Can be null if implicit this
+            String methodName,
+            List<TypeNode> typeArguments,
+            List<Expression> arguments,
+            boolean isOptional,
+            Token token,
+            boolean nonNullResult
+    ) implements Expression {
+        public MethodCallExpr(Expression receiver, String methodName, List<TypeNode> typeArguments,
+                              List<Expression> arguments, boolean isOptional, Token token) {
+            this(receiver, methodName, typeArguments, arguments, isOptional, token, false);
+        }
+    }
+
+    record NewObjectExpr(TypeNode type, List<Expression> arguments, Token token) implements Expression {}
+
+    record NewArrayExpr(
+            TypeNode type,
+            List<Expression> dimensions,
+            Optional<ArrayInitializerExpr> initializer,
+            Token token
+    ) implements Expression {}
+
+    record ArrayInitializerExpr(List<Expression> expressions, Token token) implements Expression {}
+
+    record ArrayAccessExpr(Expression receiver, Expression index, Token token, boolean nonNullElement) implements Expression {
+        public ArrayAccessExpr(Expression receiver, Expression index, Token token) { this(receiver, index, token, false); }
+    }
+
+    record LambdaExpr(
+            List<Parameter> parameters,
+            Node body, // Can be Expression or BlockStmt
+            Token token
+    ) implements Expression {}
+
+    record IfExpr(Expression condition, BlockStmt thenBranch, BlockStmt elseBranch, Token token) implements Expression {}
+
+    record TryExpr(
+            BlockStmt body,
+            List<CatchClause> catchClauses,
+            Optional<BlockStmt> finallyBlock,
+            Token token
+    ) implements Expression {}
+
+    record LoopExpr(Statement loop, Token token) implements Expression {}
+
+    record NamedArgExpr(String name, Expression expression) implements Expression {
+        @Override public Token token() { return expression.token(); }
+    }
+
+    record TernaryExpr(
+            Expression condition,
+            Expression thenBranch,
+            Expression elseBranch,
+            Token token
+    ) implements Expression {}
+
+    record MarkupExpr(MarkupNode node, Token token) implements Expression {}
+
+    record SqlExpr(
+            String query,
+            List<Expression> interpolations,
+            Optional<TypeNode> resultType,
+            Token token
+    ) implements Expression {}
+
+    record JsonExpr(
+            String template,
+            List<Expression> interpolations,
+            TypeNode resultType,
+            Token token
+    ) implements Expression {}
+
+    sealed interface InterpolatedStringPart permits InterpolatedTextPart, InterpolatedExpressionPart {}
+    record InterpolatedTextPart(String text) implements InterpolatedStringPart {}
+    record InterpolatedExpressionPart(Expression expression) implements InterpolatedStringPart {}
+
+    record InterpolatedStringExpression(List<InterpolatedStringPart> parts, Token token) implements Expression {}
+
+    record AttributeNode(String name, Expression value, Token token) implements Node {}
+
+    record ComponentArgumentNode(String name, Expression value, Token token) implements Node {}
+
+    sealed interface MarkupNode extends Node permits ElementNode, ComponentNode, TextNode, ExpressionNode, IfMarkupNode, ForMarkupNode, FragmentNode {
+        Token token();
+    }
+
+    record ElementNode(String tagName, List<AttributeNode> attributes, List<MarkupNode> children, Token token) implements MarkupNode {}
+
+    record ComponentNode(String typeName, List<ComponentArgumentNode> arguments, List<MarkupNode> children, Token token) implements MarkupNode {}
+
+    record TextNode(String value, Token token) implements MarkupNode {}
+
+    record ExpressionNode(Expression expression) implements MarkupNode {
+        @Override public Token token() { return expression.token(); }
+    }
+
+    record IfMarkupNode(Expression condition, List<MarkupNode> trueBranch, List<MarkupNode> falseBranch, Token token) implements MarkupNode {}
+
+    record ForMarkupNode(Parameter parameter, Expression iterable, List<MarkupNode> body, List<MarkupNode> elseBranch, Token token) implements MarkupNode {}
+
+    record FragmentNode(List<MarkupNode> children, Token token) implements MarkupNode {}
+}
