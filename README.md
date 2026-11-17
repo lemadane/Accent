@@ -1,4 +1,4 @@
-# AccentCore
+# Accent
 
 Accent's JVM compiler and shared runtime. Accent compiles Java-shaped source into
 Java and JVM bytecode, with explicit nullability, concise data types, and Java interoperability.
@@ -6,7 +6,7 @@ This repository owns the language reference below. Status: **alpha**, `0.1.0-alp
 
 | Artifact | Responsibility |
 | --- | --- |
-| `accent:accent-core` | Lexer, parser, AST, semantic analysis, lowering, Java emitter, compiler API and CLI |
+| `accent:accent` | Lexer, parser, AST, semantic analysis, lowering, Java emitter, compiler API and CLI |
 | `accent:accent-runtime` | Language helpers, async, symbols, JSON/XML and logging; no external production dependencies |
 
 The compiler depends on the runtime. Neither artifact depends on HTTP, Spring,
@@ -29,8 +29,8 @@ programs using those features must supply their separate runtime libraries.
 Use a JDK 21 toolchain and the included Gradle wrapper. From this repository:
 
 ```sh
-./gradlew test assemble :accent-core:installDist
-accent-core/build/install/accent-core/bin/accent-core run examples/hello/Hello.accent
+./gradlew test assemble :accent:installDist
+accent/build/install/accent/bin/accent run examples/hello/Hello.accent
 ```
 
 The example prints `Hello, Accent!` and needs no server or database libraries:
@@ -49,10 +49,10 @@ find JDK 21, pass `-Dorg.gradle.java.installations.paths=/path/to/jdk-21`.
 ## CLI reference
 
 ```text
-accent-core check <file-or-dir>
-accent-core tokens <source.accent>
-accent-core compile <file-or-dir> [-d output-dir] [-cp classpath] [--save-java java-dir]
-accent-core run <main-file-or-class> [-cp classpath]
+accent check <file-or-dir>
+accent tokens <source.accent>
+accent compile <file-or-dir> [-d output-dir] [-cp classpath] [--save-java java-dir]
+accent run <main-file-or-class> [-cp classpath]
 ```
 
 `check` validates syntax and semantics; check a directory to resolve references
@@ -1386,9 +1386,9 @@ Accent adds focused syntax while preserving Java-shaped code.
 
 | Repository | Owns |
 | --- | --- |
-| [AccentCore](https://github.com/lemadane/AccentCore) | Compiler, language specification, CLI, async, JSON/XML, logging, symbols |
+| [Accent](https://github.com/lemadane/Accent) | Compiler, language specification, CLI, async, JSON/XML, logging, symbols |
 | [AccentServerSide](https://github.com/lemadane/AccentServerSide) | HTTP server, HTML rendering, Spring web integration, routing |
-| [AccentEditors](https://github.com/lemadane/AccentEditors) | VS Code, shared language services, and future IntelliJ / Android Studio integrations |
+| [AccentEditors](https://github.com/lemadane/AccentEditors) | VS Code, IntelliJ IDEA, and Android Studio integrations and shared language services |
 | [AccentSQL](https://github.com/lemadane/AccentSQL) | JDBC execution, SQL template usage, Spring database integration |
 | [AccentOrm](https://github.com/lemadane/AccentOrm) | JDBC row-to-object mapping |
 | [AccentSqlite](https://github.com/lemadane/AccentSqlite) | SQLite driver and connection setup |

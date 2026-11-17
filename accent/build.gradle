@@ -2,5 +2,5 @@ plugins { id 'application' }
 dependencies { api project(':accent-runtime') }
 application {
     mainClass = 'accent.cli.AccentCli'
-    applicationName = 'accent-core'
+    applicationName = 'accent'
 }

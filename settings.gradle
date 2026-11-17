@@ -1,2 +1,2 @@
-rootProject.name = 'AccentCore'
-include 'accent-core', 'accent-runtime'
+rootProject.name = 'Accent'
+include 'accent', 'accent-runtime'
