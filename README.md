@@ -31,14 +31,22 @@ retains the full original integration suite, including language and web regressi
 
 ## Backend integration
 
-The existing `/home/lem/Projects/java/Accent` checkout remains the backend product.
-Its `accent-compiler` module is a compatibility facade: it contains backend libraries
-and depends on `accent:accent-core`. Its CLI distribution includes both artifacts.
-A Gradle composite build uses `../../AccentCore` by default, relative to that checkout.
-Override this with `-PaccentCoreDir=/path/to/AccentCore`.
+AccentServerSide is a separate repository. Its `accent-compiler` module contains backend
+libraries and depends on the versioned `accent:accent-core` artifact. Its CLI
+includes Core and Runtime dependencies.
 
-The directory is intentionally not renamed: external scripts and IDE projects may
-reference it. Core source files live only here after the migration.
+Publish Core locally before building Backend independently:
+
+```sh
+./gradlew test publishToMavenLocal
+# From an AccentServerSide checkout anywhere on disk:
+./gradlew build
+```
+
+For coordinated source development, run Backend with
+`./gradlew build -PaccentCoreDir=/path/to/AccentCore` (or `../AccentCore` for siblings).
+Neither repository requires a particular parent directory. Core has its own CI and
+publishes both artifacts to GitHub Packages when a release is published.
 
 ## AccentAndroid boundary
 

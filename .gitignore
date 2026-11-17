@@ -21,3 +21,6 @@ Thumbs.db
 
 # Agent Data
 .gemini/
+
+# Java output from IDE builds
+**/bin/
