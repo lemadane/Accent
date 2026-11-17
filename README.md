@@ -1338,7 +1338,7 @@ See the runnable [symbols example](https://github.com/lemadane/AccentServerSide/
 
 - [SQL templates and execution](https://github.com/lemadane/AccentSQL#sql-templates-and-bound-parameters): the compiler recognizes templates; AccentSQL executes them and AccentOrm maps results.
 - [HTML components](https://github.com/lemadane/AccentServerSide#html-components): the compiler recognizes markup; ServerSide renders it and serves HTTP.
-- [Editor support](https://github.com/lemadane/AccentServerSide#ide-support): the LSP server and editor clients are currently maintained in ServerSide.
+- [Editor support](https://github.com/lemadane/AccentEditors): shared language services, the LSP server, and editor clients.
 - [Android plan and compatibility](https://github.com/lemadane/AccentAndroid#compatibility): use the compiler on the build host; Android runtime support is not implemented yet.
 
 ## Build, tests, and publication
@@ -1387,7 +1387,8 @@ Accent adds focused syntax while preserving Java-shaped code.
 | Repository | Owns |
 | --- | --- |
 | [AccentCore](https://github.com/lemadane/AccentCore) | Compiler, language specification, CLI, async, JSON/XML, logging, symbols |
-| [AccentServerSide](https://github.com/lemadane/AccentServerSide) | HTTP server, HTML rendering, Spring web integration, routing, editor tooling |
+| [AccentServerSide](https://github.com/lemadane/AccentServerSide) | HTTP server, HTML rendering, Spring web integration, routing |
+| [AccentEditors](https://github.com/lemadane/AccentEditors) | VS Code, shared language services, and future IntelliJ / Android Studio integrations |
 | [AccentSQL](https://github.com/lemadane/AccentSQL) | JDBC execution, SQL template usage, Spring database integration |
 | [AccentOrm](https://github.com/lemadane/AccentOrm) | JDBC row-to-object mapping |
 | [AccentSqlite](https://github.com/lemadane/AccentSqlite) | SQLite driver and connection setup |
