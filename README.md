@@ -7,11 +7,12 @@ Shared Accent compiler and language runtime, extracted from Accent commit
 | --- | --- |
 | `accent:accent-core` | Lexer, parser, AST, semantic analysis, lowering, Java emitter, compiler API and CLI; depends on `accent-runtime` |
 | `accent:accent-runtime` | Language helpers, symbols, JSON/XML serialization and logging; no external production dependencies |
-| Accent backend checkout | HTTP/Undertow, HTML rendering, JDBC SQL, web utilities, Spring adapter and backend demos |
+| AccentServerSide | HTTP/Undertow, HTML rendering, web utilities, Spring web adapter and backend demos |
+| AccentSQL / AccentOrm / AccentSqlite | JDBC execution and Spring SQL adapter / row mapping / SQLite JDBC adapter |
 
 Neither Core artifact depends on the backend, Spring, Undertow, or JDBC. The grammar
-still recognizes HTML and SQL constructs; applications using them must supply the
-backend libraries. This preserves the language while separating its dependencies.
+still recognizes HTML and SQL constructs; applications using them must supply
+AccentServerSide for HTML or AccentSQL (with AccentOrm) for SQL. This preserves the language while separating its dependencies.
 
 ## Build
 
@@ -35,7 +36,8 @@ AccentServerSide is a separate repository. Its `accent-compiler` module contains
 libraries and depends on the versioned `accent:accent-core` artifact. Its CLI
 includes Core and Runtime dependencies.
 
-Publish Core locally before building Backend independently:
+Publish Core locally before building ServerSide independently. ServerSide also
+requires locally published AccentOrm and AccentSQL artifacts:
 
 ```sh
 ./gradlew test publishToMavenLocal
@@ -43,8 +45,8 @@ Publish Core locally before building Backend independently:
 ./gradlew build
 ```
 
-For coordinated source development, run Backend with
-`./gradlew build -PaccentCoreDir=/path/to/AccentCore` (or `../AccentCore` for siblings).
+For coordinated source development, run ServerSide with
+`./gradlew build -PaccentCoreDir=/path/to/AccentCore -PaccentOrmDir=/path/to/AccentOrm -PaccentSqlDir=/path/to/AccentSQL`.
 Neither repository requires a particular parent directory. Core has its own CI and
 publishes both artifacts to GitHub Packages when a release is published.
 
