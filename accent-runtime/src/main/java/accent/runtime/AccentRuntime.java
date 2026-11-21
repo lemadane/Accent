@@ -5,6 +5,23 @@ public final class AccentRuntime {
     private AccentRuntime() {
     }
 
+    /**
+     * Returns a value's runtime type, normalizing boxed primitives to primitive
+     * Class objects. Null has no runtime type and is rejected.
+     */
+    public static Class<?> typeOf(Object value) {
+        java.util.Objects.requireNonNull(value, "typeof requires a non-null value");
+        if (value instanceof Boolean) return boolean.class;
+        if (value instanceof Byte) return byte.class;
+        if (value instanceof Short) return short.class;
+        if (value instanceof Integer) return int.class;
+        if (value instanceof Long) return long.class;
+        if (value instanceof Float) return float.class;
+        if (value instanceof Double) return double.class;
+        if (value instanceof Character) return char.class;
+        return value.getClass();
+    }
+
     /** Evaluates Javascript-style truthiness for any Object or reference value. */
     public static boolean isTruthy(Object value) {
         if (value == null) {

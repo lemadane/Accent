@@ -44,6 +44,8 @@ public final class SemanticAnalyzer implements ImportResolver {
         final boolean isParameter;
         boolean isAssigned;
         boolean isRefinedNonNull;
+        ResolvedType narrowedType;
+        int assignmentVersion;
 
         LocalVar(String name, ResolvedType type, boolean isFinal, boolean isParameter) {
             this.name = name;
@@ -75,7 +77,20 @@ public final class SemanticAnalyzer implements ImportResolver {
 
     @Override
     public TypeInfo resolve(String simpleName) {
+        TypeNode bound = genericBounds.get(simpleName);
+        if (bound != null && resolvingBounds.add(simpleName)) {
+            try { return symbolTable.resolveTypeNode(bound, this).info(); }
+            finally { resolvingBounds.remove(simpleName); }
+        }
         return symbolTable.resolveInUnit(simpleName, currentUnit);
+    }
+
+    private final Map<String, TypeNode> genericBounds = new HashMap<>();
+    private final Set<String> resolvingBounds = new HashSet<>();
+
+    private void addTypeParameters(List<TypeParameter> parameters) {
+        for (TypeParameter parameter : parameters)
+            genericBounds.put(parameter.name(), parameter.bound().orElse(new BaseTypeNode("java.lang.Object", List.of(), true)));
     }
 
     private String nativeLoggerName;
@@ -84,6 +99,8 @@ public final class SemanticAnalyzer implements ImportResolver {
         this.currentUnit = unit;
         validateStaticImports();
         for (TypeDeclaration decl : unit.declarations()) {
+            genericBounds.clear();
+            addTypeParameters(SymbolTable.typeParameters(decl));
             nativeLoggerName = unit.packageName().map(pkg -> pkg + ".").orElse("") + decl.name();
             if (decl instanceof ClassDecl cd) {
                 analyzeClass(cd);
@@ -418,6 +435,7 @@ public final class SemanticAnalyzer implements ImportResolver {
         return false;
     }
 
+    private final Set<Expression> collectionMarkerUses = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expression> nullableUses = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expression> optionalReceivers = Collections.newSetFromMap(new IdentityHashMap<>());
 
@@ -438,7 +456,9 @@ public final class SemanticAnalyzer implements ImportResolver {
     }
 
     private void checkMethodMarker(MethodCallExpr call, ResolvedType declaredResult) {
+        // Optional access on this result supplies its use marker, including !? contracts.
         if (optionalReceivers.contains(call)) return;
+        checkCollectionMarker(call.methodName() + "(...)", call, declaredResult, call.token());
         // The marker describes the method result before optional receiver propagation.
         boolean nullable = !declaredResult.isNonNull() && !declaredResult.isPrimitive();
         if (nullableUses.contains(call) != nullable) {
@@ -533,8 +553,16 @@ public final class SemanticAnalyzer implements ImportResolver {
         // Element nullability is declared in the element type, not the collection name.
     }
 
+    private void checkCollectionMarker(String name, Expression expression, ResolvedType type, Token token) {
+        if (collectionMarkerUses.contains(expression) != type.requiresCollectionMarker())
+            error(token, type.requiresCollectionMarker()
+                    ? "'" + name + "' requires '!?' at every use."
+                    : "'" + name + "' does not declare an '!?' marker.");
+    }
+
     private void checkBindingMarker(String name, Expression expression, ResolvedType type, Token token) {
-        if (optionalReceivers.contains(expression)) return;
+        checkCollectionMarker(name, expression, type, token);
+        if (optionalReceivers.contains(expression) && !type.requiresCollectionMarker()) return;
         boolean nullable = !type.isNonNull() && !type.isPrimitive();
         if (nullableUses.contains(expression) != nullable) {
             error(token, nullable ? "Nullable binding '" + name + "' requires '?' at every use."
@@ -559,6 +587,8 @@ public final class SemanticAnalyzer implements ImportResolver {
                 }
             });
         } else if (member instanceof ConstructorDecl cd) {
+            Map<String, TypeNode> savedBounds = new HashMap<>(genericBounds);
+            addTypeParameters(cd.typeParameters());
             isStaticContext = false;
             pushScope();
             for (Parameter param : cd.parameters()) {
@@ -568,7 +598,11 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
             checkStatement(cd.body());
             popScope();
+            genericBounds.clear();
+            genericBounds.putAll(savedBounds);
         } else if (member instanceof MethodDecl md) {
+            Map<String, TypeNode> savedBounds = new HashMap<>(genericBounds);
+            addTypeParameters(md.typeParameters());
             isStaticContext = md.modifiers().contains("static");
             pushScope();
             for (Parameter param : md.parameters()) {
@@ -578,6 +612,8 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
             checkMethodBody(md);
             popScope();
+            genericBounds.clear();
+            genericBounds.putAll(savedBounds);
         }
     }
 
@@ -677,10 +713,17 @@ public final class SemanticAnalyzer implements ImportResolver {
                 LocalVar variable = lookupVar(refinedVarName);
                 if (variable != null) variable.isRefinedNonNull = true;
             }
+            Map<LocalVar, UnionFact> unionBefore = unionSnapshot();
+            narrow(ifs.condition(), true);
+            pushPatternScope(ifs.condition());
             checkStatement(ifs.thenBranch());
+            popScope();
+            restoreUnions(unionBefore);
             Map<LocalVar, Boolean> thenFacts = refinementSnapshot();
             restoreRefinements(before);
+            narrow(ifs.condition(), false);
             ifs.elseBranch().ifPresent(this::checkStatement);
+            restoreUnions(unionBefore);
             boolean thenCompletes = canCompleteNormally(ifs.thenBranch());
             boolean elseCompletes = ifs.elseBranch().map(this::canCompleteNormally).orElse(true);
             for (LocalVar variable : before.keySet()) {
@@ -757,6 +800,10 @@ public final class SemanticAnalyzer implements ImportResolver {
                     && (declaredReturnType.arrayDimensions() > 0 || isList(declaredReturnType))
                     && !symbolTable.isInvocationCompatible(result, declaredReturnType))
                 error(null, "Return value must preserve the declared non-null element contract.");
+            if (lambdaReturns.isEmpty() && declaredReturnType != null && result != null
+                    && (!declaredReturnType.alternatives().isEmpty() || !result.alternatives().isEmpty())
+                    && !symbolTable.isInvocationCompatible(result, declaredReturnType))
+                error(null, "Return value " + result + " is incompatible with " + declaredReturnType + ".");
             if (!lambdaReturns.isEmpty() && result != null) lambdaReturns.peek().add(result);
             else if (requiredReturnType != null) {
                 if (rs.expression().isEmpty() || result == null
@@ -902,6 +949,7 @@ public final class SemanticAnalyzer implements ImportResolver {
     private ResolvedType checkImportedExpression(Expression original, Expression expanded) {
         builtinExpressions.put(original, expanded);
         if (nullableUses.contains(original)) nullableUses.add(expanded);
+        if (collectionMarkerUses.contains(original)) collectionMarkerUses.add(expanded);
         return checkExpression(expanded);
     }
 
@@ -1059,12 +1107,13 @@ public final class SemanticAnalyzer implements ImportResolver {
 
     private ResolvedType checkExpressionInternal(Expression expr) {
         if (expr instanceof NullableExpr nullable) {
-            nullableUses.add(nullable.expression());
+            if (nullable.nonNullCollection()) collectionMarkerUses.add(nullable.expression());
+            else nullableUses.add(nullable.expression());
             ResolvedType value = checkExpression(nullable.expression());
             if (nullable.nullableElements() && value != null && (value.nonNullElements()
                     || value.arrayDimensions() == 0 && !isList(value)))
                 error(nullable.token(), "'??' requires nullable collection elements.");
-            return value;
+            return value == null ? null : value.withCollectionMarker(false);
         } else if (expr instanceof LiteralExpr lit) {
             if (lit.value() == null) {
                 return new ResolvedType(symbolTable.getType("null"), false, List.of(), 0);
@@ -1088,6 +1137,7 @@ public final class SemanticAnalyzer implements ImportResolver {
             if (v != null) {
                 checkBindingMarker(id.name(), id, v.type, id.token());
                 checkElementMarker(id.name(), id.nonNullElements(), v.type, id.token());
+                if (v.narrowedType != null) return v.narrowedType;
                 if (v.isRefinedNonNull) {
                     return v.type.withNonNull(true);
                 }
@@ -1156,14 +1206,40 @@ public final class SemanticAnalyzer implements ImportResolver {
             }
             if (currentClass != null && !currentClass.isInterface()) {
                 TypeInfo parent = symbolTable.getType(currentClass.superclass().orElse("java.lang.Object"));
-                if (parent != null) return new ResolvedType(parent, true, List.of(), 0);
+                if (parent != null) return symbolTable.resolveSuperclass(currentClass);
             }
             error(se.token(), "Cannot reference 'super' in this context.");
+        } else if (expr instanceof TypeOfExpr query) {
+            ResolvedType value = checkExpression(query.expression());
+            if (value != null && value.info().fullName().equals("void"))
+                error(query.token(), "typeof requires a value; void expressions have no runtime type.");
+            return new ResolvedType(symbolTable.getType("java.lang.Class"), true, List.of(), 0);
+        } else if (expr instanceof CastExpr cast) {
+            ResolvedType source = checkExpression(cast.expression());
+            ResolvedType target = symbolTable.resolveTypeNode(cast.type(), this);
+            if (target.info().fullName().equals("void") || source != null && !canCast(source, target))
+                error(cast.token(), "Cannot cast " + source + " to " + target + ".");
+            if (target.nonNullElements() && source != null && !source.nonNullElements())
+                error(cast.token(), "A cast cannot establish a non-null element contract.");
+            return target;
+        } else if (expr instanceof TypeTestExpr test) {
+            checkExpression(test.expression());
+            ResolvedType target = symbolTable.resolveTypeNode(test.type(), this);
+            if (target.info().fullName().equals("void") || !target.typeArguments().isEmpty())
+                error(test.token(), "Type tests require a runtime-checkable type.");
+            return new ResolvedType(symbolTable.getType("boolean"), true, List.of(), 0);
         } else if (expr instanceof TernaryExpr tern) {
             ResolvedType cond = checkExpression(tern.condition());
             verifyCondition(cond, tern.token());
+            Map<LocalVar, UnionFact> before = unionSnapshot();
+            narrow(tern.condition(), true);
+            pushPatternScope(tern.condition());
             ResolvedType thenBranch = checkExpression(tern.thenBranch());
+            popScope();
+            restoreUnions(before);
+            narrow(tern.condition(), false);
             ResolvedType elseBranch = checkExpression(tern.elseBranch());
+            restoreUnions(before);
             if (thenBranch != null && elseBranch != null) {
                 boolean isNonNull = thenBranch.isNonNull() && elseBranch.isNonNull();
                 return getCommonSupertype(thenBranch, elseBranch).withNonNull(isNonNull);
@@ -1183,6 +1259,8 @@ public final class SemanticAnalyzer implements ImportResolver {
                     if (id.name().equals("log") && builtinExpressions.get(id) instanceof MethodCallExpr) error(bin.operator(), "The built-in 'log' binding cannot be reassigned.");
                     if (v != null) {
                         left = v.type;
+                        v.narrowedType = null;
+                        v.assignmentVersion++;
                         v.isRefinedNonNull = right != null && right.isNonNull();
                         if (v.isParameter) {
                             error(bin.operator(), "Reassigning method or constructor parameter '" + id.name() + "' is not permitted.");
@@ -1260,7 +1338,7 @@ public final class SemanticAnalyzer implements ImportResolver {
                         inaccessibleMember(ma.token(), "field", ma.memberName(), symbolTable.declaringOwner(fInfo));
                     }
                     verifyMemberReceiver(ma.receiver(), fInfo.modifiers(), symbolTable.declaringOwner(fInfo), ma.memberName(), ma.token());
-                    ResolvedType fType = symbolTable.resolveFieldType(fInfo);
+                    ResolvedType fType = symbolTable.resolveFieldType(fInfo, rec);
                     if (symbolTable.isAccentMember(symbolTable.declaringOwner(fInfo)) || fInfo.modifiers().contains("$accent$contract"))
                         checkBindingMarker(ma.memberName(), ma, fType, ma.token());
                     checkElementMarker(ma.memberName(), ma.nonNullElements(), fType, ma.token());
@@ -1429,7 +1507,8 @@ public final class SemanticAnalyzer implements ImportResolver {
                             error(mc.token(), "Argument must preserve the non-null element contract of parameter '"
                                     + mInfo.parameters().get(parameterIndex).name() + "'.");
                     }
-                    ResolvedType declaredResult = symbolTable.resolveReturnType(mInfo);
+                    ResolvedType declaredResult = symbolTable.resolveCallReturnType(mInfo, rec, mc.typeArguments().stream()
+                            .map(t -> symbolTable.resolveTypeNode(t, this)).toList(), argTypes);
                     if (isList(rec) && !mInfo.modifiers().contains("static")) {
                         ResolvedType element = rec.elementType(symbolTable);
                         String method = mc.methodName();
@@ -1452,7 +1531,7 @@ public final class SemanticAnalyzer implements ImportResolver {
                         if (Set.of("subList", "reversed").contains(method)) declaredResult = rec.withNonNull(true);
                     }
                     if ((mc.token() == null || mc.token().type() != accent.lexer.TokenType.AWAIT)
-                            && (symbolTable.isAccentMember(symbolTable.declaringOwner(mInfo)) || mInfo.modifiers().contains("$accent$contract") || isList(rec) || nullableUses.contains(mc))) {
+                            && (symbolTable.isAccentMember(symbolTable.declaringOwner(mInfo)) || mInfo.modifiers().contains("$accent$contract") || isList(rec) || nullableUses.contains(mc) || collectionMarkerUses.contains(mc))) {
                         checkMethodMarker(mc, declaredResult);
                     }
                     ResolvedType retType = rec.info().fullName().equals("accent.runtime.Async")
@@ -1538,13 +1617,13 @@ public final class SemanticAnalyzer implements ImportResolver {
                 ResolvedType element = rec.elementType(symbolTable);
                 if (nullableUses.contains(aa) != !element.isNonNull())
                     error(aa.token(), "List access must match element nullability: use '[index]?' for nullable elements.");
-                return aa.receiver() instanceof NullableExpr ? nullableResult(element) : element;
+                return aa.receiver() instanceof NullableExpr n && !n.nonNullCollection() ? nullableResult(element) : element;
             }
             if (rec != null && rec.arrayDimensions() > 0) {
                 ResolvedType element = rec.elementType(symbolTable);
                 if (nullableUses.contains(aa) != (!element.isNonNull() && !element.isPrimitive()))
                     error(aa.token(), "Array access must match element nullability: use '[index]?' for nullable elements.");
-                return aa.receiver() instanceof NullableExpr ? nullableResult(element) : element;
+                return aa.receiver() instanceof NullableExpr n && !n.nonNullCollection() ? nullableResult(element) : element;
             }
         } else if (expr instanceof LambdaExpr le) {
             lambdaReturns.push(new ArrayList<>());
@@ -1694,8 +1773,79 @@ public final class SemanticAnalyzer implements ImportResolver {
     private ResolvedType getCommonSupertype(ResolvedType a, ResolvedType b) {
         if (a.isCompatibleWith(b, symbolTable)) return b;
         if (b.isCompatibleWith(a, symbolTable)) return a;
-        TypeInfo objInfo = symbolTable.getType("java.lang.Object");
-        return new ResolvedType(objInfo, a.isNonNull() && b.isNonNull(), List.of(), 0);
+        return symbolTable.unionType(List.of(a, b));
+    }
+
+    private record UnionFact(ResolvedType type, int version) {}
+
+    private Map<LocalVar, UnionFact> unionSnapshot() {
+        Map<LocalVar, UnionFact> result = new java.util.IdentityHashMap<>();
+        for (var scope : scopes) for (var local : scope.values()) result.put(local, new UnionFact(local.narrowedType, local.assignmentVersion));
+        return result;
+    }
+
+    private void restoreUnions(Map<LocalVar, UnionFact> snapshot) {
+        snapshot.forEach((local, fact) -> local.narrowedType =
+                local.assignmentVersion == fact.version() ? fact.type() : null);
+    }
+
+    private boolean canCast(ResolvedType source, ResolvedType target) {
+        if (!source.alternatives().isEmpty())
+            return source.alternatives().stream().anyMatch(member -> canCast(member, target));
+        String from = source.info().fullName(), to = target.info().fullName();
+        if (from.equals("void")) return false;
+        if (from.equals("null")) return !target.isPrimitive();
+        if (source.isPrimitive() && target.isPrimitive())
+            return from.equals("boolean") == to.equals("boolean");
+        if (source.isPrimitive()) return symbolTable.isInvocationCompatible(source, target);
+        if (target.isPrimitive()) {
+            String boxed = switch (to) {
+                case "int" -> "java.lang.Integer";
+                case "long" -> "java.lang.Long";
+                case "double" -> "java.lang.Double";
+                case "float" -> "java.lang.Float";
+                case "short" -> "java.lang.Short";
+                case "byte" -> "java.lang.Byte";
+                case "char" -> "java.lang.Character";
+                case "boolean" -> "java.lang.Boolean";
+                default -> "";
+            };
+            return source.arrayDimensions() == 0 && (from.equals(boxed) || from.equals("java.lang.Object")
+                    || symbolTable.isSubtype(symbolTable.getType(boxed), source.info()));
+        }
+        return source.info().isInterface() || target.info().isInterface()
+                || source.withNonNull(false).isCompatibleWith(target.withNonNull(false), symbolTable)
+                || target.withNonNull(false).isCompatibleWith(source.withNonNull(false), symbolTable);
+    }
+
+    private void pushPatternScope(Expression condition) {
+        pushScope();
+        if (!(condition instanceof TypeTestExpr test) || test.binding().isEmpty()) return;
+        String name = test.binding().get();
+        if (lookupVar(name) != null) {
+            error(test.token(), "Pattern binding '" + name + "' conflicts with an existing local variable or parameter.");
+            return;
+        }
+        ResolvedType type = symbolTable.resolveTypeNode(test.type(), this).withNonNull(true);
+        scopes.getFirst().put(name, new LocalVar(name, type, true, false));
+    }
+
+    private void narrow(Expression condition, boolean positive) {
+        if (!(condition instanceof TypeTestExpr test) || !(unwrapNullable(test.expression()) instanceof IdentifierExpr id)) return;
+        LocalVar local = lookupVar(id.name());
+        if (local == null || local.type.alternatives().isEmpty()) return;
+        ResolvedType source = local.narrowedType == null ? local.type : local.narrowedType;
+        ResolvedType target = symbolTable.resolveTypeNode(test.type(), this).withNonNull(true);
+        if (positive) local.narrowedType = target;
+        // A failed type test can still mean null. Do not narrow a nullable
+        // union to a primitive alternative that would unbox null.
+        else if (source.isNonNull()) {
+            List<ResolvedType> remaining = source.alternatives().stream()
+                    .filter(t -> !(t.isPrimitive() && target.isPrimitive()
+                            ? t.info().fullName().equals(target.info().fullName())
+                            : t.isCompatibleWith(target, symbolTable))).toList();
+            if (!remaining.isEmpty()) local.narrowedType = symbolTable.unionType(remaining);
+        }
     }
 
     // --- Diagnostic Helpers ---

@@ -16,8 +16,8 @@ class DuplicateTypeTest {
 
     @Test
     void checkAttributesDuplicateTypesToTheirSourceFile() {
-        SourceFile original = new SourceFile(Path.of("first/A.accent"), "package vis; class A {}");
-        SourceFile duplicate = new SourceFile(Path.of("second/A.accent"), "package vis; model A(int value)");
+        SourceFile original = new SourceFile(Path.of("first/A.accent"), "package vis class A {}");
+        SourceFile duplicate = new SourceFile(Path.of("second/A.accent"), "package vis model A(int value)");
         var diagnostics = new AccentCompiler().checkEach(List.of(original, duplicate));
 
         assertTrue(diagnostics.get(original).isEmpty());
@@ -32,8 +32,8 @@ class DuplicateTypeTest {
         Path second = tempDir.resolve("src/second/A.accent");
         Files.createDirectories(first.getParent());
         Files.createDirectories(second.getParent());
-        Files.writeString(first, "package vis; class A { int first = 1; }");
-        Files.writeString(second, "package vis; class A { int second = 2; }");
+        Files.writeString(first, "package vis class A { int first = 1 }");
+        Files.writeString(second, "package vis class A { int second = 2 }");
 
         CompilationResult result = new AccentCompiler().compile(List.of(tempDir.resolve("src")),
                 tempDir.resolve("classes"), List.of(System.getProperty("accent.test.runtimeClasspath")), tempDir.resolve("generated"), true);
@@ -46,8 +46,8 @@ class DuplicateTypeTest {
     @Test
     void sameSimpleNameInDifferentPackagesRemainsValid() {
         CompilationResult result = new AccentCompiler().check(List.of(
-                new SourceFile(Path.of("first/A.accent"), "package first; class A {}"),
-                new SourceFile(Path.of("second/A.accent"), "package second; class A {}")));
+                new SourceFile(Path.of("first/A.accent"), "package first class A {}"),
+                new SourceFile(Path.of("second/A.accent"), "package second class A {}")));
         assertTrue(result.successful(), () -> result.diagnostics().toString());
     }
 
@@ -56,8 +56,8 @@ class DuplicateTypeTest {
         Path first = tempDir.resolve("src/first.accent");
         Path second = tempDir.resolve("src/second.accent");
         Files.createDirectories(first.getParent());
-        String firstSource = "package vis; extension String { int first() { return 1; } }";
-        String secondSource = "package vis; extension String { int second() { return 2; } }";
+        String firstSource = "package vis extension String { int first() { return 1 } }";
+        String secondSource = "package vis extension String { int second() { return 2 } }";
         Files.writeString(first, firstSource);
         Files.writeString(second, secondSource);
 
@@ -77,7 +77,7 @@ class DuplicateTypeTest {
     void extensionHelpersCannotOverwriteAnOrdinaryType() {
         CompilationResult result = new AccentCompiler().check(new SourceFile(Path.of("Extension_String.accent"), """
                 class Extension_String {}
-                extension String { int value() { return 1; } }
+                extension String { int value() { return 1 } }
                 """));
         assertFalse(result.successful());
         assertTrue(result.diagnostics().stream().anyMatch(d -> d.code().equals("ACCENT-C007")));

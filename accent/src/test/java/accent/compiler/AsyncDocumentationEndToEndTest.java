@@ -24,8 +24,8 @@ class AsyncDocumentationEndToEndTest {
         Files.writeString(sources.resolve("Customer.accent"), "record Customer(String name)");
         Files.writeString(sources.resolve("Service.accent"), """
                 class Service {
-                    Customer findRequired(int id) { return new Customer("Alice"); }
-                    Customer findForCustomer(int id) { return new Customer("Alice"); }
+                    Customer findRequired(int id) { return new Customer("Alice") }
+                    Customer findForCustomer(int id) { return new Customer("Alice") }
                 }
                 """);
         var blocks = Pattern.compile("```accent\\n(.*?)```", Pattern.DOTALL).matcher(section);
@@ -36,9 +36,9 @@ class AsyncDocumentationEndToEndTest {
             String body = String.join("\n", snippet.lines().filter(line -> !line.startsWith("import ")).toList());
             String name = "Example" + count++;
             Files.writeString(sources.resolve(name + ".accent"), imports + "\nclass " + name + " {\n"
-                    + "Service customerService = new Service();\n"
-                    + "Service orderService = new Service();\n"
-                    + "Service service = new Service();\n"
+                    + "Service customerService = new Service()\n"
+                    + "Service orderService = new Service()\n"
+                    + "Service service = new Service()\n"
                     + "void example(int id) {\n" + body + "\n}\n}");
         }
         assertTrue(count >= 7, "The language guide must contain compilable concurrency examples");

@@ -65,7 +65,7 @@ public final class AccentLexer {
                     : match(':') ? TokenType.NULL_COALESCING
                     : match('?') ? TokenType.DOUBLE_QUESTION
                     : TokenType.QUESTION);
-            case '!' -> add(match('=') ? TokenType.BANG_EQUAL : TokenType.BANG);
+            case '!' -> add(match('=') ? TokenType.BANG_EQUAL : match('?') ? TokenType.BANG_QUESTION : TokenType.BANG);
             case '=' -> add(match('=') ? TokenType.EQUAL_EQUAL : TokenType.ASSIGN);
             case '+' -> add(match('+') ? TokenType.PLUS_PLUS : TokenType.PLUS);
             case '-' -> add(match('-') ? TokenType.MINUS_MINUS
@@ -78,14 +78,14 @@ public final class AccentLexer {
                 if (match('&')) {
                     error("ACCENT-L011", "Use 'and' instead of '&&' for logical conjunction.");
                 } else {
-                    error("ACCENT-L001", "Unexpected '&'. Use 'and' for logical conjunction.");
+                    add(TokenType.AMPERSAND);
                 }
             }
             case '|' -> {
                 if (match('|')) {
                     error("ACCENT-L012", "Use 'or' instead of '||' for logical disjunction.");
                 } else {
-                    error("ACCENT-L002", "Unexpected '|'. Use 'or' for logical disjunction.");
+                    add(TokenType.PIPE);
                 }
             }
             case '/' -> scanSlash();
@@ -549,6 +549,9 @@ public final class AccentLexer {
         keywords.put("throws", TokenType.THROWS);
         keywords.put("throw", TokenType.THROW);
         keywords.put("instanceof", TokenType.INSTANCEOF);
+        keywords.put("is", TokenType.INSTANCEOF);
+        keywords.put("as", TokenType.AS);
+        keywords.put("typeof", TokenType.TYPEOF);
         keywords.put("not",  TokenType.NOT);
         keywords.put("and",  TokenType.AND);
         keywords.put("or",   TokenType.OR);

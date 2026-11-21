@@ -40,7 +40,7 @@ class CompilerInputRegressionTest {
 
     @Test
     void overlappingDirectoryAndFileInputsCompileEachPhysicalPathOnce() throws Exception {
-        Path source = write("src/demo/Answer.accent", "package demo; class Answer { static int value() { return 42; } }");
+        Path source = write("src/demo/Answer.accent", "package demo class Answer { static int value() { return 42 } }");
 
         CompilationResult result = compile(List.of(directory.resolve("src"), source,
                 source.getParent().resolve(".").resolve(source.getFileName())));

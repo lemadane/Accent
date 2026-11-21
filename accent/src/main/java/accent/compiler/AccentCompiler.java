@@ -176,7 +176,29 @@ public final class AccentCompiler {
         return unique;
     }
 
+    private static List<Diagnostic> atSource(Path path, List<Diagnostic> diagnostics) {
+        return diagnostics.stream().map(d -> new Diagnostic(d.severity(), d.code(),
+                path + ": " + d.message(), d.line(), d.column())).toList();
+    }
+
+    /** Generate Java for a platform-owned compiler (for example Android's javac/D8 pipeline). */
+    public CompilationResult generateJava(List<Path> sourcePaths, List<String> classpath, Path generatedSourceDir) {
+        return compileInternal(sourcePaths, generatedSourceDir, classpath, generatedSourceDir, true, false, true);
+    }
+
+    /** Omit desktop serialization convenience methods when the target provides its own serializer. */
+    public CompilationResult generateJava(List<Path> sourcePaths, List<String> classpath,
+                                          Path generatedSourceDir, boolean includeDataSerialization) {
+        return compileInternal(sourcePaths, generatedSourceDir, classpath, generatedSourceDir,
+                true, false, includeDataSerialization);
+    }
+
     public CompilationResult compile(List<Path> sourcePaths, Path outputDir, List<String> classpath, Path generatedSourceDir, boolean saveJava) {
+        return compileInternal(sourcePaths, outputDir, classpath, generatedSourceDir, saveJava, true, true);
+    }
+
+    private CompilationResult compileInternal(List<Path> sourcePaths, Path outputDir, List<String> classpath,
+                                              Path generatedSourceDir, boolean saveJava, boolean compileBytecode, boolean includeDataSerialization) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         Set<Path> allSourceFiles = new LinkedHashSet<>();
 
@@ -235,12 +257,12 @@ public final class AccentCompiler {
                 String content = Files.readString(file, StandardCharsets.UTF_8);
                 SourceFile source = new SourceFile(file, content);
                 LexResult lexResult = new AccentLexer(source).lex();
-                diagnostics.addAll(lexResult.diagnostics());
+                diagnostics.addAll(atSource(file, lexResult.diagnostics()));
 
                 if (lexResult.successful()) {
                     AccentParser parser = new AccentParser(source, lexResult.tokens());
                     CompilationUnit unit = parser.parse();
-                    diagnostics.addAll(parser.diagnostics());
+                    diagnostics.addAll(atSource(file, parser.diagnostics()));
 
                     if (!registerTypeNames(unit, declaredTypes, diagnostics)) continue;
                     symbolTable.addCompilationUnit(unit);
@@ -262,9 +284,10 @@ public final class AccentCompiler {
         // Semantic analysis
         SemanticAnalyzer analyzer = new SemanticAnalyzer(symbolTable);
         for (CompilationUnit unit : accentUnits) {
+            int before = analyzer.diagnostics().size();
             analyzer.analyze(unit);
+            diagnostics.addAll(atSource(unit.sourceFile().path(), analyzer.diagnostics().subList(before, analyzer.diagnostics().size())));
         }
-        diagnostics.addAll(analyzer.diagnostics());
 
         if (diagnostics.stream().anyMatch(d -> d.severity() == DiagnosticSeverity.ERROR)) {
             return new CompilationResult(Optional.empty(), diagnostics);
@@ -272,7 +295,7 @@ public final class AccentCompiler {
 
         // Lower and emit Java code
         AccentLowerer lowerer = new AccentLowerer(symbolTable, analyzer.resolvedTypes, analyzer.builtinExpressions);
-        JavaEmitter emitter = new JavaEmitter();
+        JavaEmitter emitter = new JavaEmitter(includeDataSerialization);
         List<Path> compiledJavaFiles = new ArrayList<>(originalJavaFiles);
 
         try {
@@ -318,6 +341,10 @@ public final class AccentCompiler {
         }
 
         if (compiledJavaFiles.isEmpty()) {
+            return new CompilationResult(Optional.empty(), diagnostics);
+        }
+
+        if (!compileBytecode) {
             return new CompilationResult(Optional.empty(), diagnostics);
         }
 

@@ -19,8 +19,20 @@ public interface Ast {
     ) implements Node {}
 
     // Types in code
-    sealed interface TypeNode extends Node permits BaseTypeNode, ArrayTypeNode, PrimitiveTypeNode {
+    sealed interface TypeNode extends Node permits BaseTypeNode, ArrayTypeNode, PrimitiveTypeNode, UnionTypeNode, WildcardTypeNode, IntersectionTypeNode {
         boolean isNonNull();
+        default boolean requiresCollectionMarker() { return false; }
+        default TypeNode withCollectionMarker() {
+            TypeNode nullable;
+            try { nullable = withNullableElements(); }
+            catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("'!?' requires a reference array or List<T> binding or result.");
+            }
+            if (nullable instanceof BaseTypeNode b)
+                return new BaseTypeNode(b.name(), b.typeArguments(), true, true, b.owner(), b.diamond());
+            ArrayTypeNode a = (ArrayTypeNode) nullable;
+            return new ArrayTypeNode(a.elementType(), true, true);
+        }
         TypeNode withNonNull(boolean nonNull);
         default TypeNode withNullableElements() {
             if (this instanceof ArrayTypeNode a && !(a.elementType() instanceof PrimitiveTypeNode))
@@ -44,12 +56,40 @@ public interface Ast {
         }
     }
 
-    record BaseTypeNode(String name, List<TypeNode> typeArguments, boolean isNonNull) implements TypeNode {
+    record UnionTypeNode(List<TypeNode> alternatives) implements TypeNode {
+        public UnionTypeNode { alternatives = List.copyOf(alternatives); }
+        @Override public boolean isNonNull() { return alternatives.stream().allMatch(TypeNode::isNonNull); }
+        @Override public TypeNode withNonNull(boolean value) {
+            return new UnionTypeNode(alternatives.stream().map(t -> t.withNonNull(value)).toList());
+        }
+        @Override public String toString() { return String.join("|", alternatives.stream().map(Object::toString).toList()); }
+    }
+
+    record WildcardTypeNode(String variance, Optional<TypeNode> bound) implements TypeNode {
+        @Override public boolean isNonNull() { return false; }
+        @Override public TypeNode withNonNull(boolean value) { return this; }
+        @Override public String toString() { return "?" + bound.map(t -> " " + variance + " " + t).orElse(""); }
+    }
+
+    record IntersectionTypeNode(List<TypeNode> bounds) implements TypeNode {
+        public IntersectionTypeNode { bounds = List.copyOf(bounds); }
+        @Override public boolean isNonNull() { return true; }
+        @Override public TypeNode withNonNull(boolean value) { return this; }
+        @Override public String toString() { return String.join(" & ", bounds.stream().map(Object::toString).toList()); }
+    }
+
+    record BaseTypeNode(String name, List<TypeNode> typeArguments, boolean isNonNull, boolean requiresCollectionMarker, Optional<TypeNode> owner, boolean diamond) implements TypeNode {
+        public BaseTypeNode(String name, List<TypeNode> typeArguments, boolean isNonNull, boolean marker) {
+            this(name, typeArguments, isNonNull, marker, Optional.empty(), false);
+        }
+        public BaseTypeNode(String name, List<TypeNode> typeArguments, boolean isNonNull) {
+            this(name, typeArguments, isNonNull, false);
+        }
         @Override public boolean isNonNull() { return isNonNull; }
-        @Override public TypeNode withNonNull(boolean nonNull) { return new BaseTypeNode(name, typeArguments, nonNull); }
+        @Override public TypeNode withNonNull(boolean nonNull) { return new BaseTypeNode(name, typeArguments, nonNull, requiresCollectionMarker, owner, diamond); }
         @Override public String toString() {
-            StringBuilder sb = new StringBuilder(name);
-            if (!typeArguments.isEmpty()) {
+            StringBuilder sb = new StringBuilder(owner.map(t -> t.toString() + ".").orElse("") + name);
+            if (diamond || !typeArguments.isEmpty()) {
                 sb.append("<");
                 for (int i = 0; i < typeArguments.size(); i++) {
                     if (i > 0) sb.append(", ");
@@ -62,9 +102,10 @@ public interface Ast {
         }
     }
 
-    record ArrayTypeNode(TypeNode elementType, boolean isNonNull) implements TypeNode {
+    record ArrayTypeNode(TypeNode elementType, boolean isNonNull, boolean requiresCollectionMarker) implements TypeNode {
+        public ArrayTypeNode(TypeNode elementType, boolean isNonNull) { this(elementType, isNonNull, false); }
         @Override public boolean isNonNull() { return isNonNull; }
-        @Override public TypeNode withNonNull(boolean nonNull) { return new ArrayTypeNode(elementType, nonNull); }
+        @Override public TypeNode withNonNull(boolean nonNull) { return new ArrayTypeNode(elementType, nonNull, requiresCollectionMarker); }
         @Override public String toString() {
             return elementType.toString() + "[]" + (isNonNull ? "" : "?");
         }
@@ -276,10 +317,19 @@ public interface Ast {
     record CatchClause(Parameter parameter, BlockStmt body) implements Node {}
 
     // Expressions
-    sealed interface Expression extends Node permits NullableExpr, LiteralExpr, IdentifierExpr, ThisExpr, SuperExpr, StaticExpr, BinaryExpr, UnaryExpr, MemberAccessExpr, MethodCallExpr, NewObjectExpr, NewArrayExpr, ArrayInitializerExpr, ArrayAccessExpr, LambdaExpr, IfExpr, TryExpr, LoopExpr, NamedArgExpr, MarkupExpr, TernaryExpr, SqlExpr, JsonExpr, InterpolatedStringExpression {
+    sealed interface Expression extends Node permits TypeOfExpr, TypeTestExpr, CastExpr, NullableExpr, LiteralExpr, IdentifierExpr, ThisExpr, SuperExpr, StaticExpr, BinaryExpr, UnaryExpr, MemberAccessExpr, MethodCallExpr, NewObjectExpr, NewArrayExpr, ArrayInitializerExpr, ArrayAccessExpr, LambdaExpr, IfExpr, TryExpr, LoopExpr, NamedArgExpr, MarkupExpr, TernaryExpr, SqlExpr, JsonExpr, InterpolatedStringExpression {
         // Source location helper
         default Token token() { return null; }
     }
+
+    record TypeTestExpr(Expression expression, TypeNode type, Token token, Optional<String> binding) implements Expression {
+        public TypeTestExpr(Expression expression, TypeNode type, Token token) {
+            this(expression, type, token, Optional.empty());
+        }
+    }
+    record TypeOfExpr(Expression expression, Token token) implements Expression {}
+
+    record CastExpr(Expression expression, TypeNode type, Token token) implements Expression {}
 
     record LiteralExpr(Object value, Token token) implements Expression {}
 
@@ -288,7 +338,8 @@ public interface Ast {
         public IdentifierExpr(String name, Token token) { this(name, token, false); }
     }
 
-    record NullableExpr(Expression expression, Token token, boolean nullableElements) implements Expression {
+    record NullableExpr(Expression expression, Token token, boolean nullableElements, boolean nonNullCollection) implements Expression {
+        public NullableExpr(Expression expression, Token token, boolean nullableElements) { this(expression, token, nullableElements, false); }
         public NullableExpr(Expression expression, Token token) { this(expression, token, false); }
     }
 
@@ -327,7 +378,12 @@ public interface Ast {
         }
     }
 
-    record NewObjectExpr(TypeNode type, List<Expression> arguments, Token token) implements Expression {}
+    record NewObjectExpr(TypeNode type, List<Expression> arguments, Token token,
+                         List<TypeNode> typeArguments) implements Expression {
+        public NewObjectExpr(TypeNode type, List<Expression> arguments, Token token) {
+            this(type, arguments, token, List.of());
+        }
+    }
 
     record NewArrayExpr(
             TypeNode type,

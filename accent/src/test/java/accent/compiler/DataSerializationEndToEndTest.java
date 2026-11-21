@@ -34,7 +34,7 @@ class DataSerializationEndToEndTest {
         fixtures.put("PersonRecord", "record PersonRecord(String name?)");
         fixtures.put("PersonModel", "model PersonModel(String name?)");
         fixtures.put("Payload", """
-                import java.util.*;
+                import java.util.*
                 record Payload(String text, boolean active, int count, double ratio,
                         char initial, int[] numbers, String missing?, PersonModel owner,
                         List<PersonRecord> people, Map<String, PersonModel> indexed)
@@ -46,65 +46,65 @@ class DataSerializationEndToEndTest {
         fixtures.put("GenericModel", "model GenericModel<T>(T value)");
         fixtures.put("OverloadedModel", """
                 model OverloadedModel(String name?) {
-                    String toJson(String prefix) { return prefix; }
-                    String toXml(String prefix) { return prefix; }
+                    String toJson(String prefix) { return prefix }
+                    String toXml(String prefix) { return prefix }
                 }
                 """);
         fixtures.put("CustomRecord", """
                 record CustomRecord(String name?) {
-                    String toJson() { return "record custom"; }
+                    String toJson() { return "record custom" }
                 }
                 """);
         fixtures.put("CustomModel", """
                 model CustomModel(String name?) {
-                    String toXml() { return "model custom"; }
+                    String toXml() { return "model custom" }
                 }
                 """);
-        StringBuilder calls = new StringBuilder("import java.util.*; class Harness {\n");
+        StringBuilder calls = new StringBuilder("import java.util.* class Harness {\n");
         for (String kind : List.of("Record", "Model")) {
             for (String format : List.of("Json", "Xml")) {
                 String type = "Person" + kind;
                 String method = "to" + format;
                 calls.append("static String direct").append(kind).append(format)
-                        .append('(').append(type).append(" value) { return value.").append(method).append("(); }\n");
+                        .append('(').append(type).append(" value) { return value.").append(method).append("() }\n");
                 for (String container : List.of("List", "Map")) {
                     String generic = container.equals("List") ? type + "?" : "String, " + type + "?";
                     for (String optional : List.of("", "Optional")) {
                         calls.append("static String ").append(container.toLowerCase(Locale.ROOT))
-                                .append(kind).append(format).append(optional).append(optional.isEmpty() ? "(" : "?(")
-                                .append(container).append('<').append(generic).append(optional.isEmpty() ? "> value) { return value" : "> value?) { return value")
-                                .append(optional.isEmpty() ? "." : "?.").append(method).append("(); }\n");
+                                .append(kind).append(format).append(optional).append("(")
+                                .append(container).append('<').append(generic).append(optional.isEmpty() ? "> value) { return value" : "> value?)? { return value")
+                                .append(optional.isEmpty() ? "." : "?.").append(method).append("() }\n");
                     }
                 }
             }
         }
         calls.append("""
-                static String arrayList(ArrayList<PersonRecord> value) { return value.toJson(); }
-                static String linkedList(LinkedList<PersonModel> value) { return value.toXml(); }
-                static String hashMap(HashMap<String, PersonRecord> value) { return value.toJson(); }
-                static String treeMap(TreeMap<String, PersonModel> value) { return value.toXml(); }
-                static String fallback(List<PersonRecord> value?) { return value?.toJson() else "absent"; }
-                static int chained(Map<String, PersonModel> value) { return value.toJson().length(); }
-                static int calls = 0;
+                static String arrayList(ArrayList<PersonRecord> value) { return value.toJson() }
+                static String linkedList(LinkedList<PersonModel> value) { return value.toXml() }
+                static String hashMap(HashMap<String, PersonRecord> value) { return value.toJson() }
+                static String treeMap(TreeMap<String, PersonModel> value) { return value.toXml() }
+                static String fallback(List<PersonRecord> value?) { return value?.toJson() else "absent" }
+                static int chained(Map<String, PersonModel> value) { return value.toJson().length() }
+                static int calls = 0
                 static List<PersonRecord> next() {
-                    static.calls++;
-                    List<PersonRecord> result = List.of(new PersonRecord("once"));
-                    return result;
+                    static.calls++
+                    List<PersonRecord> result = List.of(new PersonRecord("once"))
+                    return result
                 }
-                static String once() { return static.next().toJson(); }
-                static String payload(Payload value) { return value.toJson(); }
-                static String payloadXml(Payload value) { return value.toXml(); }
-                static String nodeJson(Node value) { return value.toJson(); }
-                static String nodeXml(Node value) { return value.toXml(); }
-                static String boxJson(Box value) { return value.toJson(); }
-                static String boxXml(Box value) { return value.toXml(); }
-                static String nodeList(List<Node> value) { return value.toJson(); }
-                static String nodeMap(Map<String, Node> value) { return value.toXml(); }
+                static String once() { return static.next().toJson() }
+                static String payload(Payload value) { return value.toJson() }
+                static String payloadXml(Payload value) { return value.toXml() }
+                static String nodeJson(Node value) { return value.toJson() }
+                static String nodeXml(Node value) { return value.toXml() }
+                static String boxJson(Box value) { return value.toJson() }
+                static String boxXml(Box value) { return value.toXml() }
+                static String nodeList(List<Node> value) { return value.toJson() }
+                static String nodeMap(Map<String, Node> value) { return value.toXml() }
                 static void main(String[] args) {
-                    List<PersonRecord> people = List.of(new PersonRecord("Lem"));
-                    Map<String, PersonModel> indexed? = Map.of("U1", new PersonModel("Ana"));
-                    System.out.println(people.toJson());
-                    System.out.println((indexed?).toXml());
+                    List<PersonRecord> people = List.of(new PersonRecord("Lem"))
+                    Map<String, PersonModel> indexed? = Map.of("U1", new PersonModel("Ana"))
+                    System.out.println(people.toJson())
+                    System.out.println((indexed?).toXml())
                 }
                 }
                 """);
@@ -297,9 +297,9 @@ class DataSerializationEndToEndTest {
                 "indexed.toJson(1)", "indexed.toXml(1)", "text.toJson()", "text.toXml()", "List.toJson()", "Map.toXml()")
                 .stream().map(expression -> DynamicTest.dynamicTest("reject " + expression, () -> {
                     var source = new SourceFile(Path.of("Invalid.accent"),
-                            "import java.util.*; class Invalid { "
+                            "import java.util.* class Invalid { "
                                     + "String run(List<Person> items, Map<String, Person> indexed, String text) { return "
-                                    + expression + "; } }");
+                                    + expression + " } }");
                     var result = new AccentCompiler().check(List.of(
                             new SourceFile(Path.of("Person.accent"), "record Person(String name?)"), source));
                     assertFalse(result.successful(), expression);
@@ -365,8 +365,8 @@ class DataSerializationEndToEndTest {
                 "Set<PersonRecord>", "PersonRecord[]", "List<PersonRecord[]>")) {
             for (String format : List.of("Json", "Xml")) {
                 tests.add(DynamicTest.dynamicTest("reject " + container + ".to" + format, () -> {
-                    String source = "import java.util.*; "
-                            + "class Invalid { String run(" + container + " value) { return value.to" + format + "(); } }";
+                    String source = "import java.util.* "
+                            + "class Invalid { String run(" + container + " value) { return value.to" + format + "() } }";
                     var result = new AccentCompiler().check(List.of(
                             new SourceFile(Path.of("PersonRecord.accent"), "record PersonRecord(String name?)"),
                             new SourceFile(Path.of("PersonModel.accent"), "model PersonModel(String name?)"),
@@ -385,12 +385,12 @@ class DataSerializationEndToEndTest {
     void serializesRecordAndModelTypesLoadedFromDependencyClasspath() throws Exception {
         Path source = tempDir.resolve("DependencyCalls.accent");
         Files.writeString(source, """
-                import java.util.*;
+                import java.util.*
                 class DependencyCalls {
-                    static String recordValue(PersonRecord value) { return value.toJson(); }
-                    static String modelValue(PersonModel value) { return value.toXml(); }
-                    static String records(List<PersonRecord> values) { return values.toJson(); }
-                    static String models(Map<String, PersonModel> values) { return values.toXml(); }
+                    static String recordValue(PersonRecord value) { return value.toJson() }
+                    static String modelValue(PersonModel value) { return value.toXml() }
+                    static String records(List<PersonRecord> values) { return values.toJson() }
+                    static String models(Map<String, PersonModel> values) { return values.toXml() }
                 }
                 """);
         Path dependencyOutput = tempDir.resolve("dependency-consumer");

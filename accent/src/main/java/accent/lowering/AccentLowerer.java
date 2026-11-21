@@ -398,8 +398,20 @@ public final class AccentLowerer implements ImportResolver {
     private Expression lowerExpressionInternal(Expression expr) {
         Expression builtin = builtinExpressions.get(expr);
         if (builtin != null) return lowerExpression(builtin);
-        if (expr instanceof NullableExpr nullable) {
+        if (expr instanceof TypeOfExpr query) {
+            return new TypeOfExpr(lowerExpression(query.expression()), query.token());
+        } else if (expr instanceof CastExpr cast) {
+            ResolvedType source = getTypeOf(cast.expression());
+            ResolvedType target = symbolTable.resolveTypeNode(cast.type(), this);
+            TypeNode javaType = target.isPrimitive() && source != null && !source.isPrimitive()
+                    ? mapResolvedTypeToBoxedNode(target) : cast.type();
+            return new CastExpr(lowerExpression(cast.expression()), javaType, cast.token());
+        } else if (expr instanceof TypeTestExpr test) {
+            ResolvedType type = symbolTable.resolveTypeNode(test.type(), this);
+            return new TypeTestExpr(lowerExpression(test.expression()), mapResolvedTypeToBoxedNode(type), test.token(), test.binding());
+        } else if (expr instanceof NullableExpr nullable) {
             Expression value = lowerExpression(nullable.expression());
+            if (nullable.nonNullCollection()) return value;
             if (value instanceof IdentifierExpr id)
                 return new IdentifierExpr(id.name(), id.token(), false, id.nonNullElements());
             if (value instanceof MemberAccessExpr member)
@@ -410,6 +422,10 @@ public final class AccentLowerer implements ImportResolver {
             return new IdentifierExpr(type.info().fullName(), st.token());
         } else if (expr instanceof IdentifierExpr id) {
             ResolvedType type = expressionTypes.get(id);
+            ResolvedType declared = null;
+            for (var scope : scopes) { if (scope.containsKey(id.name())) { declared = scope.get(id.name()); break; } }
+            if (declared != null && !declared.alternatives().isEmpty() && type != null && type.alternatives().isEmpty())
+                return new CastExpr(id, mapResolvedTypeToBoxedNode(type), id.token());
             return type == null ? id : new IdentifierExpr(id.name(), id.token(), type.isNonNull() && !type.isPrimitive(), type.nonNullElements());
         } else if (expr instanceof LiteralExpr || expr instanceof ThisExpr || expr instanceof SuperExpr) {
             return expr;
@@ -437,10 +453,15 @@ public final class AccentLowerer implements ImportResolver {
             }
             return new InterpolatedStringExpression(loweredParts, interp.token());
         } else if (expr instanceof BinaryExpr bin) {
+            if (bin.operator().type() == TokenType.ASSIGN && bin.left() instanceof IdentifierExpr id) {
+                Expression target = lowerExpression(id);
+                if (target instanceof CastExpr cast) target = cast.expression();
+                return new BinaryExpr(target, bin.operator(), lowerExpression(bin.right()));
+            }
             if (bin.operator().type() == TokenType.NULL_COALESCING) {
                 // Lower left and right
                 Expression left = lowerExpression(bin.left());
-                Expression right = lowerExpression(bin.right());
+                Expression right = bin.right();
                 ResolvedType type = getTypeOf(left);
                 if (type == null) {
                     ResolvedType rightType = getTypeOf(right);
@@ -455,7 +476,10 @@ public final class AccentLowerer implements ImportResolver {
                 BlockStmt elseBranch = new BlockStmt(List.of(new YieldStmt(right)));
                 
                 // Return the IfExpr which will be lowered next!
-                return lowerExpression(new IfExpr(cond, thenBranch, elseBranch, bin.operator()));
+                IfExpr conditional = new IfExpr(cond, thenBranch, elseBranch, bin.operator());
+                ResolvedType resultType = expressionTypes.get(bin);
+                if (resultType != null) expressionTypes.put(conditional, resultType);
+                return lowerExpression(conditional);
             }
 
             return new BinaryExpr(lowerExpression(bin.left()), bin.operator(), lowerExpression(bin.right()));
@@ -551,7 +575,7 @@ public final class AccentLowerer implements ImportResolver {
                 params = type.info().constructors().get(0).parameters();
             }
             List<Expression> resolvedArgs = resolveArguments(params, no.arguments());
-            return new NewObjectExpr(no.type(), resolvedArgs, no.token());
+            return new NewObjectExpr(no.type(), resolvedArgs, no.token(), no.typeArguments());
         } else if (expr instanceof ArrayInitializerExpr ai) {
             ArrayInitializerExpr lowered = new ArrayInitializerExpr(ai.expressions().stream().map(this::lowerExpression).toList(), ai.token());
             ResolvedType type = expressionTypes.get(ai);
@@ -568,7 +592,7 @@ public final class AccentLowerer implements ImportResolver {
             return new NewArrayExpr(na.type(), dims, initializer, na.token());
         } else if (expr instanceof ArrayAccessExpr aa) {
             ResolvedType receiverType = expressionTypes.get(aa.receiver());
-            boolean optional = aa.receiver() instanceof NullableExpr;
+            boolean optional = aa.receiver() instanceof NullableExpr n && !n.nonNullCollection();
             if (receiverType != null && receiverType.arrayDimensions() == 0) {
                 MethodCallExpr call = new MethodCallExpr(aa.receiver(), "get", List.of(), List.of(aa.index()), optional, aa.token());
                 expressionTypes.put(call, expressionTypes.get(aa));
@@ -766,7 +790,14 @@ public final class AccentLowerer implements ImportResolver {
             int line = ys.expression().token() != null ? ys.expression().token().line() : 1;
             int col = ys.expression().token() != null ? ys.expression().token().column() : 1;
             Token assignToken = new Token(TokenType.ASSIGN, "=", line, col);
-            return new ExprStmt(new BinaryExpr(new IdentifierExpr(varName, null), assignToken, lowerExpression(ys.expression())));
+            List<Statement> saved = new ArrayList<>(pendingStatements);
+            pendingStatements.clear();
+            Expression value = lowerExpression(ys.expression());
+            List<Statement> statements = new ArrayList<>(pendingStatements);
+            statements.add(new ExprStmt(new BinaryExpr(new IdentifierExpr(varName, null), assignToken, value)));
+            pendingStatements.clear();
+            pendingStatements.addAll(saved);
+            return new BlockStmt(statements);
         } else if (stmt instanceof BlockStmt bs) {
             List<Statement> list = new ArrayList<>();
             for (Statement s : bs.statements()) {
@@ -912,7 +943,7 @@ public final class AccentLowerer implements ImportResolver {
             ResolvedType rec = getTypeOf(ma.receiver());
             if (rec != null) {
                 SymbolTable.FieldInfo fInfo = rec.info().findField(ma.memberName(), symbolTable);
-                if (fInfo != null) return symbolTable.resolveFieldType(fInfo);
+                if (fInfo != null) return symbolTable.resolveFieldType(fInfo, rec);
             }
         } else if (expr instanceof MethodCallExpr mc) {
             ResolvedType rec = null;
@@ -928,7 +959,8 @@ public final class AccentLowerer implements ImportResolver {
                             && mc.methodName().equals("await") && !rec.typeArguments().isEmpty()) {
                         return rec.typeArguments().getFirst();
                     }
-                    return symbolTable.resolveReturnType(mInfo);
+                    return symbolTable.resolveCallReturnType(mInfo, rec, mc.typeArguments().stream()
+                            .map(t -> symbolTable.resolveTypeNode(t, this)).toList(), mc.arguments().stream().map(this::getTypeOf).toList());
                 }
 
                 if (mc.typeArguments().isEmpty()

@@ -43,25 +43,25 @@ class ExtensionResolutionRegressionTest {
 
     private void importedExtension() throws Exception {
         write("domain/Widget.accent", """
-                package domain;
+                package domain
                 class Widget {
-                    String name = "";
-                    Widget(String name) { this.name = name; }
+                    String name = ""
+                    Widget(String name) { this.name = name }
                 }
                 """);
         write("domain/Label.accent", """
-                package domain;
+                package domain
                 class Label {
-                    String text = "";
-                    Label(String text) { this.text = text; }
+                    String text = ""
+                    Label(String text) { this.text = text }
                 }
                 """);
         write("extensions/WidgetExtensions.accent", """
-                package extensions;
-                import domain.Widget;
-                import domain.Label;
+                package extensions
+                import domain.Widget
+                import domain.Label
                 extension Widget {
-                    Label label(Label prefix) { return new Label(prefix.text + this.name); }
+                    Label label(Label prefix) { return new Label(prefix.text + this.name) }
                 }
                 """);
     }
@@ -70,10 +70,10 @@ class ExtensionResolutionRegressionTest {
     void importedExtensionTypesResolveInTheirDeclarationScope() throws Exception {
         importedExtension();
         write("app/Caller.accent", """
-                package app;
+                package app
                 class Caller {
                     static String run() {
-                        return new domain.Widget("x").label(new domain.Label("id=")).text;
+                        return new domain.Widget("x").label(new domain.Label("id=")).text
                     }
                 }
                 """);
@@ -87,9 +87,9 @@ class ExtensionResolutionRegressionTest {
     void importedExtensionCannotAttachToAnUnrelatedReceiver() throws Exception {
         importedExtension();
         write("app/Caller.accent", """
-                package app;
+                package app
                 class Caller {
-                    static void run() { "x".label(new domain.Label("id=")); }
+                    static void run() { "x".label(new domain.Label("id=")) }
                 }
                 """);
 
@@ -102,20 +102,20 @@ class ExtensionResolutionRegressionTest {
     @Test
     void repeatedExtensionOverloadsBindNamedAndDefaultArgumentsToTheMatchingSignature() throws Exception {
         write("extensions/TextExtensions.accent", """
-                package extensions;
+                package extensions
                 extension String {
-                    String decorate(int count) { return this + count; }
+                    String decorate(int count) { return this + count }
                 }
                 extension String {
                     String decorate(String prefix = "<", String suffix = ">") {
-                        return prefix + this + suffix;
+                        return prefix + this + suffix
                     }
                 }
                 """);
         write("app/Caller.accent", """
-                package app;
+                package app
                 class Caller {
-                    static String run() { return "x".decorate(suffix: "]") + "|" + "y".decorate(); }
+                    static String run() { return "x".decorate(suffix: "]") + "|" + "y".decorate() }
                 }
                 """);
 
@@ -127,20 +127,20 @@ class ExtensionResolutionRegressionTest {
     @Test
     void optionalExtensionCallsEvaluateReceiverOnceAndSkipArgumentsForNull() throws Exception {
         write("extensions/TextExtensions.accent", """
-                package extensions;
+                package extensions
                 extension String {
-                    String decorate(String prefix, String suffix = "]") { return prefix + this + suffix; }
+                    String decorate(String prefix, String suffix = "]") { return prefix + this + suffix }
                 }
                 """);
         write("app/Caller.accent", """
-                package app;
+                package app
                 class Caller {
-                    static int receiverCalls = 0;
-                    static int argumentCalls = 0;
-                    static String receiver?() { static.receiverCalls++; return null; }
-                    static String argument() { static.argumentCalls++; return "["; }
-                    static String absent?() { return (static.receiver()?)?.decorate(static.argument()); }
-                    static String present?() { return "x"?.decorate(static.argument()); }
+                    static int receiverCalls = 0
+                    static int argumentCalls = 0
+                    static String receiver()? { static.receiverCalls++ return null }
+                    static String argument() { static.argumentCalls++ return "[" }
+                    static String absent()? { return (static.receiver()?)?.decorate(static.argument()) }
+                    static String present()? { return "x"?.decorate(static.argument()) }
                 }
                 """);
 
@@ -158,24 +158,24 @@ class ExtensionResolutionRegressionTest {
     @Test
     void optionalVoidExtensionCallsSkipNullAndInvokePresentReceiverOnce() throws Exception {
         write("domain/Counter.accent", """
-                package domain;
-                class Counter { int total = 0; }
+                package domain
+                class Counter { int total = 0 }
                 """);
         write("extensions/CounterExtensions.accent", """
-                package extensions;
-                import domain.Counter;
+                package extensions
+                import domain.Counter
                 extension Counter {
-                    void add(int value) { this.total = this.total + value; }
+                    void add(int value) { this.total = this.total + value }
                 }
                 """);
         write("app/Caller.accent", """
-                package app;
+                package app
                 class Caller {
-                    static int receiverCalls = 0;
-                    static int argumentCalls = 0;
-                    static domain.Counter receiver?(domain.Counter value?) { static.receiverCalls++; return value?; }
-                    static int argument() { static.argumentCalls++; return 3; }
-                    static void run(domain.Counter value?) { (static.receiver(value?)?)?.add(static.argument()); }
+                    static int receiverCalls = 0
+                    static int argumentCalls = 0
+                    static domain.Counter receiver(domain.Counter value?)? { static.receiverCalls++ return value? }
+                    static int argument() { static.argumentCalls++ return 3 }
+                    static void run(domain.Counter value?) { (static.receiver(value?)?)?.add(static.argument()) }
                 }
                 """);
 

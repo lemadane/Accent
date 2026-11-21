@@ -20,7 +20,12 @@ public final class JavaEmitter {
     private final java.util.Deque<String> loopBrokenVars = new java.util.ArrayDeque<>();
     private int loopCounter = 0;
 
-    public JavaEmitter() {
+    private final boolean includeDataSerialization;
+
+    public JavaEmitter() { this(true); }
+
+    public JavaEmitter(boolean includeDataSerialization) {
+        this.includeDataSerialization = includeDataSerialization;
     }
 
     public String emit(CompilationUnit unit) {
@@ -367,7 +372,7 @@ public final class JavaEmitter {
             sb.append(" + \"]\"; }\n");
         }
 
-        if (decl instanceof ModelDecl || decl instanceof RecordDecl) {
+        if (includeDataSerialization && (decl instanceof ModelDecl || decl instanceof RecordDecl)) {
             for (String format : List.of("Json", "Xml")) {
                 String methodName = "to" + format;
                 boolean custom = decl.members().stream().anyMatch(m -> m instanceof MethodDecl method
@@ -619,6 +624,7 @@ public final class JavaEmitter {
     }
 
     private void emitNullabilityAnnotation(TypeNode type) {
+        if (type.requiresCollectionMarker()) sb.append("@accent.runtime.NonNullCollection ");
         if (!isPrimitive(type)) sb.append(type.isNonNull() ? "@accent.runtime.NonNullReturn " : "@accent.runtime.Nullable ");
     }
 
@@ -650,13 +656,18 @@ public final class JavaEmitter {
     // --- Type Emitter ---
 
     private String emitType(TypeNode type) {
+        if (type instanceof WildcardTypeNode wildcard)
+            return "?" + wildcard.bound().map(t -> " " + wildcard.variance() + " " + emitType(t)).orElse("");
+        if (type instanceof IntersectionTypeNode intersection)
+            return String.join(" & ", intersection.bounds().stream().map(this::emitType).toList());
+        if (type instanceof UnionTypeNode) return "java.lang.Object";
         if (type instanceof PrimitiveTypeNode prim) {
             return prim.name();
         } else if (type instanceof ArrayTypeNode arr) {
             return emitType(arr.elementType()) + "[]";
         } else if (type instanceof BaseTypeNode base) {
-            StringBuilder r = new StringBuilder(base.name());
-            if (!base.typeArguments().isEmpty()) {
+            StringBuilder r = new StringBuilder(base.owner().map(t -> emitType(t) + ".").orElse("") + base.name());
+            if (base.diamond() || !base.typeArguments().isEmpty()) {
                 r.append("<");
                 for (int i = 0; i < base.typeArguments().size(); i++) {
                     if (i > 0) r.append(", ");
@@ -976,7 +987,7 @@ public final class JavaEmitter {
     }
 
     private String emitCondition(Expression cond) {
-        if (isNativeBooleanExpr(cond)) {
+        if (cond instanceof TypeTestExpr || isNativeBooleanExpr(cond)) {
             return emitExpression(cond);
         }
         return "accent.runtime.AccentRuntime.isTruthy(" + emitExpression(cond) + ")";
@@ -1013,6 +1024,16 @@ public final class JavaEmitter {
                 return Double.toString(d);
             }
             return lit.value().toString();
+        } else if (expr instanceof TypeOfExpr query) {
+            return "accent.runtime.AccentRuntime.typeOf(" + emitExpression(query.expression()) + ")";
+        } else if (expr instanceof TypeTestExpr test) {
+            return "(((Object) " + emitExpression(test.expression()) + ") instanceof " + emitType(test.type())
+                    + test.binding().map(name -> " " + name).orElse("") + ")";
+        } else if (expr instanceof CastExpr cast) {
+            String value = "((" + emitType(cast.type()) + ") " + emitExpression(cast.expression()) + ")";
+            boolean checkedNonNull = cast.token() != null && cast.token().type() == accent.lexer.TokenType.AS
+                    && cast.type().isNonNull() && !(cast.type() instanceof PrimitiveTypeNode);
+            return guardBinding(value, checkedNonNull);
         } else if (expr instanceof IdentifierExpr id) {
             return beforeParameterGuards && guardedParameterNames.contains(id.name()) ? "$accent$" + id.name() : id.name();
         } else if (expr instanceof ThisExpr) {
@@ -1171,7 +1192,10 @@ public final class JavaEmitter {
                 r.append("]");
                 return r.toString();
             }
-            StringBuilder r = new StringBuilder("new ").append(emitType(no.type())).append("(");
+            StringBuilder r = new StringBuilder("new ");
+            if (!no.typeArguments().isEmpty())
+                r.append("<").append(String.join(", ", no.typeArguments().stream().map(this::emitType).toList())).append("> ");
+            r.append(emitType(no.type())).append("(");
             for (int i = 0; i < no.arguments().size(); i++) {
                 if (i > 0) r.append(", ");
                 r.append(emitExpression(no.arguments().get(i)));

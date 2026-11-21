@@ -47,6 +47,8 @@ public enum TokenType {
     THROWS,
     THROW,
     INSTANCEOF,
+    AS,
+    TYPEOF,
 
     // Textual boolean operators
     NOT,
@@ -60,6 +62,7 @@ public enum TokenType {
     OPTIONAL_CHAIN,
     NULL_COALESCING,
     DOUBLE_QUESTION,
+    BANG_QUESTION,
     BANG,
     QUESTION,
     DOT,
@@ -80,8 +83,10 @@ public enum TokenType {
     LESS_EQUAL,
     GREATER,
     GREATER_EQUAL,
+    AMPERSAND,
     AND_AND,
     OR_OR,
+    PIPE,
     ARROW,
 
     LEFT_PAREN,

@@ -21,6 +21,126 @@ public final class SymbolTable {
     private final Map<MethodInfo, MemberOwner> methodOwners = new IdentityHashMap<>();
     private final Map<String, String> typePackages = new HashMap<>();
 
+    private final Map<String, List<TypeParameter>> genericParameters = new HashMap<>();
+    private final Map<String, List<TypeNode>> genericParents = new HashMap<>();
+
+    public static List<TypeParameter> typeParameters(TypeDeclaration declaration) {
+        if (declaration instanceof ClassDecl d) return d.typeParameters();
+        if (declaration instanceof InterfaceDecl d) return d.typeParameters();
+        if (declaration instanceof RecordDecl d) return d.typeParameters();
+        if (declaration instanceof ModelDecl d) return d.typeParameters();
+        return List.of();
+    }
+
+    private Map<String, ResolvedType> bindings(ResolvedType receiver, String owner, Set<String> visited) {
+        Map<String, ResolvedType> result = new HashMap<>();
+        if (receiver == null || receiver.info() == null || !visited.add(receiver.info().fullName())) return result;
+        String name = receiver.info().fullName();
+        List<TypeParameter> params = genericParameters.getOrDefault(name, List.of());
+        for (int i = 0; i < params.size(); i++) {
+            TypeParameter parameter = params.get(i);
+            ResolvedType value = i < receiver.typeArguments().size() ? receiver.typeArguments().get(i)
+                    : substitute(parameter.bound().orElse(new BaseTypeNode("java.lang.Object", List.of(), false)),
+                            result, sourceUnits.get(name));
+            result.put(parameter.name(), value);
+        }
+        if (name.equals(owner)) return result;
+        for (TypeNode parent : genericParents.getOrDefault(name, List.of())) {
+            ResolvedType resolved = substitute(parent, result, sourceUnits.get(name));
+            Map<String, ResolvedType> inherited = bindings(resolved, owner, visited);
+            if (!inherited.isEmpty()) return inherited;
+        }
+        return Map.of();
+    }
+
+    private ResolvedType substitute(TypeNode node, Map<String, ResolvedType> bindings, CompilationUnit unit) {
+        if (node instanceof BaseTypeNode base) {
+            ResolvedType variable = bindings.get(base.name());
+            if (variable != null && base.owner().isEmpty()) return variable;
+            ResolvedType raw = resolveTypeInUnit(node, unit);
+            List<ResolvedType> arguments = new ArrayList<>();
+            base.owner().ifPresent(owner -> arguments.addAll(substitute(owner, bindings, unit).typeArguments()));
+            base.typeArguments().forEach(t -> arguments.add(substitute(t, bindings, unit)));
+            return new ResolvedType(raw.info(), raw.isNonNull(), arguments, 0).withCollectionMarker(raw.requiresCollectionMarker());
+        }
+        if (node instanceof ArrayTypeNode array) {
+            ResolvedType element = substitute(array.elementType(), bindings, unit);
+            return new ResolvedType(element.info(), array.isNonNull(), element.typeArguments(),
+                    element.arrayDimensions() + 1, element.isNonNull()).withCollectionMarker(array.requiresCollectionMarker());
+        }
+        if (node instanceof WildcardTypeNode wildcard && wildcard.variance().equals("extends") && wildcard.bound().isPresent())
+            return substitute(wildcard.bound().get(), bindings, unit);
+        return resolveTypeInUnit(node, unit);
+    }
+
+    private ResolvedType boxed(ResolvedType type) {
+        if (!type.isPrimitive()) return type;
+        String name = switch (type.info().fullName()) {
+            case "int" -> "Integer";
+            case "long" -> "Long";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "boolean" -> "Boolean";
+            case "char" -> "Character";
+            case "byte" -> "Byte";
+            case "short" -> "Short";
+            default -> "Void";
+        };
+        return new ResolvedType(getType("java.lang." + name), true, List.of(), 0);
+    }
+
+    private void infer(TypeNode formal, ResolvedType actual, Set<String> variables, Map<String, ResolvedType> bindings) {
+        if (actual == null) return;
+        if (formal instanceof BaseTypeNode base) {
+            if (variables.contains(base.name())) bindings.putIfAbsent(base.name(), boxed(actual));
+            for (int i = 0; i < Math.min(base.typeArguments().size(), actual.typeArguments().size()); i++)
+                infer(base.typeArguments().get(i), actual.typeArguments().get(i), variables, bindings);
+        } else if (formal instanceof ArrayTypeNode array && actual.arrayDimensions() > 0) {
+            infer(array.elementType(), actual.elementType(this), variables, bindings);
+        } else if (formal instanceof WildcardTypeNode wildcard && wildcard.bound().isPresent()) {
+            infer(wildcard.bound().get(), actual, variables, bindings);
+        }
+    }
+
+    public ResolvedType resolveCallReturnType(MethodInfo method, ResolvedType receiver,
+            List<ResolvedType> explicit, List<ResolvedType> arguments) {
+        MemberOwner owner = declaringOwner(method);
+        Map<String, ResolvedType> bindings = new HashMap<>(bindings(receiver,
+                owner == null ? "" : owner.typeName(), new HashSet<>()));
+        Set<String> variables = new HashSet<>();
+        for (int i = 0; i < method.typeParameters().size(); i++) {
+            String name = method.typeParameters().get(i).name();
+            variables.add(name);
+            bindings.remove(name);
+            if (i < explicit.size()) bindings.put(name, explicit.get(i));
+        }
+        for (int i = 0; i < arguments.size() && !method.parameters().isEmpty(); i++) {
+            int index = Math.min(i, method.parameters().size() - 1);
+            Parameter parameter = method.parameters().get(index);
+            if (i >= method.parameters().size() && !parameter.isVarargs()) break;
+            ResolvedType argument = arguments.get(i);
+            if (parameter.isVarargs() && i == method.parameters().size() - 1
+                    && arguments.size() == method.parameters().size() && argument != null && argument.arrayDimensions() > 0)
+                argument = argument.elementType(this);
+            infer(parameter.type(), argument, variables, bindings);
+        }
+        return substitute(method.returnType(), bindings, owner == null ? null : sourceUnits.get(owner.typeName()))
+                .withNonNull(method.returnType().isNonNull());
+    }
+
+    public ResolvedType resolveSuperclass(TypeInfo type) {
+        List<TypeNode> parents = genericParents.getOrDefault(type.fullName(), List.of());
+        if (!parents.isEmpty() && type.superclass().isPresent())
+            return resolveTypeInUnit(parents.getFirst(), sourceUnits.get(type.fullName())).withNonNull(true);
+        return new ResolvedType(getType(type.superclass().orElse("java.lang.Object")), true, List.of(), 0);
+    }
+
+    public ResolvedType resolveFieldType(FieldInfo field, ResolvedType receiver) {
+        MemberOwner owner = declaringOwner(field);
+        return substitute(field.type(), bindings(receiver, owner == null ? "" : owner.typeName(), new HashSet<>()),
+                owner == null ? null : sourceUnits.get(owner.typeName())).withNonNull(field.type().isNonNull());
+    }
+
     public record MemberOwner(String typeName, String packageName) {}
 
     public SymbolTable() {
@@ -100,6 +220,12 @@ public final class SymbolTable {
         if (name.contains(".")) {
             info = getType(name);
             if (info != null) return info;
+            int dot = name.indexOf('.');
+            TypeInfo outer = resolveInUnit(name.substring(0, dot), unit);
+            if (outer != null) {
+                info = getType(outer.fullName() + name.substring(dot));
+                if (info != null) return info;
+            }
         }
         String pkg = unit.packageName().orElse("");
         info = getType(pkg.isEmpty() ? name : pkg + "." + name);
@@ -333,15 +459,30 @@ public final class SymbolTable {
     }
 
     public ResolvedType resolveTypeNode(TypeNode node, ImportResolver resolver) {
-        if (node instanceof PrimitiveTypeNode prim) {
+        if (node instanceof WildcardTypeNode wildcard) {
+            return wildcard.variance().equals("extends") && wildcard.bound().isPresent()
+                    ? resolveTypeNode(wildcard.bound().get(), resolver)
+                    : new ResolvedType(getType("java.lang.Object"), false, List.of(), 0);
+        } else if (node instanceof IntersectionTypeNode intersection) {
+            List<ResolvedType> bounds = intersection.bounds().stream().map(t -> resolveTypeNode(t, resolver)).toList();
+            ResolvedType first = bounds.getFirst();
+            TypeInfo base = first.info();
+            List<String> interfaces = new ArrayList<>(base.interfaces());
+            for (ResolvedType bound : bounds.subList(1, bounds.size())) interfaces.add(bound.info().fullName());
+            TypeInfo combined = new TypeInfo(base.fullName(), base.isInterface(), base.isRecord(), base.isEnum(),
+                    base.isPrimitive(), base.superclass(), interfaces, base.methods(), base.fields(), base.constructors());
+            return new ResolvedType(combined, true, first.typeArguments(), first.arrayDimensions());
+        } else if (node instanceof UnionTypeNode union) {
+            return unionType(union.alternatives().stream().map(t -> resolveTypeNode(t, resolver)).toList());
+        } else if (node instanceof PrimitiveTypeNode prim) {
             return new ResolvedType(getType(prim.name()), true, List.of(), 0);
         } else if (node instanceof ArrayTypeNode arr) {
             ResolvedType elem = resolveTypeNode(arr.elementType(), resolver);
-            return new ResolvedType(elem.info(), arr.isNonNull(), elem.typeArguments(), elem.arrayDimensions() + 1, arr.hasNonNullElements());
+            return new ResolvedType(elem.info(), arr.isNonNull(), elem.typeArguments(), elem.arrayDimensions() + 1, arr.hasNonNullElements()).withCollectionMarker(arr.requiresCollectionMarker());
         } else if (node instanceof BaseTypeNode base) {
-            TypeInfo info = resolver != null ? resolver.resolve(base.name()) : null;
+            TypeInfo info = resolver != null ? resolver.resolve(getTypeName(base)) : null;
             if (info == null) {
-                info = getType(base.name());
+                info = getType(getTypeName(base));
             }
             if (info == null) {
                 info = getType("java.lang." + base.name());
@@ -353,10 +494,11 @@ public final class SymbolTable {
                 info = getType("java.lang.Object");
             }
             List<ResolvedType> args = new ArrayList<>();
+            if (base.owner().isPresent()) args.addAll(resolveTypeNode(base.owner().get(), resolver).typeArguments());
             for (TypeNode arg : base.typeArguments()) {
                 args.add(resolveTypeNode(arg, resolver));
             }
-            return new ResolvedType(info, base.isNonNull(), args, 0, base.hasNonNullElements());
+            return new ResolvedType(info, base.isNonNull(), args, 0, base.hasNonNullElements()).withCollectionMarker(base.requiresCollectionMarker());
         }
         return null;
     }
@@ -365,6 +507,13 @@ public final class SymbolTable {
 
     private TypeInfo createSourceTypeInfo(String pkg, TypeDeclaration decl, CompilationUnit unit) {
         String fullName = pkg.isEmpty() ? decl.name() : pkg + "." + decl.name();
+        genericParameters.put(fullName, typeParameters(decl));
+        List<TypeNode> parents = new ArrayList<>();
+        if (decl instanceof ClassDecl d) { d.superclass().ifPresent(parents::add); parents.addAll(d.interfaces()); }
+        if (decl instanceof InterfaceDecl d) parents.addAll(d.interfaces());
+        if (decl instanceof RecordDecl d) parents.addAll(d.interfaces());
+        if (decl instanceof ModelDecl d) parents.addAll(d.interfaces());
+        genericParents.put(fullName, parents);
         boolean isInterface = decl instanceof InterfaceDecl;
         boolean isRecord = decl instanceof RecordDecl;
         boolean isEnum = decl instanceof EnumDecl;
@@ -405,6 +554,13 @@ public final class SymbolTable {
         List<MethodInfo> methods = new ArrayList<>();
         List<FieldInfo> fields = new ArrayList<>();
         List<ConstructorInfo> constructors = new ArrayList<>();
+
+        if (decl instanceof EnumDecl ed) {
+            BaseTypeNode selfType = new BaseTypeNode(fullName, List.of(), true);
+            for (EnumConstant constant : ed.constants()) {
+                fields.add(new FieldInfo(constant.name(), List.of("public", "static", "final"), selfType));
+            }
+        }
 
         if (isRecord) {
             RecordDecl rd = (RecordDecl) decl;
@@ -493,7 +649,7 @@ public final class SymbolTable {
                                 || unit.imports().contains("accent.runtime.*"))))) {
                     returnType = returnType.withNonNull(true);
                 }
-                methods.add(new MethodInfo(md.name(), modifiers, returnType, md.parameters()));
+                methods.add(new MethodInfo(md.name(), modifiers, returnType, md.parameters(), md.typeParameters()));
             } else if (member instanceof ConstructorDecl cd) {
                 constructors.add(new ConstructorInfo(cd.modifiers(), cd.parameters()));
             }
@@ -529,7 +685,7 @@ public final class SymbolTable {
     }
 
     private String getTypeName(TypeNode node) {
-        if (node instanceof BaseTypeNode base) return base.name();
+        if (node instanceof BaseTypeNode base) return base.owner().map(t -> getTypeName(t) + ".").orElse("") + base.name();
         if (node instanceof PrimitiveTypeNode prim) return prim.name();
         if (node instanceof ArrayTypeNode arr) return getTypeName(arr.elementType()) + "[]";
         return "";
@@ -545,6 +701,15 @@ public final class SymbolTable {
 
     private TypeInfo createReflectedTypeInfo(Class<?> clazz) {
         String fullName = clazz.getName().replace('$', '.');
+        List<TypeParameter> parameters = new ArrayList<>();
+        if (clazz.getEnclosingClass() != null && !Modifier.isStatic(clazz.getModifiers()))
+            parameters.addAll(enclosingParameters(clazz.getEnclosingClass()));
+        parameters.addAll(reflectedParameters(clazz.getTypeParameters()));
+        genericParameters.put(fullName, parameters);
+        List<TypeNode> parents = new ArrayList<>();
+        if (clazz.getGenericSuperclass() != null) parents.add(reflectedContract(clazz.getGenericSuperclass(), new java.lang.annotation.Annotation[0]));
+        for (var parent : clazz.getGenericInterfaces()) parents.add(reflectedContract(parent, new java.lang.annotation.Annotation[0]));
+        genericParents.put(fullName, parents);
         boolean isInterface = clazz.isInterface();
         boolean isEnum = clazz.isEnum();
         boolean isRecord = clazz.isRecord();
@@ -573,10 +738,10 @@ public final class SymbolTable {
             int idx = 0;
             for (Class<?> pType : m.getParameterTypes()) {
                 boolean varargs = m.isVarArgs() && idx == m.getParameterCount() - 1;
-                params.add(new Parameter(reflectedContract(varargs ? pType.getComponentType() : m.getGenericParameterTypes()[idx], m.getParameterAnnotations()[idx]),
+                params.add(new Parameter(reflectedContract(varargs ? genericComponent(m.getGenericParameterTypes()[idx]) : m.getGenericParameterTypes()[idx], m.getParameterAnnotations()[idx]),
                         "p" + idx++, varargs, Optional.empty()));
             }
-            methods.add(new MethodInfo(m.getName(), contractModifiers(m.getModifiers(), m.getAnnotations()), reflectedContract(m.getGenericReturnType(), m.getAnnotations()), params));
+            methods.add(new MethodInfo(m.getName(), contractModifiers(m.getModifiers(), m.getAnnotations()), reflectedContract(m.getGenericReturnType(), m.getAnnotations()), params, reflectedParameters(m.getTypeParameters())));
         }
 
         // Map constructors
@@ -586,7 +751,7 @@ public final class SymbolTable {
                 int idx = 0;
                 for (Class<?> pType : c.getParameterTypes()) {
                     boolean varargs = c.isVarArgs() && idx == c.getParameterCount() - 1;
-                    params.add(new Parameter(reflectedContract(varargs ? pType.getComponentType() : c.getGenericParameterTypes()[idx], c.getParameterAnnotations()[idx]),
+                    params.add(new Parameter(reflectedContract(varargs ? genericComponent(c.getGenericParameterTypes()[idx]) : c.getGenericParameterTypes()[idx], c.getParameterAnnotations()[idx]),
                             "p" + idx++, varargs, Optional.empty()));
                 }
                 constructors.add(new ConstructorInfo(getModifiersList(c.getModifiers()), params));
@@ -619,18 +784,47 @@ public final class SymbolTable {
         return list;
     }
 
+    private List<TypeParameter> enclosingParameters(Class<?> clazz) {
+        List<TypeParameter> parameters = new ArrayList<>();
+        if (clazz.getEnclosingClass() != null && !Modifier.isStatic(clazz.getModifiers()))
+            parameters.addAll(enclosingParameters(clazz.getEnclosingClass()));
+        parameters.addAll(reflectedParameters(clazz.getTypeParameters()));
+        return parameters;
+    }
+
+    private java.lang.reflect.Type genericComponent(java.lang.reflect.Type type) {
+        return type instanceof java.lang.reflect.GenericArrayType array ? array.getGenericComponentType()
+                : ((Class<?>) type).getComponentType();
+    }
+
+    private List<TypeParameter> reflectedParameters(java.lang.reflect.TypeVariable<?>[] variables) {
+        return Arrays.stream(variables).map(v -> new TypeParameter(v.getName(),
+                Optional.of(reflectedContract(v.getBounds()[0], new java.lang.annotation.Annotation[0])))).toList();
+    }
+
     private TypeNode reflectedContract(java.lang.reflect.Type type, java.lang.annotation.Annotation[] annotations) {
         TypeNode node;
         if (type instanceof java.lang.reflect.ParameterizedType p && p.getRawType() instanceof Class<?> c) {
-            node = new BaseTypeNode(c.getName().replace('$', '.'), java.util.Arrays.stream(p.getActualTypeArguments())
-                    .map(t -> reflectedContract(t, new java.lang.annotation.Annotation[0])).toList(), false);
+            boolean hasOwner = p.getOwnerType() != null && !Modifier.isStatic(c.getModifiers());
+            node = new BaseTypeNode(hasOwner ? c.getSimpleName() : c.getName().replace('$', '.'),
+                    java.util.Arrays.stream(p.getActualTypeArguments())
+                        .map(t -> reflectedContract(t, new java.lang.annotation.Annotation[0])).toList(), false, false,
+                    hasOwner ? Optional.of(reflectedContract(p.getOwnerType(), new java.lang.annotation.Annotation[0])) : Optional.empty(), false);
         } else if (type instanceof java.lang.reflect.GenericArrayType a) {
             node = new ArrayTypeNode(reflectedContract(a.getGenericComponentType(), new java.lang.annotation.Annotation[0]), false);
+        } else if (type instanceof java.lang.reflect.TypeVariable<?> variable) {
+            node = new BaseTypeNode(variable.getName(), List.of(), false);
+        } else if (type instanceof java.lang.reflect.WildcardType wildcard) {
+            boolean lower = wildcard.getLowerBounds().length > 0;
+            var bounds = lower ? wildcard.getLowerBounds() : wildcard.getUpperBounds();
+            node = new WildcardTypeNode(lower ? "super" : "extends", bounds.length == 0 ? Optional.empty()
+                    : Optional.of(reflectedContract(bounds[0], new java.lang.annotation.Annotation[0])));
         } else node = mapClassToTypeNode(type instanceof Class<?> c ? c : Object.class);
         for (var annotation : annotations) {
             if (annotation.annotationType().getName().equals("accent.runtime.NonNullReturn")) node = node.withNonNull(true);
             if (annotation.annotationType().getName().equals("accent.runtime.Nullable")) node = node.withNonNull(false);
             if (annotation.annotationType().getName().equals("accent.runtime.NonNullElements")) node = node.withNonNullElements();
+            if (annotation.annotationType().getName().equals("accent.runtime.NonNullCollection")) node = node.withCollectionMarker();
         }
         return node;
     }
@@ -647,13 +841,35 @@ public final class SymbolTable {
 
     // --- Resolved Types Models ---
 
+    public ResolvedType unionType(List<ResolvedType> members) {
+        List<ResolvedType> flattened = members.stream()
+                .flatMap(t -> t.alternatives().isEmpty() ? java.util.stream.Stream.of(t) : t.alternatives().stream())
+                .distinct().toList();
+        if (flattened.size() == 1) return flattened.getFirst();
+        return new ResolvedType(getType("java.lang.Object"), flattened.stream().allMatch(ResolvedType::isNonNull),
+                List.of(), 0, false, flattened);
+    }
+
     public record ResolvedType(
             TypeInfo info,
             boolean isNonNull,
             List<ResolvedType> typeArguments,
             int arrayDimensions,
-            boolean nonNullElements
+            boolean nonNullElements,
+            List<ResolvedType> alternatives,
+            boolean requiresCollectionMarker
     ) {
+        public ResolvedType(TypeInfo info, boolean isNonNull, List<ResolvedType> typeArguments,
+                            int arrayDimensions, boolean nonNullElements, List<ResolvedType> alternatives) {
+            this(info, isNonNull, typeArguments, arrayDimensions, nonNullElements, alternatives, false);
+        }
+        public ResolvedType withCollectionMarker(boolean required) {
+            return new ResolvedType(info, isNonNull, typeArguments, arrayDimensions, nonNullElements, alternatives, required);
+        }
+        public ResolvedType(TypeInfo info, boolean isNonNull, List<ResolvedType> typeArguments,
+                            int arrayDimensions, boolean nonNullElements) {
+            this(info, isNonNull, typeArguments, arrayDimensions, nonNullElements, List.of());
+        }
         public ResolvedType(TypeInfo info, boolean isNonNull, List<ResolvedType> typeArguments, int arrayDimensions) {
             this(info, isNonNull, typeArguments, arrayDimensions,
                     arrayDimensions == 0 && info.fullName().equals("java.util.List")
@@ -672,10 +888,17 @@ public final class SymbolTable {
         }
 
         public ResolvedType withNonNull(boolean nonNull) {
-            return new ResolvedType(info, nonNull, typeArguments, arrayDimensions, nonNullElements);
+            return new ResolvedType(info, nonNull, typeArguments, arrayDimensions, nonNullElements,
+                    alternatives.stream().map(t -> t.withNonNull(nonNull)).toList(), requiresCollectionMarker);
         }
 
         public boolean isCompatibleWith(ResolvedType other, SymbolTable table) {
+            if (!alternatives.isEmpty()) return alternatives.stream().allMatch(t -> t.isCompatibleWith(other, table));
+            if (!other.alternatives.isEmpty()) return other.alternatives.stream().anyMatch(t ->
+                    // Object is an unknown Java type elsewhere, but cannot prove union membership.
+                    (!info.fullName().equals("java.lang.Object") || t.info.fullName().equals("java.lang.Object"))
+                    && (!isPrimitive() || !t.isPrimitive() || info.fullName().equals(t.info.fullName()))
+                    && isCompatibleWith(t, table));
             if (this.info.fullName().equals("null")) {
                 return !other.isPrimitive() && !other.isNonNull;
             }
@@ -739,6 +962,7 @@ public final class SymbolTable {
 
         @Override
         public String toString() {
+            if (!alternatives.isEmpty()) return String.join("|", alternatives.stream().map(Object::toString).toList());
             StringBuilder sb = new StringBuilder(info.fullName());
             if (!typeArguments.isEmpty()) {
                 sb.append("<");
@@ -924,8 +1148,13 @@ public final class SymbolTable {
             String name,
             List<String> modifiers,
             TypeNode returnType,
-            List<Parameter> parameters
-    ) {}
+            List<Parameter> parameters,
+            List<TypeParameter> typeParameters
+    ) {
+        public MethodInfo(String name, List<String> modifiers, TypeNode returnType, List<Parameter> parameters) {
+            this(name, modifiers, returnType, parameters, List.of());
+        }
+    }
 
     public record FieldInfo(
             String name,

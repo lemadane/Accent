@@ -28,8 +28,10 @@ public final class TestSources {
         int i = 0;
         // Skip package / import statements
         while (i < tokens.size() && (tokens.get(i).type() == TokenType.PACKAGE || tokens.get(i).type() == TokenType.IMPORT)) {
-            while (i < tokens.size() && tokens.get(i).type() != TokenType.SEMICOLON) i++;
             i++;
+            if (tokens.get(i).type() == TokenType.STATIC) i++;
+            i++; // First name segment.
+            while (tokens.get(i).type() == TokenType.DOT) i += 2;
         }
         if (i >= tokens.size() || tokens.get(i).type() == TokenType.EOF) {
             return Map.of("Module", code);

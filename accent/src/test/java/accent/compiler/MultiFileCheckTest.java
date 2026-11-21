@@ -12,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class MultiFileCheckTest {
     @Test
     void resolvesCrossFileReferencesAndPreservesInputOrder() {
-        SourceFile caller = source("Caller", "class Caller { int call() { return new Answer().value(); } }");
-        SourceFile answer = source("Answer", "class Answer { int value() { return 42; } }");
+        SourceFile caller = source("Caller", "class Caller { int call() { return new Answer().value() } }");
+        SourceFile answer = source("Answer", "class Answer { int value() { return 42 } }");
         List<SourceFile> sources = List.of(caller, answer);
         AccentCompiler compiler = new AccentCompiler();
 
@@ -29,7 +29,7 @@ class MultiFileCheckTest {
     @Test
     void keepsSemanticDiagnosticsOnTheFailingFile() {
         SourceFile good = source("Good", "class Good {}");
-        SourceFile broken = source("Broken", "class Broken { void run() { final value = 1; value = 2; } }");
+        SourceFile broken = source("Broken", "class Broken { void run() { final value = 1 value = 2 } }");
         AccentCompiler compiler = new AccentCompiler();
 
         var perFile = compiler.checkEach(List.of(good, broken));
@@ -45,7 +45,7 @@ class MultiFileCheckTest {
     @Test
     void keepsLexicalAndParserDiagnosticsOnTheirSources() {
         SourceFile lexical = source("Lexical", "class Lexical { # }");
-        SourceFile syntax = source("Syntax", "class Syntax { int value = ; }");
+        SourceFile syntax = source("Syntax", "class Syntax { int value =  }");
         SourceFile good = source("Good", "class Good {}");
 
         var perFile = new AccentCompiler().checkEach(List.of(lexical, syntax, good));
