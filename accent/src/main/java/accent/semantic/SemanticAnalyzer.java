@@ -1488,6 +1488,21 @@ public final class SemanticAnalyzer implements ImportResolver {
                 }
 
                 if (mInfo != null) {
+                    if (!symbolTable.isAccentMember(symbolTable.declaringOwner(mInfo))
+                            && mc.arguments().stream().noneMatch(arg -> arg instanceof NamedArgExpr)) {
+                        List<SymbolTable.MethodInfo> candidates = rec.info().findAllMethods(mc.methodName(), symbolTable);
+                        if (candidates.stream().noneMatch(method -> symbolTable.acceptsJavaArguments(method, argTypes))) {
+                            String actual = String.join(", ", argTypes.stream()
+                                    .map(t -> t == null ? "unknown" : t.toString()).toList());
+                            String expected = candidates.stream().map(method -> "(" + String.join(", ",
+                                    java.util.stream.IntStream.range(0, method.parameters().size())
+                                            .mapToObj(i -> symbolTable.resolveParameterType(method, i).toString()
+                                                    + (method.parameters().get(i).isVarargs() ? "..." : "")).toList()) + ")")
+                                    .distinct().sorted().collect(java.util.stream.Collectors.joining(" or "));
+                            error(mc.token(), "No overload of '" + rec.info().fullName() + "." + mc.methodName()
+                                    + "' accepts argument types (" + actual + "). Expected " + expected + ".");
+                        }
+                    }
                     if (mc.receiver() == null && !mInfo.modifiers().contains("static")) {
                         error(mc.token(), "Call to instance method '" + mc.methodName()
                                 + "' must be explicitly qualified with '" + requiredQualifier(symbolTable.declaringOwner(mInfo)) + "'.");

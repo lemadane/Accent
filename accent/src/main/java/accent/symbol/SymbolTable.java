@@ -318,6 +318,58 @@ public final class SymbolTable {
         return false;
     }
 
+    /** Check Java invocation shapes without imposing Accent's nullability contracts.
+     * Generic variables and contextual expressions may still need javac's inference. */
+    public boolean acceptsJavaArguments(MethodInfo method, List<ResolvedType> arguments) {
+        List<Parameter> parameters = method.parameters();
+        boolean varargs = !parameters.isEmpty() && parameters.getLast().isVarargs();
+        int fixed = parameters.size() - (varargs ? 1 : 0);
+        if (arguments.size() < fixed || !varargs && arguments.size() != fixed) return false;
+        for (int i = 0; i < fixed; i++)
+            if (!javaArgumentCompatible(arguments.get(i), resolveParameterType(method, i))) return false;
+        if (!varargs) return true;
+        ResolvedType element = resolveParameterType(method, fixed);
+        if (arguments.size() == parameters.size()) {
+            ResolvedType array = new ResolvedType(element.info(), false, List.of(), element.arrayDimensions() + 1);
+            if (javaArgumentCompatible(arguments.get(fixed), array)) return true;
+        }
+        for (int i = fixed; i < arguments.size(); i++)
+            if (!javaArgumentCompatible(arguments.get(i), element)) return false;
+        return true;
+    }
+
+    private boolean javaArgumentCompatible(ResolvedType argument, ResolvedType parameter) {
+        if (argument == null || parameter == null) return true;
+        if (!argument.alternatives().isEmpty())
+            return argument.alternatives().stream().allMatch(t -> javaArgumentCompatible(t, parameter));
+        ResolvedType actual = new ResolvedType(argument.info(), false, List.of(), argument.arrayDimensions());
+        ResolvedType expected = new ResolvedType(parameter.info(), false, List.of(), parameter.arrayDimensions());
+        if (isInvocationCompatible(actual, expected)) return true;
+        // Java permits unboxing followed by any widening primitive conversion.
+        if (expected.isPrimitive() && actual.arrayDimensions() == 0) {
+            String source = actual.info().fullName();
+            source = switch (source) {
+                case "java.lang.Byte" -> "byte";
+                case "java.lang.Short" -> "short";
+                case "java.lang.Character" -> "char";
+                case "java.lang.Integer" -> "int";
+                case "java.lang.Long" -> "long";
+                case "java.lang.Float" -> "float";
+                default -> source;
+            };
+            String target = expected.info().fullName();
+            return switch (source) {
+                case "byte" -> Set.of("short", "int", "long", "float", "double").contains(target);
+                case "short", "char" -> Set.of("int", "long", "float", "double").contains(target);
+                case "int" -> Set.of("long", "float", "double").contains(target);
+                case "long" -> Set.of("float", "double").contains(target);
+                case "float" -> target.equals("double");
+                default -> false;
+            };
+        }
+        return false;
+    }
+
     public MemberOwner declaringOwner(FieldInfo field) {
         return fieldOwners.get(field);
     }
